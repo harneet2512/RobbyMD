@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "groundtruth-clinical-substrate"
+version = "0.0.1"
+description = "Research prototype — not a medical device. Live clinical reasoning substrate with claim lifecycle, deterministic differential engine, and counterfactual verifier. Built for Built with Opus 4.7 Hackathon."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "hack_it" }]
+keywords = ["clinical-decision-support", "llm", "memory", "substrate", "fda-non-device-cds"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+# Runtime deps. All must be OSI-approved (rules.md §1.2); tests/licensing/test_open_source.py enforces.
+# Claude Opus 4.7 / Anthropic API is the hackathon's named sponsored tool — explicitly exempt.
+dependencies = [
+    "anthropic>=0.39",      # Anthropic Python SDK (MIT; sponsored-tool exempt)
+    "pydantic>=2.5",        # data models (MIT)
+    "structlog>=24.1",      # structured logging per CLAUDE.md §8 (Apache-2.0 / MIT dual)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-xdist>=3",
+    "ruff>=0.5",
+    "pyright>=1.1.300",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501"]  # handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pyright]
+include = ["src", "tests", "eval"]
+strict = ["src", "tests"]
+pythonVersion = "3.11"
+reportMissingImports = "error"
+reportMissingTypeStubs = "none"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "e2e: end-to-end integration tests",
+]

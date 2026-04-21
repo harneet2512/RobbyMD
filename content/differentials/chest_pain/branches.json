@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_comment": "Placeholder. Real tree structure to be authored by wt-trees worktree per Eng_doc.md §4.3 and §5.4. Four branches with nodes + features; each feature keyed to the LR table.",
+  "_synthetic": "SYNTHETIC — clinical content only; no real patient data.",
+  "version": "0.0.1",
+  "chief_complaint": "chest_pain",
+  "branches": [
+    {"id": "cardiac", "label": "Cardiac", "nodes": []},
+    {"id": "pulmonary", "label": "Pulmonary", "nodes": []},
+    {"id": "msk", "label": "Musculoskeletal", "nodes": []},
+    {"id": "gi", "label": "GI", "nodes": []}
+  ]
+}

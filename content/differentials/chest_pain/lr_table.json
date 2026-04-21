@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_comment": "Placeholder. Real LR table authored by wt-trees worktree per Eng_doc.md §4.4 and rules.md §4.4 / §7.2. Every row must have a peer-reviewed citation; approximations flagged with approximation=true. Primary source: AAFP 2013 'Outpatient Diagnosis of Acute Chest Pain' (open) + HEART/TIMI/Wells/PERC primary papers + 2021 AHA/ACC Chest Pain Guideline (open).",
+  "_synthetic": "SYNTHETIC — clinical content only; no real patient data.",
+  "version": "0.0.1",
+  "entries": []
+}

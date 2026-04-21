@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+.mypy_cache/
+
+# Virtualenvs
+env/
+venv/
+.venv/
+ENV/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.turbo/
+.next/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Claude Code local tooling (737 MB of skills, plus user-local settings).
+# Project-shared config belongs in .claude/settings.json if needed — not gitignored.
+.claude/skills/
+.claude/backups/
+.claude/cache/
+.claude/debug/
+.claude/settings.local.json
+
+# Env + secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Databases (run-time; never commit)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Model + dataset caches (never commit)
+.cache/
+.hf_cache/
+.torch/
+models/
+eval/**/data/
+eval/reports/*/
+
+# Logs
+*.log
+logs/
