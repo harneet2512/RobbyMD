@@ -1,0 +1,14 @@
+{
+  "_synthetic": "SYNTHETIC — hand-crafted chest-pain mid-case active-claim set for unit + property tests. No real patient data (rules.md §2.2).",
+  "_comment": "Demo beat: 52-year-old reports exertional chest pain radiating to left arm with diaphoresis, prior CAD and smoker. No pleuritic component; no reproducibility with palpation. Cardiac leads; Pulmonary and GI are plausibly tied in the back of the race. Used by tests/unit/differential and tests/property/test_determinism.py.",
+  "session_id": "sess_chest_pain_mid_01",
+  "active_claims": [
+    {"claim_id": "c01", "predicate_path": "aggravating_factor=exertion", "polarity": true, "confidence": 0.9, "source_turn_id": "t03"},
+    {"claim_id": "c02", "predicate_path": "radiation=left_arm", "polarity": true, "confidence": 0.88, "source_turn_id": "t04"},
+    {"claim_id": "c03", "predicate_path": "associated_symptom=diaphoresis", "polarity": true, "confidence": 0.82, "source_turn_id": "t05"},
+    {"claim_id": "c04", "predicate_path": "medical_history=coronary_artery_disease", "polarity": true, "confidence": 0.95, "source_turn_id": "t07"},
+    {"claim_id": "c05", "predicate_path": "social_history=current_smoker", "polarity": true, "confidence": 0.9, "source_turn_id": "t08"},
+    {"claim_id": "c06", "predicate_path": "aggravating_factor=inspiration", "polarity": false, "confidence": 0.85, "source_turn_id": "t09"},
+    {"claim_id": "c07", "predicate_path": "alleviating_factor=palpation", "polarity": false, "confidence": 0.8, "source_turn_id": "t10"}
+  ]
+}
