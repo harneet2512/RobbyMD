@@ -9,7 +9,7 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 ## Rolling state (edit in place)
 
 - **Date**: 2026-04-21
-- **Phase**: Research — supplementary Researcher A (ASR stack) + B (Clinical chest pain LR expansion) pending dispatch; Validator gated on both; no worktree agents running.
+- **Phase**: Research — Researcher A + B complete; Validator complete → **gate FAIL (8 attribution blockers)**; no worktree agents running until blockers patched.
 - **Main commit**: `090c799` (scaffold: initial repo layout, compliance tests, research docs)
 - **Worktrees** (all idle at `090c799`):
   - `D:\hack_it` — main (human operator)
@@ -25,7 +25,7 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
   - `tests/licensing/test_open_source.py` — OSI allowlist, green (no deps beyond OSI)
   - `tests/privacy/test_no_phi.py` — PHI sentinel, green
   - `tests/property/test_determinism.py` — xfail (awaiting differential engine)
-- **Next decision**: user reviews `research/validation_report.md` after researchers + validator complete, then approves worktree dispatch.
+- **Next decision**: Researcher B patches the 7 clinical-citation blockers (sources.md + lr_table.json), Researcher A patches the 1 ASR-citation blocker (asr_stack.md), then re-submit for targeted re-validation (Check 1 + Check 2 only). After that, user approves worktree dispatch.
 
 ---
 
@@ -89,3 +89,19 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - Spot-check: 5 LR values directly quoted from sources in the brief's §5 (HEART 7-10 / LR+ 13.0, GERD composite rule / LR+ 3.1 LR- 0.30, pneumonia egophony / LR+ 8.6, Wells-high / LR+ 5.59, PERC-negative / LR- 0.17).
 - Verifier implications documented for all four top-2 pairings; asymmetric-LR features (pleuritic pain cardiac-vs-pulm, palpation-reproducibility cardiac-vs-msk) identified as highest-information-gain discriminators for `src/verifier/`.
 - Reasons appended to `reasons.md`: imaging-based LRs (pneumothorax exam-finding LRs not peer-reviewed-pooled; any pneumonia-CXR findings are imaging per rules.md §3.2) and paywalled-source verbatim paraphrase (Panju 1998 JAMA full text, Bruyninckx 2008 BJGP full text, ACG 2022 GERD full text — values cited via open-access secondary sources only per rules.md §7.1).
+
+### 2026-04-21 — Validator complete
+- Report: `research/validation_report.md` (~2770 words, under 3000 ceiling).
+- **Blocker count: 8** — all attribution/citation errors, fixable in ~1 hour:
+  1. `sources.md` `cremonini_2005_meta` — wrong journal (says *Aliment Pharmacol Ther*; actually *Am J Gastroenterol*) and wrong DOI (resolves to unrelated van Kerkhoven 2005).
+  2. `lr_table.json` `relief_with_antacids` `source_url` PMID 15956000 is Wang 2005 Arch Intern Med, not Cremonini.
+  3. `lr_table.json` `pain_reproducible_with_palpation`, `younger_age_lt_40`, `no_exertional_pattern` — `source_url` PMC4617269 is Haasenritter 2015, not Bösner 2010.
+  4. `sources.md` `aafp_2020_chestpain` authors wrong (actual: McConaghy/Sharma/Patel, not Johnson/Ghassemzadeh).
+  5. `sources.md` `aafp_2021_costochondritis` authors wrong (actual: Mott/Jones/Roman, not Schumann/Parente).
+  6. `sources.md` `liu_jeccm_2021` wrong year (2018 not 2021) and wrong scope (HEART/TIMI/GRACE/HRV, not Wells/PERC).
+  7. `asr_stack.md` Source [8] arXiv 2502.11572 authors wrong (actual: Jogi et al., not Chen et al.).
+  8. `asr_stack.md` Whisper large-v3 licence stated as MIT; actually Apache-2.0 (both OSI-allowed).
+- **Warn count: 6** — CC-BY-4.0 R1 (already escalated), AAFP "open access" phrasing, 4 paywall-gated LR values requiring human click-through, `cough` approximation rationale thin, `msk` branch at exactly 15 rows (no headroom).
+- Schema / predicate-family / branch-count / OSI allowlist / `reasons.md` consistency all PASS.
+- **Gate: FAIL** — blockers must be fixed before worktree dispatch. Post-fix posture: PASS-WITH-WARNS conditional on CC-BY-4.0 ADR + human paywall verification.
+- New rejections appended to `reasons.md`: mis-DOI for Cremonini (wrong-DOI-as-citation pattern), PMC4617269 as Bösner proxy (wrong-PMC-as-citation).
