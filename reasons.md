@@ -60,3 +60,38 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Rejected**: downloading only `MRCONSO.RRF` (472 MB) to minimise install time.
 - **Reason**: MRCONSO carries names + codes but **not MRSTY** (semantic types). MEDCON's semantic-group filtering (Anatomy, Chemicals & Drugs, Device, Disorders, Genes & Molecular Sequences, Phenomena, Physiology) requires MRSTY. MRCONSO alone is insufficient. Smallest valid target = Level 0 Subset (1.8 GB compressed / 10.3 GB uncompressed).
 - **Citation**: [UMLS Knowledge Sources page](https://www.nlm.nih.gov/research/umls/licensedcontent/umlsknowledgesources.html); ACI-Bench official evaluation script in `github.com/wyim/aci-bench/evaluation/`.
+
+### Diariser: pyannote `speaker-diarization-3.1`
+- **Rejected**: using the `pyannote/speaker-diarization-3.1` Hugging Face model as the WhisperX diariser backend.
+- **Reason**: the 3.1 checkpoint is gated behind pyannote's HF user-terms acceptance flow and is not distributed under an OSI-compatible licence. WhisperX 3.8.5 now defaults to `pyannote/speaker-diarization-community-1` (CC-BY-4.0), which is the correct target — though CC-BY-4.0 itself requires an ADR to be added to the `rules.md` §1.2 model-weights allowlist. See `research/asr_stack.md` §R1.
+- **Citation**: [WhisperX README (v3.8.5)](https://github.com/m-bain/whisperX); [pyannote/speaker-diarization-community-1 model card](https://huggingface.co/pyannote/speaker-diarization-community-1).
+
+### ASR inference engine: `whisper.cpp` as primary
+- **Rejected**: using `whisper.cpp` (MIT) as the primary inference engine in place of `faster-whisper` / CTranslate2.
+- **Reason**: `whisper.cpp` is optimised for CPU-only / Apple-Silicon laptop deployments (OpenWhispr uses it for exactly that reason [OpenWhispr README](https://github.com/openwhispr/openwhispr)). Our deployment target per `Eng_doc.md` §9 is a 16–24 GB NVIDIA GPU workstation, where CTranslate2 INT8_FLOAT16 is ~2.3× faster than openai-whisper on large-v2 GPU inference ([SYSTRAN benchmarks](https://github.com/SYSTRAN/faster-whisper)). Keeping `whisper.cpp` on the shelf as an offline-only rehearsal fallback is acceptable; it is not primary.
+- **Citation**: [faster-whisper README benchmarks](https://github.com/SYSTRAN/faster-whisper); [whisper.cpp README](https://github.com/ggerganov/whisper.cpp).
+
+### Integration: copying code from OpenWhispr
+- **Rejected**: lifting audio-ring-buffer / hotkey-capture / streaming-chunker code from `openwhispr/openwhispr` (MIT).
+- **Reason**: even MIT-licensed code is disallowed per `rules.md` §1.1 — all code must be written during the hackathon window. OpenWhispr is a reference for the "separate VAD process + ring buffer + ASR worker" architectural pattern only, not a code source. Pattern is generic and does not need to be copied.
+- **Citation**: [`rules.md` §1.1](../rules.md); [OpenWhispr repo](https://github.com/openwhispr/openwhispr).
+
+### ASR prompt length: `initial_prompt` >224 tokens
+- **Rejected**: using `initial_prompt` strings longer than ~224 tokens with faster-whisper 1.2.1.
+- **Reason**: Whisper's decoder context is 448 tokens total. `faster-whisper.transcribe` raises ValueError if `prompt_tokens + max_new_tokens > 448` ([implementation](https://github.com/SYSTRAN/faster-whisper/blob/master/faster_whisper/transcribe.py)). A 5 s utterance at normal speech rate generates ~60–150 tokens; we reserve half the budget (~224 tokens) for the prompt to guarantee no truncation of output. Anecdotal community evidence also suggests biasing returns diminish beyond ~200 tokens.
+- **Citation**: [faster-whisper transcribe.py](https://github.com/SYSTRAN/faster-whisper/blob/master/faster_whisper/transcribe.py); Whisper paper, [arXiv 2212.04356](https://arxiv.org/abs/2212.04356).
+
+### LR table: pneumothorax individual-finding LRs
+- **Rejected**: including pneumothorax physical-exam findings (tachycardia, absent breath sounds, hyperresonance) as rows in the chest-pain LR table.
+- **Reason**: systematic search (WebSearch 2026-04-21) returned no peer-reviewed pooled LR+ / LR- for these individual pneumothorax clinical findings. All reported sensitivities and specificities are either for imaging (ultrasound 94% sensitivity / 100% specificity — falls under `rules.md` §3.2 forbidden imaging inputs) or narrative clinical descriptions without pooled LR statistics. Inclusion would violate `rules.md` §4.4 (every LR cited) and §7.4 (no attribution hallucination).
+- **Citation**: WebSearch queries 2026-04-21 against StatPearls, Medscape, and PubMed for "pneumothorax likelihood ratio"; `rules.md` §3.2, §4.4, §7.4.
+
+### LR table: paywalled-source verbatim paraphrase
+- **Rejected**: paraphrasing specific wording from Panju 1998 JAMA (AMI rational clinical examination), Bruyninckx 2008 BJGP (chest-wall rule primary), and ACG 2022 GERD guideline full-text.
+- **Reason**: all three sit behind institutional paywalls. Per `rules.md` §7.1, verbatim or close-paraphrase reproduction of paywalled content is not permitted. Pooled LR values from these sources are cited via the open-access secondary summaries (AAFP 2013, AAFP 2020, fanaroff_jama_2015 which re-pools Panju 1998 values for many ACS features). Where the secondary source doesn't carry the primary value, the row is flagged `approximation: true`.
+- **Citation**: `rules.md` §7.1; [AAFP 2013 Table 1](https://www.aafp.org/pubs/afp/issues/2013/0201/p177.html); [Fanaroff 2015 JAMA abstract](https://jamanetwork.com/journals/jama/article-abstract/2468896).
+
+### LR table: Ohle 2018 aortic-dissection LR revision
+- **Rejected**: replacing the Klompas 2002 JAMA pulse-deficit LR+ 5.7 with the Ohle 2018 Academic Emergency Medicine revised LR+ 2.48.
+- **Reason**: Klompas 2002 is the established JAMA Rational Clinical Examination pooled estimate and the value cited by AAFP 2013 (chest/back pain + pulse differential LR+ 5.3, similar magnitude). Ohle 2018 is a more recent meta-analysis but is behind a Wiley paywall (WebFetch returned 403). Until the human reviewer can access and approve the Ohle numbers, keeping the Klompas value is the conservative rules-compliant choice. Flagged as an open question in `research/clinical_chest_pain.md` §8-Q4.
+- **Citation**: [Klompas 2002 JAMA abstract](https://pubmed.ncbi.nlm.nih.gov/11980527/); [Ohle 2018 ACEM abstract](https://onlinelibrary.wiley.com/doi/10.1111/acem.13360) (paywalled).

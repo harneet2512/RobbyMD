@@ -66,3 +66,26 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - Plan file saved at `C:\Users\Lenovo\.claude-work\plans\noble-floating-knuth.md` (Plan Mode exit, user-approved).
 - Wrote `progress.md` (this file), `reasons.md`, `.env.example`, ADRs for Opus API compliance and MEDCON tiered fallback.
 - Dispatching supplementary Researcher A (ASR stack) + Researcher B (Clinical chest pain LR expansion) next; Validator gated on both.
+
+### 2026-04-21 — Researcher A complete
+- File: `D:\hack_it\research\asr_stack.md`
+- Word count: 2511 (under 3000 ceiling)
+- Citations: 16 unique numbered sources, 40 in-text uses (every factual claim carries one)
+- Open questions: 7
+- Key deltas surfaced for human decision:
+  - Stack pinned: faster-whisper 1.2.1 (MIT) + whisperX 3.8.5 (BSD-2-Clause) + distil-large-v3 (MIT) + silero-vad 5 (MIT); all versions verified against PyPI / upstream repos 2026-04-21.
+  - **New escalation (R1)**: pyannote `speaker-diarization-community-1` model weights are CC-BY-4.0, which is not on the `rules.md` §1.2 OSI allowlist. ADR needed before wt-extraction can commit the diariser. Fallback candidates: NVIDIA NeMo Sortformer (Apache-2.0) or drop diarisation for demo.
+  - Medical-term WER: distinguished published fine-tuned biasing numbers (arXiv 2502.11572) from our prompt-only expectation — no prompt-only medical-domain ablation exists in peer-reviewed literature; our 3–8 pp target is a hypothesis to be verified in `docs/asr_benchmark.md` (per `CLAUDE.md` §5.2).
+  - Vocabulary sources resolved with licences: MedlinePlus (public domain), RxNorm (PD content, UMLS licence for full dump), ICD-10-CM (public domain), SNOMED-CT US (UMLS + Affiliate, **no redistribution of strings**), AHA/ACC 2021 (open-access guideline).
+- Reasons appended to `reasons.md`: pyannote 3.1 (gated HF model), whisper.cpp as primary inference engine, raw OpenWhispr code copy, initial_prompt length >224 tokens.
+
+### 2026-04-21 — Researcher B complete
+- Brief: `research/clinical_chest_pain.md` (~2.8k words).
+- LR table: `content/differentials/chest_pain/lr_table.json` (replaced placeholder) — **79 entries** across cardiac (28), pulmonary (20), msk (15), gi (16). All branches meet ≥15-per-branch minimum; total exceeds the ≥60 requirement.
+- Citations: `content/differentials/chest_pain/sources.md` extended from 7 → **22 keys**, all with DOI/URL. Added: aafp_2020_chestpain, aafp_2017_pleuritic, aafp_2021_costochondritis, fanaroff_jama_2015, panju_jama_1998, klompas_jama_2002, west_qjm_2007, heart_score_backus_2013, bosner_2010_marburg, bmc_pulm_2025, perc_meta_2012, bruyninckx_2008, cremonini_2005_meta, frieling_2013_bmc, acg_gerd_2022, primary_care_musculoskeletal_review_2013.
+- Approximations: 36/79 rows carry `approximation: true`, all with defensible cited-adjacent rationale in `notes`. **No invented values.**
+- Weak-coverage branches flagged: **msk** (3/15 directly-pooled LRs — Bruyninckx 2008 4-factor rule publishes composite only; individual-factor LRs approximated) and **gi** (5/16 directly-pooled — most single-feature LRs under the AAFP composite GERD rule approximated). Cardiac (19/28 pooled) and pulmonary (12/20 pooled) are **strong**.
+- Open questions: **5** — panic-disorder branch placement, Marburg-vs-HEART default, MSK approximation density, Klompas vs Ohle aortic-dissection LR preference, validator strictness on approximations.
+- Spot-check: 5 LR values directly quoted from sources in the brief's §5 (HEART 7-10 / LR+ 13.0, GERD composite rule / LR+ 3.1 LR- 0.30, pneumonia egophony / LR+ 8.6, Wells-high / LR+ 5.59, PERC-negative / LR- 0.17).
+- Verifier implications documented for all four top-2 pairings; asymmetric-LR features (pleuritic pain cardiac-vs-pulm, palpation-reproducibility cardiac-vs-msk) identified as highest-information-gain discriminators for `src/verifier/`.
+- Reasons appended to `reasons.md`: imaging-based LRs (pneumothorax exam-finding LRs not peer-reviewed-pooled; any pneumonia-CXR findings are imaging per rules.md §3.2) and paywalled-source verbatim paraphrase (Panju 1998 JAMA full text, Bruyninckx 2008 BJGP full text, ACG 2022 GERD full text — values cited via open-access secondary sources only per rules.md §7.1).
