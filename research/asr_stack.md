@@ -31,7 +31,7 @@ mic (synthetic only, rules.md §2.1)
   │
   ▼
 [Primary ASR]                faster-whisper 1.2.1 (MIT) [3]
-  │ Whisper large-v3 (MIT) [4], CTranslate2 INT8_FLOAT16
+  │ Whisper large-v3 (Apache-2.0) [4], CTranslate2 INT8_FLOAT16
   │ initial_prompt = medical vocab bias string (§4)
   │ beam_size=5, vad_filter=False (handled upstream)
   │
@@ -72,7 +72,7 @@ mic (synthetic only, rules.md §2.1)
 | `whisperx` | 3.8.5 | BSD-2-Clause | [6] |
 | `pyannote.audio` | 3.3.x (as pinned by WhisperX 3.8.5) | MIT | [7] |
 | `silero-vad` | 5.x | MIT | [2] |
-| `openai-whisper` large-v3 weights | — | MIT | [4] |
+| `openai-whisper` large-v3 weights | — | Apache-2.0 | [4] |
 | `distil-whisper/distil-large-v3` weights | — | MIT | [5] |
 
 pyannote speaker-diarization-community-1 **model weights** are CC-BY-4.0 [6]. CC-BY-4.0 is OSI-compatible for attribution-preserving redistribution; we treat it as model data (not code) and attribute in `SYNTHETIC_DATA.md` and UI credits. No gated pyannote-3.1 weights are used.
@@ -176,11 +176,11 @@ Exact wording to be tuned empirically (see Open Questions §7).
 1. SYSTRAN faster-whisper benchmarks — https://github.com/SYSTRAN/faster-whisper (README "Benchmarks" section, v1.2.1, accessed 2026-04-21). License: MIT.
 2. silero-vad — https://github.com/snakers4/silero-vad. License: MIT.
 3. faster-whisper 1.2.1 — https://pypi.org/project/faster-whisper/ and https://github.com/SYSTRAN/faster-whisper/blob/master/faster_whisper/transcribe.py (initial_prompt implementation). License: MIT. Accessed 2026-04-21.
-4. Whisper large-v3 — https://huggingface.co/openai/whisper-large-v3. License: MIT. Radford et al., "Robust Speech Recognition via Large-Scale Weak Supervision", arXiv 2212.04356.
+4. Whisper large-v3 — https://huggingface.co/openai/whisper-large-v3. License: Apache-2.0. Radford et al., "Robust Speech Recognition via Large-Scale Weak Supervision", arXiv 2212.04356.
 5. distil-whisper/distil-large-v3 — https://huggingface.co/distil-whisper/distil-large-v3. License: MIT. Claim: 6.3× faster than large-v3, within 1 pp long-form WER. Gandhi et al., "Distil-Whisper: Robust Knowledge Distillation via Large-Scale Pseudo Labelling", arXiv 2311.00430.
 6. WhisperX 3.8.5 — https://github.com/m-bain/whisperX. License: BSD-2-Clause. Bain et al., "WhisperX: Time-Accurate Speech Transcription of Long-Form Audio", Interspeech 2023, arXiv 2303.00747. Uses `pyannote/speaker-diarization-community-1` (CC-BY-4.0).
 7. pyannote.audio — https://github.com/pyannote/pyannote-audio. Library: MIT. Bredin, "pyannote.audio 2.1 speaker diarization pipeline", Odyssey 2023.
-8. Chen et al., "Improving Rare-Word Recognition of Whisper in Zero-Shot Settings" — arXiv 2502.11572, IEEE SLT 2024. https://arxiv.org/abs/2502.11572.
+8. Jogi, Aggarwal, Nair, Verma, Kubba, "Improving Rare-Word Recognition of Whisper in Zero-Shot Settings" — arXiv 2502.11572, IEEE SLT 2024. https://arxiv.org/abs/2502.11572.
 9. MultiMed medical ASR benchmark — arXiv 2409.14074. https://arxiv.org/abs/2409.14074.
 10. MedlinePlus developer services — https://medlineplus.gov/about/developers/ and https://medlineplus.gov/about/developers/webservicesdocumentation/.
 11. RxNorm — https://www.nlm.nih.gov/research/umls/rxnorm/index.html and https://www.nlm.nih.gov/research/umls/rxnorm/docs/termsofservice.html. RxNorm content is public domain; full-file download requires UMLS licence.

@@ -36,7 +36,7 @@
       "source": "aafp_2013_chestpain Table 1 (AMI)",
       "source_url": "https://www.aafp.org/pubs/afp/issues/2013/0201/p177.html",
       "approximation": true,
-      "notes": "Approximation: AAFP 2013 cites radiation to left arm (Swap JAMA 2005) with LR+ ~2.3; exact value varies 1.3-2.2 across primary studies (Panju 1998 pooled 2.3). Kept conservative."
+      "notes": "Approximation: Panju 1998 JAMA pooled LR+ 2.3 (sensitivity 36%, specificity 84%) — range 1.3-2.2 across primary studies (Swap 2005, Goodacre 2002) per Panju 1998 Table 3. AAFP 2013 Table 1 cites LR+ ~2.3 via Swap JAMA 2005."
     },
     {
       "branch": "cardiac",
@@ -553,7 +553,7 @@
       "lr_plus": 2.8,
       "lr_minus": null,
       "source": "bosner_2010_marburg (INTERCHEST rule primary)",
-      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/",
+      "source_url": "https://doi.org/10.1503/cmaj.100212",
       "approximation": true,
       "notes": "Palpation-reproducible pain is a strong MSK indicator; single-feature LR+ ~2.8 estimated from Bösner 2010 primary-care chest-pain prevalence data. AAFP 2013 reports the combined rule only. Approximation — defended against invented status by consistency with Swap 2005 LR- 0.2-0.4 for MI."
     },
@@ -674,7 +674,7 @@
       "lr_plus": 2.0,
       "lr_minus": null,
       "source": "bosner_2010_marburg (age is inverse of MHS age criterion)",
-      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/",
+      "source_url": "https://doi.org/10.1503/cmaj.100212",
       "approximation": true,
       "notes": "Younger age (<40) reduces prior for CAD; reciprocally raises prior for MSK. LR+ ~2.0 approximation from Marburg age criterion (M>55, F>65 contributes 1pt; younger below cutoff shifts weight off CAD)."
     },
@@ -696,7 +696,7 @@
       "lr_plus": 1.8,
       "lr_minus": null,
       "source": "bosner_2010_marburg",
-      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/",
+      "source_url": "https://doi.org/10.1503/cmaj.100212",
       "approximation": true,
       "notes": "Absence of exertional trigger — reciprocal of Marburg criterion. LR+ ~1.8 approximation for MSK."
     },
@@ -763,7 +763,7 @@
       "lr_plus": 2.5,
       "lr_minus": null,
       "source": "cremonini_2005_meta (GI-relief context)",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/15956000/",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/15929749/",
       "approximation": true,
       "notes": "Antacid relief favours GERD. LR+ ~2.5 approximation — not equivalent to formal PPI trial. Flagged."
     },

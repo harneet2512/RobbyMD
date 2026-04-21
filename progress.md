@@ -105,3 +105,20 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - Schema / predicate-family / branch-count / OSI allowlist / `reasons.md` consistency all PASS.
 - **Gate: FAIL** — blockers must be fixed before worktree dispatch. Post-fix posture: PASS-WITH-WARNS conditional on CC-BY-4.0 ADR + human paywall verification.
 - New rejections appended to `reasons.md`: mis-DOI for Cremonini (wrong-DOI-as-citation pattern), PMC4617269 as Bösner proxy (wrong-PMC-as-citation).
+
+### 2026-04-21 — Blocker fixes applied (main thread)
+- All 8 validation BLOCKERS fixed in-place (main thread, not re-spawned researchers):
+  1. `sources.md cremonini_2005_meta` → corrected journal (Am J Gastroenterol), DOI (10.1111/j.1572-0241.2005.41657.x), PMID 15929749, and full author slate (Cremonini, Wise, Moayyedi, Talley).
+  2. `lr_table.json relief_with_antacids source_url` → PMID 15956000 (Wang 2005) replaced by PMID 15929749 (correct Cremonini).
+  3. `lr_table.json` 3 rows (`pain_reproducible_with_palpation`, `younger_age_lt_40`, `no_exertional_pattern`) `source_url` → PMC4617269 (Haasenritter 2015) replaced by https://doi.org/10.1503/cmaj.100212 (correct Bösner 2010 CMAJ).
+  4. `sources.md aafp_2020_chestpain` + `research/clinical_chest_pain.md §4` authors → Johnson/Ghassemzadeh → McConaghy, Sharma & Patel.
+  5. `sources.md aafp_2021_costochondritis` + `research/clinical_chest_pain.md §4` authors → Schumann/Parente → Mott, Jones & Roman.
+  6. `sources.md liu_jeccm_2021` → renamed to `liu_jeccm_2018`, scope fixed (HEART/TIMI/GRACE/HRV, not Wells/PERC). No `lr_table.json` row cites this key directly.
+  7. `asr_stack.md` Source [8] (arXiv 2502.11572) authors → Chen et al. → Jogi, Aggarwal, Nair, Verma, Kubba.
+  8. `asr_stack.md` §2.3 + Source [4] + pipeline diagram — Whisper large-v3 licence → MIT → Apache-2.0.
+- Also fixed `research/clinical_chest_pain.md §4` cremonini row (journal).
+- WARN #4 `lr_table.json radiation_left_arm` "Kept conservative" phrasing → tightened to explicit Panju 1998 sensitivity/specificity citation.
+- WARN #2 AAFP "open access" phrasing → "Free-to-read (AAFP copyright)" across all 4 AAFP entries in `sources.md`.
+- WARN #1 CC-BY-4.0 pyannote → ADR drafted at `docs/decisions/2026-04-21_pyannote-ccby40-model-weights.md` (status: PROPOSED; awaiting human operator to patch `rules.md §1.2` or elect NeMo Sortformer swap).
+- Remaining WARNs (4 paywall-gated LR click-through verifications, cough approximation rationale, msk at exactly 15 rows) deferred to human review; non-blocking.
+- **Revised gate posture: PASS-WITH-WARNS** pending either the CC-BY-4.0 ADR acceptance (unblocking wt-extraction diariser) or explicit deferral of diariser until the ADR lands.

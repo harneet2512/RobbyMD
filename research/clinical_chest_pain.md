@@ -126,9 +126,9 @@ See `content/differentials/chest_pain/sources.md` for the canonical list — mir
 | Key | Short citation | Venue / year |
 |---|---|---|
 | aafp_2013_chestpain | McConaghy & Oza, *Outpatient Diagnosis of Acute Chest Pain* | AFP 87(3):177-182, 2013 |
-| aafp_2020_chestpain | Johnson & Ghassemzadeh, *Acute Chest Pain in Adults: Outpatient Evaluation* | AFP 102(12):721-727, 2020 |
+| aafp_2020_chestpain | McConaghy, Sharma & Patel, *Acute Chest Pain in Adults: Outpatient Evaluation* | AFP 102(12):721-727, 2020 |
 | aafp_2017_pleuritic | Reamy et al., *Pleuritic Chest Pain: Sorting Through the Differential Diagnosis* | AFP 96(5):306-312, 2017 |
-| aafp_2021_costochondritis | Schumann & Parente, *Costochondritis: Rapid Evidence Review* | AFP 104(1):73-78, 2021 |
+| aafp_2021_costochondritis | Mott, Jones & Roman, *Costochondritis: Rapid Evidence Review* | AFP 104(1):73-78, 2021 |
 | aha_acc_2021_chestpain | Gulati et al., 2021 AHA/ACC Chest Pain Guideline | Circulation 144:e368-e454 |
 | fanaroff_jama_2015 | Fanaroff, Rymer, Goldstein, Simel, Newby — *Does This Patient With Chest Pain Have ACS?* | JAMA 314(18):1955-1965 |
 | panju_jama_1998 | Panju, Hemmelgarn, Guyatt, Simel — *Is this patient having a myocardial infarction?* | JAMA 280(14):1256-1263 |
@@ -143,7 +143,7 @@ See `content/differentials/chest_pain/sources.md` for the canonical list — mir
 | perc_2004 | Kline et al. — PERC rule derivation | J Thromb Haemost 2:1247-1255 |
 | perc_meta_2012 | Singh et al. — PERC meta-analysis | Ann Emerg Med 59:517-520 |
 | bruyninckx_2008 | Bruyninckx et al. — chest-wall 4-factor rule | Br J Gen Pract 58:105-111 |
-| cremonini_2005_meta | Cremonini et al. — PPI trial meta-analysis for noncardiac chest pain | Aliment Pharmacol Ther 21:1457-1466 |
+| cremonini_2005_meta | Cremonini, Wise, Moayyedi, Talley — PPI meta-analysis for non-cardiac chest pain | Am J Gastroenterol 100(6):1226-1232, 2005 |
 | frieling_2013_bmc | Frieling et al. — non-cardiovascular chest pain systematic review | BMC Med 11:239 |
 | acg_gerd_2022 | Katz et al. — ACG GERD Clinical Guideline | Am J Gastroenterol 117:27-56 |
 | primary_care_musculoskeletal_review_2013 | Ayloo, Cvengros, Marella — *Evaluation and Treatment of Musculoskeletal Chest Pain* | Prim Care Clin Off Pract 40:863-887 |
