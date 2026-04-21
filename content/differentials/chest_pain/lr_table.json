@@ -518,10 +518,11 @@
       "predicate_path": "associated_symptom=cough",
       "lr_plus": 1.8,
       "lr_minus": null,
-      "source": "aafp_2013_chestpain (pneumonia/bronchitis context)",
+      "source": "aafp_2013_chestpain (pneumonia/bronchitis context); heckerling_1990_primary_care_pneumonia_primary",
       "source_url": "https://www.aafp.org/pubs/afp/issues/2013/0201/p177.html",
       "approximation": true,
-      "notes": "Cough presence mildly favours pulmonary (pneumonia/bronchitis). LR+ ~1.8 approximated from Heckerling 1990 (not a headline LR in AAFP 2013); approximation flag because a single-feature published LR is not consensus-established."
+      "rationale_strength": "moderate",
+      "notes": "LR+ ~1.8 approximation: cough is a common but non-specific pulmonary feature. AAFP 2013 Table 1 lists pneumonia signs with pooled LRs (egophony LR+ 8.6, dullness to percussion LR+ 4.3, clinical impression LR+ 2.0 derived from Heckerling 1990 primary-care pneumonia study) but does not publish a discrete single-feature LR for cough alone. West 2007 QJM (cited as `west_qjm_2007`) documents cough in PE-related pulmonary infarction without a discrete LR. LR+ ~1.8 is a conservative approximation: cough presence — without accompanying egophony, dullness, or pleuritic features — weakly shifts probability toward the pulmonary branch over MSK or GI. No pooled single-feature LR published; value calibrated below pneumonia 'clinical impression' LR+ 2.0 because cough alone is less discriminating than the clinician-gestalt composite."
     },
     {
       "branch": "pulmonary",
@@ -699,6 +700,30 @@
       "source_url": "https://doi.org/10.1503/cmaj.100212",
       "approximation": true,
       "notes": "Absence of exertional trigger — reciprocal of Marburg criterion. LR+ ~1.8 approximation for MSK."
+    },
+    {
+      "branch": "msk",
+      "feature": "costochondral_joint_tenderness",
+      "predicate_path": "location=costochondral_junction",
+      "lr_plus": 2.8,
+      "lr_minus": null,
+      "source": "aafp_2021_costochondritis",
+      "source_url": "https://www.aafp.org/pubs/afp/issues/2021/0700/p73.html",
+      "approximation": true,
+      "rationale_strength": "moderate",
+      "notes": "AAFP 2021 costochondritis review (Mott, Jones, Roman) describes palpable tenderness at the second-to-fifth costochondral junctions as the pathognomonic exam finding for costochondritis; the review does not publish a pooled single-feature LR. LR+ ~2.8 approximation: more specific than general chest-wall palpation reproducibility (see `chest_wall_combined_rule` composite LR+ 3.0 as upper ceiling) and calibrated just below that composite, since costochondral-specific tenderness is a subset of the composite's palpation-reproducibility criterion. Distinct from `well_localized_point_tenderness` (any point tenderness on chest wall) and `pain_reproducible_with_palpation` (general palpation reproduction)."
+    },
+    {
+      "branch": "msk",
+      "feature": "pain_aggravated_by_torso_movement",
+      "predicate_path": "aggravating_factor=torso_rotation",
+      "lr_plus": 1.8,
+      "lr_minus": null,
+      "source": "primary_care_musculoskeletal_review_2013; aafp_2021_costochondritis",
+      "source_url": "https://www.aafp.org/pubs/afp/issues/2021/0700/p73.html",
+      "approximation": true,
+      "rationale_strength": "weak",
+      "notes": "Ayloo 2013 Primary Care Clinics and AAFP 2021 costochondritis both describe pain worsened by twisting, turning, or bending as a biomechanical signature of chest-wall etiology. No single-feature LR pooled. LR+ ~1.8 approximation: calibrated just below general `pain_worsened_by_movement` (LR+ 2.0) because torso-rotation aggravation can overlap with pleuritic discomfort in lower-lobe pneumonia and PE-related infarction, reducing specificity. Distinct from `pain_worsened_by_movement` (any movement) by specifying trunk-rotation biomechanics."
     },
 
     {

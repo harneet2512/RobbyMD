@@ -13,14 +13,21 @@ If following a rule is about to break the demo, the answer is not to break the r
 ### 1.1 Fresh code only
 Every line of code in this repository is written during the hackathon window. No files are copied from any pre-existing codebase. Prior thinking (ideas, vocabulary, research notes such as `GT_V2_THEORY.md`) is carried over as ideas only; code is not. If asked during judging, the honest answer is: ideas came from earlier research notes; every line of code in this repo was written during the event window.
 
-### 1.2 OSI-approved open source dependencies only
-Every model, library, frontend component, and backend dependency shipped or referenced by the demo must be published under an OSI-approved open source license. Allowlist: MIT, Apache-2.0, BSD (2/3/4-clause), MPL-2.0, ISC, LGPL.
+### 1.2 Open source only
 
-**Not allowed**: Gemma Terms of Use (MedGemma, Google MedASR, Gemma-base models), HAI-DEF terms, any custom "research/commercial" licenses, any proprietary commercial API (Deepgram, AssemblyAI, OpenAI GPT models, Nuance/DAX, etc.).
+Every component shipped in the demo is under an appropriate open license for its type:
 
-**Exception**: Claude Opus 4.7 via the Anthropic API is the hackathon's named sponsored tool — the event is *Built with Opus 4.7*. It is available to every team. It is not considered a third-party proprietary component shipped with the project.
+- **Code** (backend, frontend, build tooling, inference pipelines): OSI-approved license — MIT, BSD, Apache-2.0, MPL, ISC, LGPL, or equivalent.
+- **Model weights and datasets**: OSI-approved license **OR** open-data license permitting commercial use with attribution — CC-BY-4.0, CC-BY-SA-4.0, CDLA-Permissive-2.0, ODbL, or equivalent. Attribution is recorded in `MODEL_ATTRIBUTIONS.md` (for model weights) and `SYNTHETIC_DATA.md` (for datasets).
+- **The sponsored Claude API** is permitted as the platform tool of the event (pending Discord confirmation; see `docs/decisions/licensing_clarifications.md`).
 
-Enforced by `tests/licensing/test_open_source.py`, which scans `pyproject.toml`, `package.json`, and the model download list.
+**Excluded regardless of category**: non-commercial licenses (CC-BY-NC, CC-BY-NC-SA), no-derivatives licenses (CC-BY-ND, CC-BY-NC-ND), licenses with custom use restrictions (Gemma Terms of Use, HAI-DEF, Llama 2/3 Community Licenses), and any commercial-only API for components other than the sponsored Claude API.
+
+This split follows the Linux Foundation's OpenMDW framework (July 2025) and the broader ML-licensing consensus that model weights are data, not code. See `reasons.md` entry "Strict OSI-only licensing for model weights — rejected for industry-standard reading (2026-04-21)" for the full rationale and citations.
+
+**Enforcement**:
+- `tests/licensing/test_open_source.py` — scans `pyproject.toml` and `package.json` for code-dependency license compliance (OSI allowlist).
+- `tests/licensing/test_model_attributions.py` — scans `src/` for model-load call sites (`huggingface_hub.snapshot_download`, `AutoModel.from_pretrained`, `whisperx.load_model`, `faster_whisper.WhisperModel`, `pyannote.audio.Pipeline.from_pretrained`, `SentenceTransformer`) and verifies every referenced model identifier appears in `MODEL_ATTRIBUTIONS.md` with its license and attribution line.
 
 ### 1.3 Team size, deliverables, deadline
 Team size ≤2 (solo). Deliverables: 3-minute demo video + public GitHub repo + 100–200 word written summary. Deadline: **Sunday, April 26, 8:00 PM EST**.

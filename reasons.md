@@ -105,3 +105,17 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Rejected**: using a PMC full-text URL as the `source_url` for an LR row without confirming the PMC full text is the paper the row is citing.
 - **Reason**: Validator 2026-04-21 surfaced that three `lr_table.json` rows (`pain_reproducible_with_palpation`, `younger_age_lt_40`, `no_exertional_pattern`) cite "bosner_2010_marburg" but their `source_url` points to [PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/), which is Haasenritter et al. 2015 *BJGP* — an MHS-adjacent paper but not the 2010 CMAJ derivation. Either the URL must be changed to the correct Bösner 2010 CMAJ DOI (`10.1503/cmaj.100212`) or a new `haasenritter_2015_bjgp` source-key added to `sources.md`. Same failure mode as the Cremonini DOI swap: cite-looks-plausible, never WebFetched.
 - **Citation**: [Haasenritter 2015 BJGP at PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/); [Bösner 2010 CMAJ DOI](https://doi.org/10.1503/cmaj.100212); `rules.md §7.4`; `research/validation_report.md` blocker #3.
+
+### Strict OSI-only licensing for model weights — rejected for industry-standard reading (2026-04-21)
+
+- **Context**: License policy for model weights.
+- **What it is**: Require every model weight in the repo to carry an OSI-approved license (MIT / BSD / Apache / etc.), same as code.
+- **Why it was considered**: Simplest reading of the hackathon's "approved open source license" rule. Originally locked into `rules.md §1.2` as defensive over-interpretation.
+- **Why it lost**: OSI itself does not apply its open-source definition to model weights — weights are classified as data, not software. The Linux Foundation's OpenMDW framework (July 2025) explicitly recommends CC-BY-4.0 and CDLA-Permissive-2.0 for model weights and datasets while reserving OSI licenses for code. OSI's own website uses CC-BY-4.0 for its content. The vast majority of open-weight ML releases (pyannote, many HF speech models, biomedical models) use CC-BY-4.0 for weights. A strict OSI-only reading for weights is stricter than the hackathon rule requires and stricter than the ML-licensing community treats the distinction. Applied to our stack, it would unnecessarily block `pyannote/speaker-diarization-community-1` — a clean, well-attributed, widely-used model — forcing either a week-delaying swap to NVIDIA NeMo Sortformer or dropping diarisation entirely.
+- **Citations**:
+  - Linux Foundation / LF AI & Data, *Simplifying AI Model Licensing with OpenMDW* (July 2025): https://lfaidata.foundation/blog/2025/07/22/simplifying-ai-model-licensing-with-openmdw/
+  - OSI FAQ on license categorisation: https://opensource.org/faq
+  - OpenMDW-1.0 license: https://lfaidata.foundation/projects/openmdw/
+  - Model Openness Framework (MOF): https://isitopen.ai/
+- **Superseded decision**: `rules.md §1.2` now permits OSI-approved licenses for code and open-data licenses (CC-BY-4.0, CC-BY-SA-4.0, CDLA-Permissive-2.0, ODbL) for model weights and datasets. `MODEL_ATTRIBUTIONS.md` enforces attribution. `tests/licensing/test_model_attributions.py` enforces that attribution in CI.
+- **Revisit trigger**: Hackathon Discord responds to the licensing question (pending, see `docs/decisions/licensing_clarifications.md` Q2) with a stricter interpretation. If so, swap diariser to NeMo Sortformer (Apache-2.0) and eat the latency re-benchmark cost.
