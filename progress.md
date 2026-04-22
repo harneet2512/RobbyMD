@@ -8,32 +8,31 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-22 (Stream C critical-path landing)
-- **Main commit**: `2d90abd` — `critical path: LLM-backed extractor + substrate-backed SOAP generator with provenance validation + smoke harness wiring`. 14 files changed, +2138/-114 LOC. Pushed to origin/main.
-- **Tests on main**: **286 passed, 2 skipped, 0 failed, 0 xfail**. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green. Critical-path test count: 19 new in `tests/unit/extraction/test_llm_extractor.py` + suite in `tests/unit/note/`.
-- **Streams dispatched** (parallel-execution-synthetic-rain plan, 2026-04-22):
-  - Stream C (critical-path landing): **DONE** — commit `2d90abd`.
-  - Stream A (LongMemEval retrieval + CoN + time-aware): **dispatching** to `../wt-lme-retrieval` on `feature/lme-retrieval`.
-  - Stream B (ACI-Bench hybrid mode, smoke-first): **dispatching** to `../wt-aci-hybrid` on `feature/aci-hybrid`.
-  - Stream D (ASR engineering spec): **dispatching** to `../wt-asr-spec` on `feature/asr-spec`.
+- **Date**: 2026-04-22 (post pre-merge gate; Streams A/B/D landed on main)
+- **Main commit**: `a92910f` — `Merge branch 'feature/asr-spec'` (Stream D). Tip after the three sequential feature-branch merges (A → B → D) with the four pre-merge-gate fixes baked into A (FIX 1 + FIX 2) and B (FIX 3) before merge. Pushed to origin/main.
+- **Tests on main**: **351 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 286 baseline + 29 net A (40 added − 12 cut by FIX 1 + 1 added by FIX 2) + 26 net B (19 + 7 from FIX 3) + 10 D = 351. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green.
+- **Streams landed** (parallel-execution-synthetic-rain plan + pre-merge gate, 2026-04-22):
+  - Stream C (critical-path landing): **DONE** — commits `2d90abd`, `835039a`.
+  - Stream A (LongMemEval retrieval + CoN, time_expansion CUT, dispatcher flipped to default): **DONE** — merged at `c52aa0a`. Branch `feature/lme-retrieval` ready for delete on origin.
+  - Stream B (ACI-Bench hybrid mode + --seed + Phase 1.5 multi-seed doc): **DONE** — fast-forward merged at `c59168b` after rebase on A. Branch `feature/aci-hybrid` ready for delete on origin.
+  - Stream D (ASR engineering spec, bypass_cleanup flag, hallucination-guard 5-check coverage, asr_benchmark.md trim): **DONE** — merged at `a92910f`. Branch `feature/asr-spec` ready for delete on origin.
 - **Worktrees**:
   - `D:\hack_it` — `main` (operator's working copy; authoritative).
-  - `D:\wt-engine`, `D:\wt-trees`, `D:\wt-extraction`, `D:\wt-eval` — original feature branches, all merged to main; safe to prune.
-  - `D:\wt-ui` — `feature/ui` at `06a8f4e` — **merged via Track A** (full panel set verified end-to-end 2026-04-22).
-  - `D:\wt-lme-retrieval` — `feature/lme-retrieval` (NEW; Stream A, dispatching).
-  - `D:\wt-aci-hybrid` — `feature/aci-hybrid` (NEW; Stream B, dispatching).
-  - `D:\wt-asr-spec` — `feature/asr-spec` (NEW; Stream D, dispatching).
+  - `D:\wt-engine`, `D:\wt-trees`, `D:\wt-extraction`, `D:\wt-eval`, `D:\wt-ui` — original feature branches, all merged; safe to prune (operator-confirmed).
+  - `D:\wt-lme-retrieval`, `D:\wt-aci-hybrid`, `D:\wt-asr-spec` — Stream A/B/D worktrees, all merged at `a92910f`; safe to prune (operator-confirmed).
 - **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + ACI-Bench (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
 - **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (ACI-Bench). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
 - **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
 - **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); GPT-4 ICL 57.78 MEDCON (ACI-Bench). Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
 - **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
 - **Open decisions / next actions** (priority order):
-  1. **Stream A smoke** — LongMemEval n=60 stratified (10 per question_type × 6 types) baseline + substrate. Blocked on `gpt-4o-2024-08-06` deployment landing on a spare Azure account (`gt-swebench-aoai-3` proposed); fallback codepath uses `gpt-4.1` with documented methodology deviation.
-  2. **Stream B Phase 1** — ACI-Bench hybrid n=10 against same 10 cases as the −0.070 baseline run (`20260422T081250Z`). Decision rule: at parity (within ±0.03 of baseline) escalate to Phase 2 (n=40 stratified); below parity stop and diagnose per-encounter.
-  3. **Stream D spec** — `docs/asr_engineering_spec.md` (the one markdown exception); `bypass_cleanup_for_text_input` flag + dormancy regression test; trim `docs/asr_benchmark.md` §4 TBM rows to single-line pointer.
-  4. **PID 9290** — independent ACI-Bench smoke (`gpt-4.1-mini`, n=10) running since 13:37 in a separate process; left untouched per hands-off rule. Results land in own timestamped dir.
-  5. **UMLS licence** — operator monitors CMU inbox (background; non-blocking).
+  1. **Stream A smoke run** — blocked on `gpt-4o-2024-08-06` deployment on a spare Azure account (`gt-swebench-aoai-3` proposed); fallback codepath uses `gpt-4.1` with structlog WARN. Operator runs `python eval/smoke/run_smoke.py --benchmark longmemeval --reader gpt-4o-2024-08-06 --variant both --n 60 --budget-usd 50` after deploy; dispatcher defaults to the new bge-m3 + retrieval + CoN path (FIX 2 — no operator action needed to light it up). Time-aware filtering was cut pre-merge (FIX 1); re-introduce after a `valid_from_ts` schema change (q7).
+  2. **Stream B Phase 1 + Phase 1.5 multi-seed** — operator runs hybrid n=10 against same 10 cases as the −0.070 baseline run (`20260422T081250Z`). At parity (mean delta within ±0.03 of baseline) → re-run winning arm 3× with `--seed {42,43,44}` for Phase 1.5; if 3-seed mean still in parity, escalate to Phase 2 n=40. Below parity → multi-seed the failure first, diagnose per-encounter, no Phase 2.
+  3. **Stream D ASR measurement run** — GPU window (GCP L4 spot or Modal A10, ~60 min) + 3–5 additional synthetic clips beyond chest-pain demo (abdominal, dyspnoea, headache, fatigue, ambient-noise) needed to populate `docs/asr_benchmark.md §4` with real RTF / WER / latency numbers per the engineering spec.
+  4. **Modal deploys** under profile `glitch112213`: `modal deploy --profile glitch112213 eval/infra/modal_bge_m3.py` (set `MODAL_BGE_M3_URL` for Stream A); `eval/infra/modal_qwen.py` for the Qwen reader.
+  5. **Origin branch deletes** — `feature/lme-retrieval`, `feature/aci-hybrid`, `feature/asr-spec` ready to delete on origin once operator confirms (`git push origin --delete <branch>`).
+  6. **Worktree pruning** — 8 worktrees on disk, all branches merged. Operator can `git worktree remove <path>` for any/all. Decision left to operator.
+  7. **UMLS licence** — operator monitors CMU inbox (background; non-blocking).
 - **Invariant tests** (must stay green every commit):
   - `tests/licensing/test_open_source.py` — OSI allowlist, green
   - `tests/licensing/test_model_attributions.py` — model-weight attribution registry, green
@@ -357,3 +356,24 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 
 - **Phase 1 / Phase 2 gate (pinned)**: Phase 1 is n=10 hybrid against the same 10 cases as `20260422T081250Z`. Decision rule: **at parity (mean delta within ±0.03 of baseline) or above → Phase 2 (n=40 stratified, operator-confirmed, $1 budget cap)**; **below parity → stop, investigate worst-regression case, log diagnostic in reasons.md, no Phase 2**. Half the prior regression magnitude (−0.070) is the discrimination threshold.
 - **Hands-off reminder**: PID 9290 (live `gpt-4.1-mini` × n=10 smoke on `D:\hack_it`, started 13:37) untouched; this work is in a separate worktree and has not written to `eval/smoke/results/` or touched the `main` checkout.
+
+### 2026-04-22 — Pre-merge gate: four fixes landed on feature branches
+
+Four corrective commits before any of A/B/D merge to main, per the pre-merge gate prompt.
+
+- **FIX 1** (`feature/lme-retrieval` commit `ce32aa2`): cut `eval/longmemeval/time_expansion.py` + `tests/unit/eval/test_time_expansion.py` + `DateRange` from `src/substrate/retrieval.py` + `time_window` param from `retrieve_relevant_claims` + `TestTimeWindowFilter` from `tests/unit/substrate/test_retrieval.py` + the time-expansion call site in `_call_longmemeval_substrate_retrieval_con`. Audit traced the filter to `c.created_ts` which is `now_ns()` at substrate ingestion (claims.py:246), not the original session timestamp — every `DateRange` anchored "~7 days ago" silently excluded every claim. Re-introduce after `valid_from_ts` schema change (q7).
+- **FIX 2** (`feature/lme-retrieval` commit `1555cf8`): added `--legacy-lme-substrate` flag; `_run_longmemeval_case` now defaults the substrate variant to `_call_longmemeval_substrate_retrieval_con` (bge-m3 + retrieval + CoN) instead of the legacy `_call_longmemeval_substrate` (E5 + bundle-then-reader). Dry-run prints which path will be used. Updated wiring test + added a second test confirming the legacy flag still routes to the old path.
+- **FIX 3** (`feature/aci-hybrid` commit `8c8081d`): added `--seed <int>` flag (default 42); plumbed through `SmokeConfig.seed` → `reader_env["seed"]` → `_call_qwen` and `_call_openai` (both pass `seed` to `chat.completions.create`; gpt-4.1 + Qwen-vLLM both honour it). Results dir name now `<UTC-timestamp>_seed<N>`; sidecar `config.json` written before any case runs. 7 new tests in `tests/unit/eval/test_smoke_seed_flag.py`. Phase 1.5 multi-seed gate documented in `reasons.md` — re-run winning arm 3× with seeds {42, 43, 44} before any Phase 2 escalation; collapse noise contribution from ~1σ to ~0.6σ; gate's false-positive rate at the ±0.03 threshold drops from ~16% to ~4%.
+- **FIX 4** (no commit on feature branches; integration verification only): three-way merge on a throwaway `pre-merge-integration-test` branch surfaced two conflict regions (run_smoke.py SmokeConfig + argparse + instantiation; reasons.md). Resolved by rebasing `feature/aci-hybrid` onto `feature/lme-retrieval` so STEP 5 ff-merges. Pyright on the integration tree returned 0 errors in the four cross-worktree-noise categories (`reportMissingImports`, `reportUndefinedVariable`, `reportCallIssue` "No parameter", `reportAttributeAccessIssue` "Cannot access attribute") that flagged during the stream work — the noise resolved exactly as predicted. Pre-existing 359 strict-mode warnings on untyped third-party libs (pytest.approx, openai, structlog) are not in the gate's categories.
+
+Each FIX 1/2 commit also got a per-decision `reasons.md` entry on `feature/lme-retrieval` (commit `c52aa0a`) explaining why the alternative (Finding B for FIX 1, additive-only for FIX 2) was rejected.
+
+### 2026-04-22 — STEP 5: feature branches merged to main
+
+Three sequential merges, test gate green between each. Each push gated on `pytest -q` clean.
+
+- **Stream A** merged into main at `c52aa0a` (`docs: log pre-merge gate FIX 1 (time_expansion cut) + FIX 2 (dispatcher flip)`). Test gate: 286 → **315 passed, 2 skipped**. Pushed to `origin/main` (`835039a..c52aa0a`).
+- **Stream B** rebased onto A, then ff-merged into main at `c59168b` (`smoke: add --seed flag and document Phase 1.5 multi-seed gate`). Test gate: 315 → **341 passed, 2 skipped**. Pushed to `origin/main` (`c52aa0a..c59168b`).
+- **Stream D** merged into main at `a92910f` (`Merge branch 'feature/asr-spec'`). Test gate: 341 → **351 passed, 2 skipped**. Pushed to `origin/main` (`c59168b..a92910f`).
+
+Final main commit: `a92910f`. Final test gate: **351 passed, 2 skipped, 0 failed, 0 xfail**. Open asks for operator: gpt-4o Azure deploy, Modal bge-m3 deploy + Qwen reader, Stream A smoke run, Stream B Phase 1 + Phase 1.5 smoke runs, ASR measurement GPU window + extra synthetic clips, demo video narration confirmation, origin feature-branch deletes, worktree pruning.
