@@ -81,6 +81,11 @@ class SmokeConfig:
     n_cases: int
     budget_usd: float
     dry_run: bool
+    # FIX 2 (pre-merge gate): the LongMemEval substrate variant defaults to
+    # the new bge-m3 + retrieval + CoN path. The old E5 + bundle-then-reader
+    # path is kept under this flag for one cycle so any reproducibility
+    # questions on the pre-FIX-2 numbers can be answered without git-checkout.
+    legacy_lme_substrate: bool = False
 
 
 @dataclass(slots=True)
@@ -130,6 +135,16 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
     ap.add_argument("--n", type=int, default=10)
     ap.add_argument("--budget-usd", type=float, default=50.0)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--legacy-lme-substrate",
+        action="store_true",
+        help=(
+            "Use the older E5 + bundle-then-reader LongMemEval substrate path "
+            "(`_call_longmemeval_substrate`) instead of the default bge-m3 + "
+            "retrieval + Chain-of-Note path. Off by default — the new path is "
+            "the post-FIX-2 ship target."
+        ),
+    )
     ns = ap.parse_args(argv)
 
     benchmarks = BENCHMARKS if ns.benchmark == "both" else (ns.benchmark,)
@@ -143,6 +158,7 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
         n_cases=ns.n,
         budget_usd=ns.budget_usd,
         dry_run=ns.dry_run,
+        legacy_lme_substrate=ns.legacy_lme_substrate,
     )
 
 
@@ -194,6 +210,19 @@ def _print_planned_matrix(cfg: SmokeConfig) -> list[str]:
         for reader in cfg.readers:
             for variant in cfg.variants:
                 lines.append(f"[smoke]   - {bench} × {reader} × {variant}")
+    # FIX 2 dry-run assertion: announce which LongMemEval substrate path
+    # would be used so silent-wiring failures are visible before any spend.
+    if "longmemeval" in cfg.benchmarks and "substrate" in cfg.variants:
+        if cfg.legacy_lme_substrate:
+            lines.append(
+                "[smoke] longmemeval substrate path: LEGACY "
+                "(`_call_longmemeval_substrate` — E5 + bundle-then-reader)"
+            )
+        else:
+            lines.append(
+                "[smoke] longmemeval substrate path: DEFAULT "
+                "(`_call_longmemeval_substrate_retrieval_con` — bge-m3 + retrieval + CoN)"
+            )
     return lines
 
 
@@ -1263,6 +1292,8 @@ def _run_longmemeval_case(
     variants: tuple[str, ...],
     cumulative_cost: list[float],
     budget_usd: float,
+    *,
+    legacy_substrate: bool = False,
 ) -> tuple[list[CaseResult], bool]:
     """Run one LongMemEval-S case for specified variants.
 
@@ -1332,14 +1363,23 @@ def _run_longmemeval_case(
         if cumulative_cost[0] + call_cost > budget_usd:
             return results, True  # BUDGET_HALT
 
-        # Phase-3 substrate wiring for LongMemEval: ingest with the real
-        # extractor, retrieve top-K claims by embedding similarity vs the
-        # question, and prepend them to the reader prompt. Novel retrieval
-        # layer not in the ICLR paper — flagged in methodology.md as a
-        # smoke-validation run, NOT a leaderboard-comparable RAG submission.
-        answer, latency_ms, tokens, substrate_stats = _call_longmemeval_substrate(
-            q, reader, reader_env
-        )
+        # FIX 2: default substrate path is the new bge-m3 + retrieval + CoN
+        # implementation (`_call_longmemeval_substrate_retrieval_con`). The
+        # legacy E5 + bundle-then-reader path stays gated behind
+        # `--legacy-lme-substrate` so reproducibility on pre-FIX-2 numbers
+        # is recoverable without a git checkout.
+        if legacy_substrate:
+            answer, latency_ms, tokens, substrate_stats = _call_longmemeval_substrate(
+                q, reader, reader_env
+            )
+        else:
+            (
+                answer,
+                latency_ms,
+                tokens,
+                substrate_stats,
+                _provenance,
+            ) = _call_longmemeval_substrate_retrieval_con(q, reader_env)
         cumulative_cost[0] += _READER_COST_PER_CALL.get(reader, 0.005)
 
         # Same Azure-aware judge gating as the baseline branch above.
@@ -1610,6 +1650,7 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
                     case_results, halted = _run_longmemeval_case(
                         case_payload, reader, reader_env,
                         cfg.variants, cumulative_cost, cfg.budget_usd,
+                        legacy_substrate=cfg.legacy_lme_substrate,
                     )
                 else:
                     case_results, halted = _run_acibench_case(

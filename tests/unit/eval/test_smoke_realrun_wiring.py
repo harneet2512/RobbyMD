@@ -384,16 +384,19 @@ class TestVariantBenchmarkInvocation:
         assert baseline_called
         assert judge_called
 
-    def test_longmemeval_substrate_calls_substrate_ingestion(
+    def test_longmemeval_substrate_calls_retrieval_con_by_default(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Substrate branch routes through `_call_longmemeval_substrate`
-        (Phase-3 wiring). Structural validity must propagate from its
-        returned SubstrateStats into the CaseResult."""
-        substrate_called: list[bool] = []
+        """Substrate branch routes through the new
+        `_call_longmemeval_substrate_retrieval_con` path by default
+        (FIX 2 dispatcher flip). Structural validity must propagate from
+        its returned SubstrateStats into the CaseResult.
+        """
+        retrieval_con_called: list[bool] = []
+        legacy_called: list[bool] = []
 
-        def _mock_substrate(_q, _reader, _env):
-            substrate_called.append(True)
+        def _mock_retrieval_con(_q, _env, top_k: int = 20):
+            retrieval_con_called.append(True)
             stats = run_smoke.SubstrateStats(
                 claims_written_count=5,
                 supersessions_fired_count=1,
@@ -404,9 +407,18 @@ class TestVariantBenchmarkInvocation:
                 top_k_sim_mean=0.42,
                 top_k_sim_min=0.31,
             )
-            return "ans", 10.0, 50, stats
+            return "ans", 10.0, 50, stats, {"notes": [], "total_latency_ms": 10.0}
 
-        monkeypatch.setattr(run_smoke, "_call_longmemeval_substrate", _mock_substrate)
+        def _mock_legacy(_q, _reader, _env):
+            legacy_called.append(True)
+            raise AssertionError("legacy substrate path must not be called by default")
+
+        monkeypatch.setattr(
+            run_smoke,
+            "_call_longmemeval_substrate_retrieval_con",
+            _mock_retrieval_con,
+        )
+        monkeypatch.setattr(run_smoke, "_call_longmemeval_substrate", _mock_legacy)
         monkeypatch.setattr(run_smoke, "_call_longmemeval_baseline", lambda *_: ("ans", 10.0, 50))
         monkeypatch.setattr(run_smoke, "_call_longmemeval_judge", lambda *_: (0.8, "CORRECT"))
 
@@ -428,11 +440,70 @@ class TestVariantBenchmarkInvocation:
         assert not halted
         assert len(results) == 1
         assert results[0].variant == "substrate"
-        assert substrate_called
+        assert retrieval_con_called
+        assert not legacy_called
         assert results[0].structural_validity["claims_written_count"] == 5
         assert results[0].structural_validity["active_pack"] == "personal_assistant"
         assert results[0].structural_validity["top_k_retrieved"] == 5
-        assert results[0].structural_validity["top_k_sim_mean"] == pytest.approx(0.42)
+
+    def test_longmemeval_substrate_legacy_flag_routes_to_old_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`legacy_substrate=True` routes through the legacy
+        `_call_longmemeval_substrate` path. Lets reproducibility on
+        pre-FIX-2 numbers be recovered without a git checkout.
+        """
+        legacy_called: list[bool] = []
+        new_called: list[bool] = []
+
+        def _mock_legacy(_q, _reader, _env):
+            legacy_called.append(True)
+            stats = run_smoke.SubstrateStats(
+                claims_written_count=3,
+                supersessions_fired_count=0,
+                projection_nonempty=True,
+                active_pack="personal_assistant",
+                active_claim_count=3,
+                top_k_retrieved=3,
+                top_k_sim_mean=0.5,
+                top_k_sim_min=0.4,
+            )
+            return "ans", 10.0, 50, stats
+
+        def _mock_retrieval_con(*_a, **_k):
+            new_called.append(True)
+            raise AssertionError("new path must not be called when legacy flag is on")
+
+        monkeypatch.setattr(run_smoke, "_call_longmemeval_substrate", _mock_legacy)
+        monkeypatch.setattr(
+            run_smoke,
+            "_call_longmemeval_substrate_retrieval_con",
+            _mock_retrieval_con,
+        )
+        monkeypatch.setattr(run_smoke, "_call_longmemeval_baseline", lambda *_: ("ans", 10.0, 50))
+        monkeypatch.setattr(run_smoke, "_call_longmemeval_judge", lambda *_: (0.8, "CORRECT"))
+
+        class _StubQ:
+            question_id = "q3"
+            question = "Q"
+            answer = "A"
+            question_type = "information_extraction"
+            haystack_sessions: list = []
+            haystack_session_ids = None
+            haystack_dates = None
+
+        cumulative_cost: list[float] = [0.0]
+        results, _halted = run_smoke._run_longmemeval_case(
+            _StubQ(), "gpt-4o-mini", {"openai_key": "sk-test"},
+            ("substrate",), cumulative_cost, 50.0,
+            legacy_substrate=True,
+        )
+
+        assert legacy_called
+        assert not new_called
+        assert len(results) == 1
+        assert results[0].variant == "substrate"
+        assert results[0].structural_validity["top_k_sim_mean"] == pytest.approx(0.5)
 
     def test_acibench_baseline_calls_acibench_reader(
         self, monkeypatch: pytest.MonkeyPatch
