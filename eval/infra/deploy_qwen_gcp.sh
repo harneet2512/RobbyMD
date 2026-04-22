@@ -14,12 +14,13 @@ set -euo pipefail
 : "${QWEN_GCP_INSTANCE_NAME:=qwen-25-14b-eval}"
 : "${QWEN_GCP_MACHINE_TYPE:=g2-standard-8}"     # L4 attached by default; 8 vCPU / 32 GB RAM
 : "${QWEN_GCP_ACCELERATOR:=type=nvidia-l4,count=1}"
-: "${QWEN_GCP_IMAGE_FAMILY:=common-cu124-ubuntu-2204}"
+: "${QWEN_GCP_IMAGE_FAMILY:=common-cu129-ubuntu-2204-nvidia-580}"
 : "${QWEN_GCP_IMAGE_PROJECT:=deeplearning-platform-release}"
 : "${QWEN_GCP_DISK_SIZE_GB:=200}"
 : "${QWEN_MODEL_ID:=Qwen/Qwen2.5-14B-Instruct}"
 : "${QWEN_VLLM_PORT:=8000}"
 : "${QWEN_VLLM_QUANTIZATION:=fp8}"              # fp8 or awq; INT8 equiv so 14B fits in 24 GB VRAM
+: "${QWEN_GCP_PROVISIONING:=SPOT}"              # SPOT (cheapest) or STANDARD (for projects without PREEMPTIBLE_CPUS quota)
 
 if [[ -z "${QWEN_GCP_PROJECT}" ]]; then
     echo "ERROR: no GCP project set. Run 'gcloud config set project <PROJECT_ID>' first." >&2
@@ -43,8 +44,22 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# ----- spin up L4 spot instance -----
-echo "[qwen-gcp] Creating L4 spot instance..."
+# ----- spin up L4 instance -----
+# SPOT is cheapest but requires PREEMPTIBLE_CPUS quota > 0 in the region.
+# STANDARD (on-demand) works on fresh GCP projects where that quota is 0.
+if [[ "${QWEN_GCP_PROVISIONING}" == "SPOT" ]]; then
+    PROVISIONING_FLAGS=(
+        --provisioning-model=SPOT
+        --instance-termination-action=DELETE
+    )
+    echo "[qwen-gcp] Creating L4 SPOT instance (cheapest — needs PREEMPTIBLE_CPUS quota)."
+else
+    PROVISIONING_FLAGS=(
+        --provisioning-model=STANDARD
+    )
+    echo "[qwen-gcp] Creating L4 STANDARD (on-demand) instance — ~2.8x spot cost, no preemption."
+fi
+
 gcloud compute instances create "${QWEN_GCP_INSTANCE_NAME}" \
     --project="${QWEN_GCP_PROJECT}" \
     --zone="${QWEN_GCP_ZONE}" \
@@ -53,8 +68,7 @@ gcloud compute instances create "${QWEN_GCP_INSTANCE_NAME}" \
     --image-family="${QWEN_GCP_IMAGE_FAMILY}" \
     --image-project="${QWEN_GCP_IMAGE_PROJECT}" \
     --boot-disk-size="${QWEN_GCP_DISK_SIZE_GB}GB" \
-    --provisioning-model=SPOT \
-    --instance-termination-action=DELETE \
+    "${PROVISIONING_FLAGS[@]}" \
     --maintenance-policy=TERMINATE \
     --metadata=install-nvidia-driver=True
 
