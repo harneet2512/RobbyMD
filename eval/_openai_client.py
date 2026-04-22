@@ -26,6 +26,31 @@ Purposes and corresponding env vars
     Direct OpenAI model: `gpt-4o-mini`
     Used by `eval.aci_bench.llm_medcon.LLMMedconExtractor`.
 
+- `"claim_extractor_gpt4omini"`:
+    Azure deployment: `AZURE_OPENAI_GPT4OMINI_DEPLOYMENT`
+    Direct OpenAI model: `gpt-4o-mini`
+    Used by `src.extraction.claim_extractor.extractor.make_llm_extractor`.
+    Shares the gpt-4o-mini deployment with llm_medcon — different prompt,
+    same model class.
+
+- `"reader_gpt41mini"`:
+    Azure deployment: `AZURE_OPENAI_GPT4OMINI_DEPLOYMENT`
+    Direct OpenAI model: `gpt-4.1-mini`
+    Smoke-harness reader. Same deployment as llm_medcon/claim_extractor.
+
+- `"reader_gpt41"`:
+    Azure deployment: `AZURE_OPENAI_GPT4O_DEPLOYMENT`
+    Direct OpenAI model: `gpt-4.1`
+    Smoke-harness reader for LongMemEval (long-context variant).
+
+Note on Azure deviation: as of 2026-04-22 the Azure subscription has
+deployments for `gpt-4.1` and `gpt-4.1-mini` (not `gpt-4o` / `gpt-4o-mini`).
+Operators set `AZURE_OPENAI_GPT4O_DEPLOYMENT` and
+`AZURE_OPENAI_GPT4OMINI_DEPLOYMENT` to the gpt-4.1 / gpt-4.1-mini deployment
+names respectively. This is a methodology deviation from the paper-specified
+`gpt-4o-2024-08-06` judge — flagged in `methodology.md` and
+`architecture_changes.md`.
+
 Never called from the demo path (`src/`). Demo-path LLM calls route to
 Anthropic / Opus 4.7 per `Eng_doc.md §3.5`.
 """
@@ -35,19 +60,31 @@ from __future__ import annotations
 import os
 from typing import Any, Final, Literal
 
-Purpose = Literal["judge_gpt4o", "llm_medcon_gpt4omini"]
+Purpose = Literal[
+    "judge_gpt4o",
+    "llm_medcon_gpt4omini",
+    "claim_extractor_gpt4omini",
+    "reader_gpt41mini",
+    "reader_gpt41",
+]
 
 # Default models for the direct-OpenAI branch. Keep in sync with
 # methodology.md's model-usage policy.
 _DIRECT_DEFAULTS: Final[dict[str, str]] = {
     "judge_gpt4o": "gpt-4o-2024-08-06",
     "llm_medcon_gpt4omini": "gpt-4o-mini",
+    "claim_extractor_gpt4omini": "gpt-4o-mini",
+    "reader_gpt41mini": "gpt-4.1-mini",
+    "reader_gpt41": "gpt-4.1",
 }
 
 # Per-purpose Azure deployment env-var keys.
 _AZURE_DEPLOYMENT_ENVS: Final[dict[str, str]] = {
     "judge_gpt4o": "AZURE_OPENAI_GPT4O_DEPLOYMENT",
     "llm_medcon_gpt4omini": "AZURE_OPENAI_GPT4OMINI_DEPLOYMENT",
+    "claim_extractor_gpt4omini": "AZURE_OPENAI_GPT4OMINI_DEPLOYMENT",
+    "reader_gpt41mini": "AZURE_OPENAI_GPT4OMINI_DEPLOYMENT",
+    "reader_gpt41": "AZURE_OPENAI_GPT4O_DEPLOYMENT",
 }
 
 # Default Azure API version — picks the most recent stable that supports

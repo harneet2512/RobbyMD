@@ -387,18 +387,26 @@ class TestVariantBenchmarkInvocation:
     def test_longmemeval_substrate_calls_substrate_ingestion(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ingestion_called: list[bool] = []
+        """Substrate branch routes through `_call_longmemeval_substrate`
+        (Phase-3 wiring). Structural validity must propagate from its
+        returned SubstrateStats into the CaseResult."""
+        substrate_called: list[bool] = []
 
-        def _mock_ingestion(_bench, _payload):
-            ingestion_called.append(True)
-            return MagicMock(
+        def _mock_substrate(_q, _reader, _env):
+            substrate_called.append(True)
+            stats = run_smoke.SubstrateStats(
                 claims_written_count=5,
                 supersessions_fired_count=1,
                 projection_nonempty=True,
                 active_pack="personal_assistant",
+                active_claim_count=5,
+                top_k_retrieved=5,
+                top_k_sim_mean=0.42,
+                top_k_sim_min=0.31,
             )
+            return "ans", 10.0, 50, stats
 
-        monkeypatch.setattr(run_smoke, "_run_substrate_ingestion", _mock_ingestion)
+        monkeypatch.setattr(run_smoke, "_call_longmemeval_substrate", _mock_substrate)
         monkeypatch.setattr(run_smoke, "_call_longmemeval_baseline", lambda *_: ("ans", 10.0, 50))
         monkeypatch.setattr(run_smoke, "_call_longmemeval_judge", lambda *_: (0.8, "CORRECT"))
 
@@ -420,9 +428,11 @@ class TestVariantBenchmarkInvocation:
         assert not halted
         assert len(results) == 1
         assert results[0].variant == "substrate"
-        assert ingestion_called
+        assert substrate_called
         assert results[0].structural_validity["claims_written_count"] == 5
         assert results[0].structural_validity["active_pack"] == "personal_assistant"
+        assert results[0].structural_validity["top_k_retrieved"] == 5
+        assert results[0].structural_validity["top_k_sim_mean"] == pytest.approx(0.42)
 
     def test_acibench_baseline_calls_acibench_reader(
         self, monkeypatch: pytest.MonkeyPatch

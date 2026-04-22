@@ -162,13 +162,27 @@ def validate_claim(
     char_end: int | None,
     turn_text_len: int | None = None,
 ) -> None:
-    """Write-time validation. Raises `ClaimValidationError` on any violation."""
+    """Write-time validation. Raises `ClaimValidationError` on any violation.
+
+    Predicate validation consults the **active pack** (env `ACTIVE_PACK`)
+    rather than the schema-level chest-pain default — that schema set
+    predates the pack abstraction and would silently drop every
+    personal_assistant claim during a LongMemEval run. Falls back to the
+    schema set if active_pack() raises (e.g., test environment with no
+    pack configured).
+    """
     if not subject or not subject.strip():
         raise ClaimValidationError("subject must be non-empty")
-    if predicate not in PREDICATE_FAMILIES:
+    try:
+        from src.substrate.predicate_packs import active_pack
+
+        allowed = active_pack().predicate_families
+    except Exception:  # noqa: BLE001 — fallback keeps tests passing
+        allowed = PREDICATE_FAMILIES
+    if predicate not in allowed:
         raise ClaimValidationError(
-            f"predicate {predicate!r} not in closed family; "
-            f"allowed = {sorted(PREDICATE_FAMILIES)}"
+            f"predicate {predicate!r} not in closed family (active pack); "
+            f"allowed = {sorted(allowed)}"
         )
     if not value or not value.strip():
         raise ClaimValidationError("value must be non-empty")

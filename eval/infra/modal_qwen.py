@@ -32,10 +32,14 @@ import modal
 
 MINUTES = 60
 
-MODEL_NAME = "Qwen/Qwen2.5-14B-Instruct"
-# Pin the HF revision so a silent upstream change doesn't move our scores.
-# Commit sha from HuggingFace's main branch at 2026-04-22.
-MODEL_REVISION = "cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8"
+# Pre-quantized AWQ Int4 variant (Alibaba-published). ~7 GB on-GPU vs
+# ~28 GB for the FP16 weights — fits inside L4's 22 GB VRAM with room
+# for KV cache. Using FP16 or vLLM's on-the-fly FP8 quant OOMs during
+# weight load (observed 2026-04-22: L4 21.83 GiB allocated before FP8
+# conversion could start).
+MODEL_NAME = "Qwen/Qwen2.5-14B-Instruct-AWQ"
+# No --revision pin — we track the `main` branch on HuggingFace. If we
+# need strict reproducibility later, pin by sha at that point.
 
 app = modal.App("qwen25-14b-vllm")
 
@@ -82,19 +86,19 @@ def serve() -> None:
         "vllm",
         "serve",
         MODEL_NAME,
-        "--revision",
-        MODEL_REVISION,
         "--host",
         "0.0.0.0",
         "--port",
         "8000",
-        "--quantization",
-        "fp8",
+        # AWQ auto-detected from config.json (quantization_config field);
+        # no --quantization flag needed, vLLM picks it up natively.
         "--gpu-memory-utilization",
         "0.90",
         "--max-model-len",
         "8192",
-        # OpenAI-compatible served-model id must match what the smoke harness sends.
+        # Served-model id matches what the smoke harness sends; decoupled
+        # from the quantized HF model name so the name stays stable if we
+        # swap the quant tier later.
         "--served-model-name",
         "Qwen/Qwen2.5-14B-Instruct",
     ]

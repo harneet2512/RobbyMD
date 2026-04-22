@@ -79,6 +79,6 @@ def test_dry_run_lists_all_benchmark_reader_variant_combinations() -> None:
         )
     output = buf.getvalue()
     assert rc == 0
-    # 2 benchmarks × 3 readers × 2 variants = 12 combinations.
+    # 2 benchmarks × 4 readers (qwen, gpt-4o-mini, gpt-4.1-mini, gpt-4.1) × 2 variants = 16.
     combination_lines = [ln for ln in output.splitlines() if ln.strip().startswith("[smoke]   -")]
-    assert len(combination_lines) == 12
+    assert len(combination_lines) == 16

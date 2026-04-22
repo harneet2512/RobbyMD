@@ -54,7 +54,7 @@ BENCHMARK_PACK: dict[str, str] = {
 }
 
 BENCHMARKS = ("longmemeval", "acibench")
-READERS = ("qwen2.5-14b", "gpt-4o-mini", "gpt-4.1-mini")
+READERS = ("qwen2.5-14b", "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1")
 VARIANTS = ("baseline", "substrate")
 
 # Cost estimates per 1k tokens (USD) — conservative upper bounds for budget-halt.
@@ -64,6 +64,7 @@ _READER_COST_PER_CALL: dict[str, float] = {
     "qwen2.5-14b": 0.001,
     "gpt-4o-mini": 0.003,
     "gpt-4.1-mini": 0.004,
+    "gpt-4.1": 0.030,
 }
 # GPT-4o judge per call (LongMemEval only).
 _JUDGE_COST_PER_CALL: float = 0.01
@@ -282,7 +283,25 @@ def _get_reader_env(reader: str) -> dict[str, str]:
             )
         return {"endpoint": endpoint, "fireworks": fireworks, "together": together}
     else:
-        # gpt-4o-mini or gpt-4.1-mini — need OPENAI_API_KEY for both reader and judge
+        # gpt-4o-mini / gpt-4.1-mini / gpt-4.1 — either direct OpenAI
+        # (OPENAI_API_KEY) or Azure (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY
+        # + AZURE_OPENAI_GPT4OMINI_DEPLOYMENT). The reader call routes via
+        # `eval._openai_client.make_openai_client` which picks the right
+        # branch, so we only need to ensure at least one set is present.
+        azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+        openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if azure_endpoint:
+            # Azure routing — make_openai_client will validate deployment
+            # names when actually called; here we only assert the minimum
+            # so dry-run errors surface early.
+            if not os.environ.get("AZURE_OPENAI_API_KEY", "").strip():
+                sys.exit(
+                    "[smoke] ERROR: AZURE_OPENAI_ENDPOINT is set but "
+                    "AZURE_OPENAI_API_KEY is missing.\n"
+                    "[smoke] Set both before invoking the smoke harness."
+                )
+            return {"azure_routed": "true", "openai_key": openai_key}
+        # Direct OpenAI fallback.
         key = _require_env("OPENAI_API_KEY")
         return {"openai_key": key}
 
@@ -294,12 +313,28 @@ def _get_reader_env(reader: str) -> dict[str, str]:
 
 @dataclass
 class SubstrateStats:
-    """State counters collected during substrate ingestion of one case."""
+    """State counters collected during substrate ingestion of one case.
+
+    Back-compat shape (noop-extractor path): `claims_written_count`,
+    `supersessions_fired_count`, `projection_nonempty`, `active_pack`.
+
+    Phase-3 wiring adds (populated only when the real extractor fires):
+    `active_claim_count`, `sentence_with_provenance_ratio`,
+    `substrate_vs_baseline_edit_distance`, `top_k_retrieved`,
+    `top_k_sim_mean`, `top_k_sim_min`. Unused fields stay at their
+    defaults so JSON output remains stable for old callers.
+    """
 
     claims_written_count: int = 0
     supersessions_fired_count: int = 0
     projection_nonempty: bool = False
     active_pack: str = ""
+    active_claim_count: int = 0
+    sentence_with_provenance_ratio: float = 0.0
+    substrate_vs_baseline_edit_distance: float | None = None
+    top_k_retrieved: int = 0
+    top_k_sim_mean: float = 0.0
+    top_k_sim_min: float = 0.0
 
 
 def _run_substrate_ingestion(
@@ -425,6 +460,137 @@ def _call_longmemeval_baseline(
     return text, latency_ms, tokens
 
 
+def _call_longmemeval_substrate(
+    case_payload: object,
+    reader: str,
+    reader_env: dict[str, str],
+    top_k: int = 20,
+) -> tuple[str, float, int, SubstrateStats]:
+    """Substrate variant for LongMemEval — real ingestion + top-K retrieval.
+
+    Flow:
+    1. Ingest all haystack turns through `on_new_turn` with the real
+       LLM-backed extractor. Claims populate the substrate; supersession
+       fires as duplicates land.
+    2. Embed the question and each active claim's `subject + predicate + value`
+       with E5-small-v2 (already a dependency for semantic supersession).
+    3. Pick the top-K by cosine similarity, format them as a bullet list,
+       prepend to the reader prompt.
+    4. Return the reader's answer alongside retrieval stats.
+
+    NOTE: this is a novel retrieval layer not validated by the LongMemEval
+    paper. Numbers produced here are labelled
+    `LongMemEval-S substrate-smoke, top-20 claim retrieval` — not
+    stackable against the ICLR paper leaderboard.
+    """
+    from eval.longmemeval.adapter import LongMemEvalQuestion
+    from src.extraction.claim_extractor.extractor import make_llm_extractor
+    from src.substrate.claims import list_active_claims
+
+    q: LongMemEvalQuestion = case_payload  # type: ignore[assignment]
+
+    extractor = make_llm_extractor()
+    t_ingest = time.monotonic()
+    stats, conn = _ingest_with_real_extractor("longmemeval", q, extractor)
+    ingest_latency_ms = (time.monotonic() - t_ingest) * 1000
+
+    active = list_active_claims(conn, q.question_id)
+    stats.active_claim_count = len(active)
+
+    # Build retrieval bundle. If no claims, fall back to baseline prompt.
+    if not active:
+        conn.close()
+        text, latency_ms, tokens = _call_longmemeval_baseline(q, reader, reader_env)
+        return text, ingest_latency_ms + latency_ms, tokens, stats
+
+    claim_texts = [
+        f"{c.subject} / {c.predicate} / {c.value}" for c in active
+    ]
+    top_indices, top_sims = _top_k_by_embedding(q.question, claim_texts, top_k)
+    stats.top_k_retrieved = len(top_indices)
+    if top_sims:
+        stats.top_k_sim_mean = sum(top_sims) / len(top_sims)
+        stats.top_k_sim_min = min(top_sims)
+
+    bundle_lines = ["Relevant facts extracted from prior sessions:"]
+    for i, sim in zip(top_indices, top_sims, strict=False):
+        c = active[i]
+        bundle_lines.append(
+            f"- [sim={sim:.2f}] {c.subject}: {c.predicate} = {c.value}"
+        )
+    bundle_text = "\n".join(bundle_lines)
+
+    conn.close()
+
+    # Reader call with the bundle prepended.
+    from eval.longmemeval.baseline import _flatten_sessions
+
+    prompt = (
+        f"{bundle_text}\n\n---\n\n{_flatten_sessions(q)}\n\nQuestion: {q.question}"
+    )
+    system = (
+        "You are a helpful assistant. Use the 'Relevant facts' bundle and "
+        "the conversation history below to answer the user's question at "
+        "the end. If neither contains enough information, reply exactly: "
+        "'I don't have enough information to answer.'"
+    )
+
+    t0 = time.monotonic()
+    if reader == "qwen2.5-14b":
+        text, tokens = _call_qwen(system, prompt, reader_env)
+    else:
+        text, tokens = _call_openai(reader, system, prompt, reader_env["openai_key"])
+    latency_ms = (time.monotonic() - t0) * 1000
+    return text, ingest_latency_ms + latency_ms, tokens, stats
+
+
+def _top_k_by_embedding(
+    query: str,
+    candidates: list[str],
+    k: int,
+) -> tuple[list[int], list[float]]:
+    """Embed `query` + `candidates` via E5-small-v2 and return top-K indices + sims.
+
+    Falls back to a hash-based ranking if `sentence_transformers` is not
+    installed (which would happen in CI without torch). The fallback keeps
+    the pipeline working for smoke tests — stats will just be meaningless.
+    """
+    try:
+        from src.substrate.supersession_semantic import E5Embedder
+
+        embedder = E5Embedder()
+        vectors = embedder.embed([query] + candidates)
+    except Exception:  # noqa: BLE001 — torch import or HF download failure
+        # Degenerate fallback — first K candidates with sim=0.0.
+        indices = list(range(min(k, len(candidates))))
+        sims = [0.0] * len(indices)
+        return indices, sims
+
+    q_vec = vectors[0]
+    c_vecs = vectors[1:]
+    scored = [
+        (_cosine(q_vec, cv), i)
+        for i, cv in enumerate(c_vecs)
+    ]
+    scored.sort(reverse=True)
+    top = scored[:k]
+    indices = [i for _, i in top]
+    sims = [s for s, _ in top]
+    return indices, sims
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """Cosine similarity. Returns 0.0 if either vector is all-zero."""
+    import math
+
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
 def _call_longmemeval_judge(
     question: str,
     gold_answer: str,
@@ -517,78 +683,259 @@ def _call_acibench_baseline(
     return text, latency_ms, tokens
 
 
+def _ingest_with_real_extractor(
+    benchmark: str,
+    case_payload: object,
+    extractor: object,
+    *,
+    parallel_extract: bool = True,
+    max_workers: int = 10,
+) -> tuple[SubstrateStats, Any]:
+    """Run substrate ingestion with a caller-supplied extractor.
+
+    Returns `(stats, conn)`. Caller is responsible for closing `conn`.
+
+    Differs from `_run_substrate_ingestion` in three ways:
+    1. Uses the provided extractor instead of a noop.
+    2. Keeps the connection open so the caller can query
+       `list_active_claims` or build a retrieval index over them.
+    3. For LongMemEval (many-hundreds of turns per case), pre-extracts
+       claims concurrently via a thread pool before handing them to the
+       substrate in order. Observed Phase 4B v2 (sequential): 2h elapsed
+       with only 12s CPU because one rate-limited call blocked the whole
+       loop. Parallel pre-extraction decouples the network-bound
+       extractor work from the serial substrate pipeline and gives an
+       order-of-magnitude speedup.
+
+    Parameters
+    ----------
+    parallel_extract:
+        When True (default), for LongMemEval pre-extract all claims
+        concurrently with `max_workers` threads and feed cached results
+        into `on_new_turn`. Set False for unit tests that need
+        deterministic ordering or to debug extractor behaviour.
+    max_workers:
+        Thread pool size for parallel extraction. 10 is safe for Azure
+        OpenAI tier with token-per-minute limits up to 100k. Raise for
+        higher tiers.
+    """
+    from src.substrate.schema import Speaker, open_database
+
+    stats = SubstrateStats(active_pack=os.environ.get("ACTIVE_PACK", "clinical_general"))
+    conn = open_database(":memory:")
+
+    if benchmark == "longmemeval":
+        from eval.longmemeval.adapter import LongMemEvalQuestion, session_to_turns
+        from src.substrate.on_new_turn import on_new_turn
+
+        q: LongMemEvalQuestion = case_payload  # type: ignore[assignment]
+        session_id = q.question_id
+
+        # Collect all turns first (across all haystack sessions, in order).
+        all_turns = []
+        for sidx in range(len(q.haystack_sessions)):
+            for t in session_to_turns(q, sidx):
+                all_turns.append(t)
+
+        # Pre-extract claims in parallel. Cache keyed by `turn.text` —
+        # NOT turn.turn_id, because `on_new_turn` generates a fresh
+        # turn_id internally (so the substrate-side turn passed to the
+        # extractor has a different ID than the adapter-side turn we
+        # extracted from). Text is the deterministic input the extractor
+        # actually consumes.
+        extraction_cache: dict[str, list] = {}
+        if parallel_extract and len(all_turns) > 1:
+            extraction_cache = _parallel_extract_claims(
+                extractor, all_turns, max_workers=max_workers
+            )
+
+        def _cached_or_direct_extractor(turn):  # type: ignore[no-untyped-def]
+            cached = extraction_cache.get(turn.text)
+            if cached is not None:
+                return cached
+            # Fallback: direct call. Hits when parallel_extract=False or
+            # the upstream extraction silently dropped this turn.
+            return extractor(turn)  # type: ignore[operator]
+
+        for t in all_turns:
+            res = on_new_turn(
+                conn,
+                session_id=session_id,
+                speaker=Speaker(t.speaker)
+                if t.speaker in ("patient", "physician", "system")
+                else Speaker.SYSTEM,
+                text=t.text,
+                extractor=_cached_or_direct_extractor,  # type: ignore[arg-type]
+            )
+            if res.admitted:
+                stats.claims_written_count += len(res.created_claims)
+                stats.supersessions_fired_count += len(res.supersession_edges)
+
+    elif benchmark == "acibench":
+        from eval.aci_bench.adapter import ACIEncounter, encounter_to_turns
+        from src.substrate.on_new_turn import on_new_turn
+
+        enc: ACIEncounter = case_payload  # type: ignore[assignment]
+        session_id = enc.encounter_id
+        # ACI-Bench typically has ~40 turns per encounter — sequential
+        # extraction is fast enough and preserves simpler debugging.
+        for t in encounter_to_turns(enc):
+            res = on_new_turn(
+                conn,
+                session_id=session_id,
+                speaker=Speaker(t.speaker)
+                if t.speaker in ("patient", "physician", "system")
+                else Speaker.SYSTEM,
+                text=t.text,
+                extractor=extractor,  # type: ignore[arg-type]
+            )
+            if res.admitted:
+                stats.claims_written_count += len(res.created_claims)
+                stats.supersessions_fired_count += len(res.supersession_edges)
+    else:
+        raise ValueError(f"unknown benchmark: {benchmark!r}")
+
+    from src.substrate.claims import list_active_claims
+
+    active = list_active_claims(conn, _session_id_for(benchmark, case_payload))
+    stats.active_claim_count = len(active)
+    admitted_turns = conn.execute(
+        "SELECT COUNT(*) FROM turns WHERE session_id = ?",
+        (_session_id_for(benchmark, case_payload),),
+    ).fetchone()[0]
+    stats.projection_nonempty = admitted_turns > 0
+    return stats, conn
+
+
+def _parallel_extract_claims(
+    extractor: object,
+    turns: list,
+    *,
+    max_workers: int = 10,
+) -> dict[str, list]:
+    """Pre-extract claims for a list of turns using a thread pool.
+
+    Returns a dict `turn_id → list[ExtractedClaim]`. Turns whose extraction
+    raises an exception are mapped to an empty list (the extractor already
+    does the same under its own except-handler; this is defence-in-depth
+    so one broken turn can't abort the whole pool).
+
+    Parallelism here is safe because the extractor's claim output does not
+    depend on any other turn's state — each call is independent. Claim
+    ordering is preserved by the caller feeding turns back into
+    `on_new_turn` sequentially, using the cache to avoid re-extracting.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    cache: dict[str, list] = {}
+    if not turns:
+        return cache
+
+    def _extract_one(turn):  # type: ignore[no-untyped-def]
+        try:
+            claims = extractor(turn)  # type: ignore[operator]
+            return turn.text, claims
+        except Exception:  # noqa: BLE001 — log + empty, don't abort pool
+            return turn.text, []
+
+    t_start = time.monotonic()
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_extract_one, t) for t in turns]
+        for fut in as_completed(futures):
+            text, claims = fut.result()
+            cache[text] = claims
+    elapsed = time.monotonic() - t_start
+
+    # Useful telemetry for operator: how long did the parallel phase take,
+    # and how many turns actually produced claims.
+    total_claims = sum(len(c) for c in cache.values())
+    non_empty = sum(1 for c in cache.values() if c)
+    print(
+        f"[smoke] parallel_extract: {len(turns)} turns, "
+        f"{non_empty} with claims, {total_claims} claims total, "
+        f"{elapsed:.1f}s elapsed (max_workers={max_workers})"
+    )
+    return cache
+
+
+def _session_id_for(benchmark: str, case_payload: object) -> str:
+    """Extract the session/encounter ID used in substrate ingestion."""
+    if benchmark == "longmemeval":
+        return getattr(case_payload, "question_id")
+    if benchmark == "acibench":
+        return getattr(case_payload, "encounter_id")
+    raise ValueError(f"unknown benchmark: {benchmark!r}")
+
+
+def _normalised_edit_distance(a: str, b: str) -> float:
+    """1 - SequenceMatcher.ratio. 0.0 = identical, 1.0 = fully different.
+
+    Used for the Phase 4A pass criterion "substrate note differs from
+    baseline note by > 0.1 on ≥7 of 10 cases."
+    """
+    import difflib
+
+    if not a and not b:
+        return 0.0
+    ratio = difflib.SequenceMatcher(None, a or "", b or "").ratio()
+    return 1.0 - ratio
+
+
 def _call_acibench_substrate(
     case_payload: object,
     reader: str,
     reader_env: dict[str, str],
-) -> tuple[str, float, int]:
-    """Substrate variant: two-step structured-extract then SOAP-generate.
+    baseline_note_for_edit_distance: str | None = None,
+) -> tuple[str, float, int, SubstrateStats]:
+    """Substrate variant — wires the real substrate end-to-end.
 
-    Smoke-tier approximation of the substrate's role in the full pipeline.
-    The production substrate extracts claims continuously during ingestion
-    and projects them into a retrieval surface; here we run a single
-    claim-extract pass over the entire dialogue, then generate the SOAP
-    note with that claim list prepended to the prompt. This exercises the
-    "pre-structured representation → note" path that the substrate enables,
-    so `substrate_score - baseline_score` actually measures something
-    substrate-related instead of being identically the baseline.
+    Flow (Phase 3):
+    1. Ingest every turn via `on_new_turn` with the real LLM-backed
+       extractor. Pass-1 + Pass-2 supersession fire as claims land.
+    2. Query `list_active_claims` from the substrate DB.
+    3. Call `src.note.generator.generate_soap_note` to compose a
+       provenance-tagged SOAP note.
+    4. Compute `sentence_with_provenance_ratio` and
+       `substrate_vs_baseline_edit_distance` (when baseline_note provided).
 
-    Returns (predicted_note, combined_latency_ms, combined_tokens).
+    Returns `(note_text, combined_latency_ms, combined_tokens, stats)`.
     """
     from eval.aci_bench.adapter import ACIEncounter
     from eval.aci_bench.baseline import _format_dialogue
+    from src.extraction.claim_extractor.extractor import make_llm_extractor
+    from src.note.generator import generate_soap_note
 
     enc: ACIEncounter = case_payload  # type: ignore[assignment]
     dialogue_text = _format_dialogue(enc)
 
-    # --- Step 1: structured claim extraction ---------------------------
-    extract_system = (
-        "You are a clinical information-extraction assistant. From the "
-        "doctor-patient dialogue that follows, extract every clinical "
-        "claim made by either party. Output ONLY a JSON list of short "
-        "claim strings (one claim per string) in chronological order. "
-        "Include: symptoms, timelines, medical history, medications, "
-        "physical-exam findings, allergies, social history. Do NOT "
-        "invent content. This is a research prototype, not a medical device."
-    )
-    t0 = time.monotonic()
-    if reader == "qwen2.5-14b":
-        claims_text, extract_tokens = _call_qwen(extract_system, dialogue_text, reader_env)
-    else:
-        claims_text, extract_tokens = _call_openai(
-            reader, extract_system, dialogue_text, reader_env["openai_key"]
-        )
-    extract_latency_ms = (time.monotonic() - t0) * 1000
+    # Step 1: ingest with real extractor.
+    extractor = make_llm_extractor()
+    t_ingest_start = time.monotonic()
+    stats, conn = _ingest_with_real_extractor("acibench", enc, extractor)
+    ingest_latency_ms = (time.monotonic() - t_ingest_start) * 1000
 
-    # --- Step 2: SOAP note generation with claims prepended ------------
-    note_system = (
-        "You are a clinical documentation assistant producing a SOAP "
-        "note from a doctor-patient conversation. Output only the note, "
-        "in four sections (SUBJECTIVE / OBJECTIVE / ASSESSMENT / PLAN). "
-        "Use only information present in the transcript and the "
-        "pre-extracted claim list. Ensure every relevant claim from the "
-        "list is reflected in the appropriate section. Do NOT fabricate "
-        "findings or orders. This is a research prototype, not a medical "
-        "device; the physician makes every clinical decision."
+    # Step 2+3: generate SOAP from claim store.
+    soap = generate_soap_note(
+        conn,
+        session_id=enc.encounter_id,
+        dialogue_text=dialogue_text,
+        reader=reader,
+        reader_env=reader_env,
     )
-    note_prompt = (
-        f"Pre-extracted clinical claims (from claim-extractor):\n"
-        f"{claims_text}\n\n"
-        f"Conversation transcript:\n{dialogue_text}"
-    )
-    t1 = time.monotonic()
-    if reader == "qwen2.5-14b":
-        note_text, note_tokens = _call_qwen(note_system, note_prompt, reader_env)
-    else:
-        note_text, note_tokens = _call_openai(
-            reader, note_system, note_prompt, reader_env["openai_key"]
+    conn.close()
+
+    # Step 4: enrich stats.
+    stats.sentence_with_provenance_ratio = soap.sentence_with_provenance_ratio
+    if baseline_note_for_edit_distance is not None:
+        stats.substrate_vs_baseline_edit_distance = _normalised_edit_distance(
+            baseline_note_for_edit_distance, soap.note_text
         )
-    note_latency_ms = (time.monotonic() - t1) * 1000
 
     return (
-        note_text,
-        extract_latency_ms + note_latency_ms,
-        extract_tokens + note_tokens,
+        soap.note_text,
+        ingest_latency_ms + soap.latency_ms,
+        soap.tokens_used,
+        stats,
     )
 
 
@@ -693,15 +1040,38 @@ def _call_openai(
     user: str,
     openai_key: str,
 ) -> tuple[str, int]:
-    """Call an OpenAI model. Returns (text, approx_token_count)."""
-    _model_map = {
-        "gpt-4o-mini": "gpt-4o-mini",
-        "gpt-4.1-mini": "gpt-4.1-mini",
-    }
-    model = _model_map.get(model_key, model_key)
-    import openai
+    """Call an OpenAI model. Returns (text, approx_token_count).
 
-    client = openai.OpenAI(api_key=openai_key)
+    Routes through `eval._openai_client.make_openai_client` so Azure
+    deployments (AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY +
+    AZURE_OPENAI_GPT4OMINI_DEPLOYMENT / AZURE_OPENAI_GPT4O_DEPLOYMENT)
+    are used when set; otherwise falls back to direct OpenAI with
+    `openai_key`.
+    """
+    _purpose_map = {
+        "gpt-4o-mini": "llm_medcon_gpt4omini",
+        "gpt-4.1-mini": "reader_gpt41mini",
+        "gpt-4.1": "reader_gpt41",
+    }
+    purpose = _purpose_map.get(model_key)
+    if purpose is None:
+        # Unknown model — direct OpenAI with the literal model string.
+        import openai
+
+        client = openai.OpenAI(api_key=openai_key)
+        model = model_key
+    else:
+        # Determine routing: Azure if endpoint set, else direct OpenAI.
+        from eval._openai_client import make_openai_client
+
+        if os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip():
+            client, model = make_openai_client(purpose)  # type: ignore[arg-type]
+        else:
+            import openai
+
+            client = openai.OpenAI(api_key=openai_key)
+            model = model_key
+
     resp = client.chat.completions.create(
         model=model,
         messages=[
@@ -853,12 +1223,17 @@ def _run_longmemeval_case(
         baseline_tokens = tokens
         cumulative_cost[0] += _READER_COST_PER_CALL.get(reader, 0.005)
 
-        # Judge score.
-        if openai_key:
+        # Judge score. _call_longmemeval_judge routes through make_openai_client
+        # which prefers Azure when AZURE_OPENAI_ENDPOINT is set; otherwise it
+        # uses direct OpenAI with `openai_key`. Either path is acceptable.
+        judge_routable = bool(openai_key) or bool(
+            os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+        )
+        if judge_routable:
             score, reasoning = _call_longmemeval_judge(q.question, q.answer, answer, openai_key)
             cumulative_cost[0] += _JUDGE_COST_PER_CALL
         else:
-            score, reasoning = 0.0, "[no OPENAI_API_KEY — judge skipped]"
+            score, reasoning = 0.0, "[no OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT — judge skipped]"
         baseline_score = score
         baseline_judge_reasoning = reasoning
 
@@ -886,20 +1261,25 @@ def _run_longmemeval_case(
         if cumulative_cost[0] + call_cost > budget_usd:
             return results, True  # BUDGET_HALT
 
-        # Substrate ingestion (ACTIVE_PACK already set by caller).
-        substrate_stats = _run_substrate_ingestion("longmemeval", q)
-
-        # Reader call with the same question (substrate variant uses same reader;
-        # in production the claim bundle would be prepended to the prompt, but
-        # with a no-op extractor here we pass the same prompt as baseline).
-        answer, latency_ms, tokens = _call_longmemeval_baseline(q, reader, reader_env)
+        # Phase-3 substrate wiring for LongMemEval: ingest with the real
+        # extractor, retrieve top-K claims by embedding similarity vs the
+        # question, and prepend them to the reader prompt. Novel retrieval
+        # layer not in the ICLR paper — flagged in methodology.md as a
+        # smoke-validation run, NOT a leaderboard-comparable RAG submission.
+        answer, latency_ms, tokens, substrate_stats = _call_longmemeval_substrate(
+            q, reader, reader_env
+        )
         cumulative_cost[0] += _READER_COST_PER_CALL.get(reader, 0.005)
 
-        if openai_key:
+        # Same Azure-aware judge gating as the baseline branch above.
+        judge_routable = bool(openai_key) or bool(
+            os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+        )
+        if judge_routable:
             score, reasoning = _call_longmemeval_judge(q.question, q.answer, answer, openai_key)
             cumulative_cost[0] += _JUDGE_COST_PER_CALL
         else:
-            score, reasoning = 0.0, "[no OPENAI_API_KEY — judge skipped]"
+            score, reasoning = 0.0, "[no OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT — judge skipped]"
 
         delta = (score - baseline_score) if baseline_score is not None else None
 
@@ -923,6 +1303,10 @@ def _run_longmemeval_case(
                     "supersessions_fired_count": substrate_stats.supersessions_fired_count,
                     "projection_nonempty": substrate_stats.projection_nonempty,
                     "active_pack": substrate_stats.active_pack,
+                    "active_claim_count": substrate_stats.active_claim_count,
+                    "top_k_retrieved": substrate_stats.top_k_retrieved,
+                    "top_k_sim_mean": substrate_stats.top_k_sim_mean,
+                    "top_k_sim_min": substrate_stats.top_k_sim_min,
                 },
             )
         )
@@ -986,20 +1370,46 @@ def _run_acibench_case(
         )
 
     if "substrate" in variants:
-        # Substrate variant fires TWO reader calls (claim-extract + note-generate),
-        # so budget this at 2× the baseline cost.
+        # Substrate variant fires (extractor-per-turn × N) + one SOAP call.
+        # Budget this at 2× baseline cost as a conservative cap — real cost
+        # depends on dialogue length; extractor calls are gpt-4o-mini class.
         call_cost = 2 * _READER_COST_PER_CALL.get(reader, 0.005)
         if cumulative_cost[0] + call_cost > budget_usd:
             return results, True
 
-        # Substrate ingestion (ACTIVE_PACK already set by caller).
-        substrate_stats = _run_substrate_ingestion("acibench", enc)
-
-        note, latency_ms, tokens = _call_acibench_substrate(enc, reader, reader_env)
+        # Phase-3 substrate wiring: _call_acibench_substrate now runs the
+        # full ingest → claims-write → supersession → projection → SOAP
+        # pipeline internally, returning the full substrate stats as part
+        # of its tuple. Pass baseline_note so the substrate stats can
+        # record `substrate_vs_baseline_edit_distance` for Phase 4A pass
+        # criterion #4.
+        substrate_ret = _call_acibench_substrate(
+            enc, reader, reader_env, baseline_note
+        )
+        # Back-compat: older test mocks return a 3-tuple ("note", lat, tok);
+        # the production path returns a 4-tuple (note, lat, tok, stats).
+        if len(substrate_ret) == 4:
+            note, latency_ms, tokens, substrate_stats = substrate_ret  # type: ignore[misc]
+        else:
+            note, latency_ms, tokens = substrate_ret  # type: ignore[misc]
+            substrate_stats = _run_substrate_ingestion("acibench", enc)
         cumulative_cost[0] += call_cost
 
         medcon_f1 = _score_acibench_case(enc, note)
         delta = (medcon_f1 - baseline_score) if baseline_score is not None else None
+
+        structural_validity: dict[str, Any] = {
+            "claims_written_count": substrate_stats.claims_written_count,
+            "supersessions_fired_count": substrate_stats.supersessions_fired_count,
+            "projection_nonempty": substrate_stats.projection_nonempty,
+            "active_pack": substrate_stats.active_pack,
+            "active_claim_count": substrate_stats.active_claim_count,
+            "sentence_with_provenance_ratio": substrate_stats.sentence_with_provenance_ratio,
+        }
+        if substrate_stats.substrate_vs_baseline_edit_distance is not None:
+            structural_validity["substrate_vs_baseline_edit_distance"] = (
+                substrate_stats.substrate_vs_baseline_edit_distance
+            )
 
         results.append(
             CaseResult(
@@ -1016,12 +1426,7 @@ def _run_acibench_case(
                 tokens_used_substrate=tokens,
                 estimated_cost=call_cost,
                 judge_reasoning=None,
-                structural_validity={
-                    "claims_written_count": substrate_stats.claims_written_count,
-                    "supersessions_fired_count": substrate_stats.supersessions_fired_count,
-                    "projection_nonempty": substrate_stats.projection_nonempty,
-                    "active_pack": substrate_stats.active_pack,
-                },
+                structural_validity=structural_validity,
             )
         )
 

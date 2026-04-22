@@ -65,6 +65,7 @@ Thumbs.db
 models/
 eval/**/data/
 eval/reports/*/
+eval/smoke/results/
 
 # Logs
 *.log

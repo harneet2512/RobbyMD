@@ -1,0 +1,28 @@
+{
+  "pack_id": "clinical_general",
+  "description": "Predicate → SOAP section mapping used by src/note/generator.py. S = Subjective (patient-reported), O = Objective (examiner-measured), A = Assessment, P = Plan. Assessment and Plan are physician-synthesised and have no directly-mapped predicates; the generator relies on the LLM to infer them from the dialogue + claim bundle.",
+  "sections": ["S", "O", "A", "P"],
+  "predicate_to_section": {
+    "onset": "S",
+    "character": "S",
+    "severity": "S",
+    "location": "S",
+    "radiation": "S",
+    "aggravating_factor": "S",
+    "alleviating_factor": "S",
+    "associated_symptom": "S",
+    "duration": "S",
+    "medical_history": "S",
+    "medication": "S",
+    "allergy": "S",
+    "family_history": "S",
+    "social_history": "S",
+    "review_of_systems": "S",
+    "vital_sign": "O",
+    "lab_value": "O",
+    "imaging_finding": "O",
+    "physical_exam_finding": "O",
+    "risk_factor": "A"
+  },
+  "default_section": "S"
+}
