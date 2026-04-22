@@ -206,6 +206,50 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
   - Commit: `2d90abd` — `critical path: LLM-backed extractor + substrate-backed SOAP generator with provenance validation + smoke harness wiring`.
 - **Revisit trigger**: never. Critical-path code lands on `main` immediately upon green test gate, period.
 
+### Standalone `docs/asr_engineering_spec.md` — rejected reasons.md long-entry alternative (2026-04-22)
+
+- **Context**: parallel-execution-synthetic-rain plan, Stream D (ASR engineering spec). Decision 3 in the plan keeps markdown-in-git to `reasons.md` only — but the ASR spec is an internal engineering reference, not a narrative rejection log.
+- **What was considered**: appending the full ASR spec content as one long-entry row in `reasons.md`. Faithful to the markdown-discipline rule; no new `.md` file in git.
+- **Why it lost**:
+  1. **Browsability**: the spec has 9 sections including a success-criteria matrix, a latency-budget table, worked cleanup examples, and a failure-mode coverage table. Flattening all of that into a reasons.md row destroys the hierarchical structure readers need.
+  2. **Anchorability**: `README.md` Architecture section, `docs/asr_benchmark.md` top-of-file pointer, and the dormancy-regression test docstring all need to link directly to named sections (`#2`, `#4`, `#7`). Linking into a reasons.md entry by header would be fragile.
+  3. **Reading cost on unrelated questions**: future agents working on extraction / eval / differential will re-read `reasons.md` frequently. Dumping ~400 lines of ASR-spec content into it balloons the per-read cost for readers who don't need it.
+- **What we did instead**: shipped `docs/asr_engineering_spec.md` as the **one explicit exception** to the markdown-in-git rule. Recorded the exception in the spec's own opening paragraph (§ "Markdown-discipline note") and here. `docs/asr_benchmark.md` retains its pointer-only role; the engineering spec is the canonical reference.
+- **Citations**:
+  - Plan file: `C:\Users\Lenovo\.claude-work\plans\parallel-execution-synthetic-rain.md` §D.1.
+  - `docs/asr_engineering_spec.md` § "Markdown-discipline note".
+- **Revisit trigger**: a second internal engineering spec of similar size lands — at which point a `docs/specs/` subtree becomes the pattern, not a per-file exception.
+
+### `PipelineConfig.bypass_cleanup_for_text_input` default `True` — defence-in-depth (2026-04-22)
+
+- **Context**: parallel-execution-synthetic-rain plan, Stream D.E. ACI-Bench and LongMemEval feed the substrate already-clean text, not raw audio.
+- **What was considered**: defaulting the flag to `False` and having each eval harness opt out explicitly. Matches the "existing behaviour preserved" refactoring principle.
+- **Why it lost**: (1) silent failure mode — a future eval harness written without knowledge of this flag would silently stack cleanup on already-clean text and invalidate apples-to-apples comparison against published baselines. (2) The only path that legitimately needs cleanup is the raw-audio demo; we prefer that path opt in deliberately rather than inherit-and-maybe-forget. (3) Cost/latency leak: running `gpt-4o-mini` cleanup on every eval question is an uncontrolled cost multiplier. (4) Paraphrase drift: the cleanup LLM can legitimately rewrite phrasing, which changes the downstream claim extractor's inputs in ways that are hard to diff-audit.
+- **What we did instead**: default `bypass_cleanup_for_text_input: bool = True`. Pipeline short-circuits before `TranscriptCleaner` construction, not just before `.clean()` — belt-and-braces for an eval-integrity invariant. Regression test `tests/unit/extraction/test_text_input_dormancy.py` patches `TranscriptCleaner` and asserts `call_count == 0` with bypass=True, `call_count == 1` with bypass=False (negative control), and the default value is `True` (invariant).
+- **Citations**:
+  - `src/extraction/asr/pipeline.py::PipelineConfig.bypass_cleanup_for_text_input`.
+  - `src/extraction/asr/pipeline.py::AsrPipeline._transcribe_inner` (cleanup gate).
+  - `docs/asr_engineering_spec.md` §2.E and §7.
+  - Plan file §D.E and §D.5.
+- **Revisit trigger**: a new raw-audio eval harness lands — at that point the opt-in (`bypass_cleanup_for_text_input=False`) is a two-keystroke change in the harness, documented alongside whatever fixture that harness uses.
+
+### `asr_benchmark.md` §4 — TBM rows replaced with single-line pointer (2026-04-22)
+
+- **Context**: parallel-execution-synthetic-rain plan, Stream D.F.
+- **What was considered**: leaving the three `TBM` rows in place (Variant A / B / C × RTF / overall WER / medical-term WER / end-of-utterance latency, all cells `TBM`). The cells are honestly labelled; a diligent reader knows what `TBM` means.
+- **Why it lost**:
+  1. **Visual deception**: a results table with every cell labelled "TBM" looks structurally like a results table that just needs filling in by the next run. A judge skimming the repo sees "results § with a table" and forms a mental model that results exist — then has to read the fine print to learn they don't.
+  2. **Drift risk**: the longer a TBM-table sits, the more pressure there is to populate it with "approximate" or "projected" numbers. A single-line pointer removes the slot entirely.
+  3. **Asymmetry with the rest of the file**: the methodology (§3), variants description (§1), and metrics definitions (§2) of `asr_benchmark.md` are all substantive and non-speculative. The TBM table is the one false note in an otherwise honest document.
+- **What we did instead**: replaced the 3 TBM rows with:
+  > "Measurement pending — GPU run scheduled; see `docs/asr_engineering_spec.md` §2 (success criterion A) and §4 (latency budget) for the measurement plan."
+  Kept §3 (Reproduction), §4.1 (Expected directional outcomes — explicitly labelled as hypotheses), §5 (Known limitations), §6 (Fallback), §7 (Reproducibility checklist) — all non-speculative content. Added a top-of-file pointer to `docs/asr_engineering_spec.md`.
+- **Citations**:
+  - `docs/asr_benchmark.md` (post-edit).
+  - `docs/asr_engineering_spec.md` §2.F and §8.1.
+  - `rules.md §9.3` — measured numbers with denominators + caveats; TBM is a caveat but a 3-row TBM table reads as a result slot.
+- **Revisit trigger**: GPU scheduling window confirmed (`docs/asr_engineering_spec.md` §8.1, first open ask). At that point a populated results table replaces the pointer line in `asr_benchmark.md` §4.
+
 ### Batch-only ASR pipeline — rejected for streaming-capable architecture (2026-04-22)
 
 - **Context**: ASR hardening dispatch Track 3 Parts A-D, F, G.

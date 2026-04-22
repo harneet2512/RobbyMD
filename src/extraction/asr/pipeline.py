@@ -148,6 +148,13 @@ class PipelineConfig:
     cleanup_model: str = "gpt-4o-mini"
     enable_cleanup: bool = True      # set False in tests to skip LLM cleanup
     enable_preprocessing: bool = True  # set False to skip ffmpeg preprocessing
+    # Text-input dormancy flag (docs/asr_engineering_spec.md §7).
+    # When True (default), the pipeline skips TranscriptCleaner even if
+    # ``enable_cleanup`` would otherwise have invoked it. This is the
+    # defence-in-depth guarantee that ACI-Bench / LongMemEval text paths
+    # never stack LLM cleanup on top of already-clean transcripts. Flip to
+    # False ONLY for raw-audio ingest paths where cleanup provides value.
+    bypass_cleanup_for_text_input: bool = True
 
 
 class _VadGate(Protocol):
@@ -309,8 +316,18 @@ class AsrPipeline:
         )
 
         # Build cleanup helper (shared context across turns in this clip).
+        # Text-input dormancy (docs/asr_engineering_spec.md §7): when the caller
+        # has set bypass_cleanup_for_text_input=True, we short-circuit before
+        # ever instantiating the cleaner — a belt-and-braces guarantee that no
+        # LLM cleanup runs on text-input eval paths even if enable_cleanup
+        # gets flipped somewhere downstream.
         cleaner: TranscriptCleaner | None = None
-        if self.config.enable_cleanup:
+        if self.config.bypass_cleanup_for_text_input:
+            logger.info(
+                "asr_pipeline.cleanup_bypassed_for_text_input",
+                reason="bypass_cleanup_for_text_input=True",
+            )
+        elif self.config.enable_cleanup:
             try:
                 cleaner = TranscriptCleaner(
                     medical_vocabulary=self.medical_vocabulary,

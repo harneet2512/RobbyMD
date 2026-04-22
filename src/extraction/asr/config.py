@@ -12,6 +12,16 @@ Hard safety rule (Eng_doc.md §3.5 "Tank for the war" policy):
     muddy benchmark comparisons. If any caller accidentally passes a
     ``cleanup_model`` that starts with ``"claude-opus"``, the constructors raise
     ``ValueError`` at construction time.
+
+Text-input eval dormancy (2026-04-22):
+    ACI-Bench and LongMemEval feed the substrate already-clean text, not raw
+    audio. Running ``TranscriptCleaner`` on top of that text is defence-in-depth
+    that becomes a liability: the cleanup LLM can paraphrase, re-wrap, or
+    "helpfully" normalise medical phrasing, which invalidates apples-to-apples
+    comparison against the published baselines. ``PipelineConfig`` carries a
+    ``bypass_cleanup_for_text_input`` flag (default ``True``) that the pipeline
+    orchestration consults before invoking the cleanup stage. See
+    ``docs/asr_engineering_spec.md`` §7 for the full dormancy guarantee.
 """
 
 from __future__ import annotations
