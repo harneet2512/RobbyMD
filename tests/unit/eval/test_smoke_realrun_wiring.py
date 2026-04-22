@@ -399,7 +399,7 @@ class TestVariantBenchmarkInvocation:
         retrieval_con_called: list[bool] = []
         legacy_called: list[bool] = []
 
-        def _mock_retrieval_con(_q, _env, top_k: int = 20):
+        def _mock_retrieval_con(_q, _env, top_k: int = 20, **_kw):
             retrieval_con_called.append(True)
             stats = run_smoke.SubstrateStats(
                 claims_written_count=5,

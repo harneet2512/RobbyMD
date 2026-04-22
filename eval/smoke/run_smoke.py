@@ -134,6 +134,105 @@ class SmokeResult:
 # ------------------------------------------------------------------
 
 
+# ------------------------------------------------------------------
+# Streaming JSONL helpers (Stream A memory-fix, 2026-04-22).
+# Replace the in-memory `all_results` accumulator that OOM'd Stream A
+# during the n=60 LongMemEval run. Each case-variant row writes
+# immediately; final results.json is rebuilt from the JSONL at end.
+# ------------------------------------------------------------------
+
+
+def _stream_jsonl_append(path: "Path", obj: dict[str, object]) -> None:
+    """Append one JSON object as a single line, flushing immediately.
+
+    Atomic-enough for our purposes: on a crashed process, the worst case is
+    one half-written trailing line that the JSONL reader skips silently
+    (loose lines = data we never had, not data we corrupted).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(obj) + "\n")
+        f.flush()
+
+
+def _load_completed_case_variants(path: "Path") -> set[tuple[str, str]]:
+    """Resume support: read prior hypotheses.jsonl and return done (case_id, variant) pairs.
+
+    Returns an empty set when the file does not exist. Lines that fail JSON
+    parse (e.g. half-written from a previous crash) are skipped silently —
+    the caller will re-run the corresponding cases on the next invocation.
+    """
+    if not path.is_file():
+        return set()
+    completed: set[tuple[str, str]] = set()
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                cid = row.get("case_id")
+                variant = row.get("variant")
+                if cid and variant:
+                    completed.add((str(cid), str(variant)))
+            except json.JSONDecodeError:
+                continue
+    return completed
+
+
+def _log_rss_mb(label: str) -> int:
+    """Log current RSS in MiB; returns the number too. No-op if psutil missing.
+
+    Why on every status update instead of progress counters: the OOM that
+    killed Stream A surfaced no warning — process counters all looked
+    healthy until the JSON encoder hit the cliff. RSS is the load-bearing
+    signal to track.
+    """
+    try:
+        import psutil  # type: ignore[import-not-found]
+        rss_mb = psutil.Process().memory_info().rss // (1024 * 1024)
+    except ImportError:
+        rss_mb = -1
+    print(f"[smoke] rss_mb={rss_mb} ({label})")
+    return int(rss_mb)
+
+
+def _streaming_extractor_wrapper(extractions_path: "Path | None", base_extractor):
+    """Wrap an ExtractorFn so each turn's extracted claims stream to disk.
+
+    Pass `None` for `extractions_path` to no-op (default for backward compat).
+    The wrapper is dataclass-aware: if the extractor returns dataclass-like
+    objects, they're rendered via asdict; otherwise dict()'d.
+    """
+    if extractions_path is None:
+        return base_extractor
+
+    def wrapped(turn):  # type: ignore[no-untyped-def]
+        claims = base_extractor(turn)
+        try:
+            payload = []
+            for c in claims:
+                if hasattr(c, "__dataclass_fields__"):
+                    payload.append(asdict(c))
+                else:
+                    payload.append(dict(c) if isinstance(c, dict) else {"raw": str(c)})
+            _stream_jsonl_append(
+                extractions_path,
+                {
+                    "turn_id": getattr(turn, "turn_id", None),
+                    "session_id": getattr(turn, "session_id", None),
+                    "claim_count": len(claims),
+                    "claims": payload,
+                },
+            )
+        except Exception:  # noqa: BLE001 — never let logging break the run
+            pass
+        return claims
+
+    return wrapped
+
+
 @dataclass
 class CaseResult:
     """One benchmark case × variant result record.
@@ -665,6 +764,8 @@ def _call_longmemeval_substrate_retrieval_con(
     case_payload: object,
     reader_env: dict[str, str],
     top_k: int = 20,
+    *,
+    extractions_path: "Path | None" = None,
 ) -> tuple[str, float, int, SubstrateStats, dict[str, Any]]:
     """Stream A substrate variant: extract → retrieve(top-k) → CoN.
 
@@ -700,6 +801,9 @@ def _call_longmemeval_substrate_retrieval_con(
 
     q: LongMemEvalQuestion = case_payload  # type: ignore[assignment]
     extractor = make_llm_extractor()
+    # Wrap so each turn's extracted claims stream to extractions.jsonl
+    # if the harness asked for it (no-op when extractions_path is None).
+    extractor = _streaming_extractor_wrapper(extractions_path, extractor)
 
     t_ingest = time.monotonic()
     stats, conn = _ingest_with_real_extractor("longmemeval", q, extractor)
@@ -1652,8 +1756,12 @@ def _run_longmemeval_case(
     budget_usd: float,
     *,
     legacy_substrate: bool = False,
+    extractions_path: "Path | None" = None,
 ) -> tuple[list[CaseResult], bool]:
     """Run one LongMemEval-S case for specified variants.
+
+    `extractions_path`, when set, is forwarded to the substrate retrieval+CoN
+    path so each turn's claim extraction streams to disk.
 
     Returns (results, budget_halted).
     """
@@ -1737,7 +1845,9 @@ def _run_longmemeval_case(
                 tokens,
                 substrate_stats,
                 _provenance,
-            ) = _call_longmemeval_substrate_retrieval_con(q, reader_env)
+            ) = _call_longmemeval_substrate_retrieval_con(
+                q, reader_env, extractions_path=extractions_path
+            )
         cumulative_cost[0] += _READER_COST_PER_CALL.get(reader, 0.005)
 
         # Same Azure-aware judge gating as the baseline branch above.
@@ -2060,11 +2170,24 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
         encoding="utf-8",
     )
 
-    all_results: list[CaseResult] = []
-    # Cumulative cost tracked across all API calls. Use a list for mutability in closures.
+    # Streaming JSONL paths — replaces the in-memory `all_results`
+    # accumulator that OOM'd Stream A during n=60. hypotheses.jsonl gets
+    # one line per case-variant row; extractions.jsonl gets one line per
+    # turn extraction (LongMemEval substrate path only — ACI-Bench's
+    # extractor cache is bounded per-encounter and didn't OOM).
+    hypotheses_path = out_dir / "hypotheses.jsonl"
+    extractions_path = out_dir / "extractions.jsonl"
+    completed_pairs = _load_completed_case_variants(hypotheses_path)
+    if completed_pairs:
+        result.lines.append(
+            f"[smoke] resume: {len(completed_pairs)} (case_id, variant) pairs already in {hypotheses_path.name}"
+        )
+
+    case_count = 0  # for periodic RSS logging; replaces len(all_results)
     cumulative_cost: list[float] = [0.0]
     budget_halted = False
     anomaly_reasons: list[str] = []
+    _log_rss_mb("real_run start")
 
     for bench in cfg.benchmarks:
         # Set ACTIVE_PACK BEFORE any substrate import for this benchmark.
@@ -2096,14 +2219,22 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
             result.lines.append(f"[smoke] {bench} × {reader}: starting")
             reader_env = reader_envs[reader]
 
-            bench_results: list[CaseResult] = []
+            bench_case_count = 0
 
             for case_payload in cases:
+                # Resume support: if every variant for this case_id is already
+                # in hypotheses.jsonl, skip silently.
+                cid = _session_id_for(bench, case_payload)
+                if all((cid, v) in completed_pairs for v in cfg.variants):
+                    result.lines.append(f"[smoke] resume skip: {cid}")
+                    continue
+
                 if bench == "longmemeval":
                     case_results, halted = _run_longmemeval_case(
                         case_payload, reader, reader_env,
                         cfg.variants, cumulative_cost, cfg.budget_usd,
                         legacy_substrate=cfg.legacy_lme_substrate,
+                        extractions_path=extractions_path,
                     )
                 else:
                     case_results, halted = _run_acibench_case(
@@ -2112,8 +2243,16 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
                         hybrid=cfg.hybrid,
                     )
 
-                bench_results.extend(case_results)
-                all_results.extend(case_results)
+                # Stream each row to disk immediately; do NOT accumulate.
+                for r in case_results:
+                    _stream_jsonl_append(hypotheses_path, asdict(r))
+                bench_case_count += 1
+                case_count += 1
+
+                # Periodic RSS heartbeat — every 20 cases the only metric
+                # that would have caught the Stream A OOM in time.
+                if case_count % 20 == 0:
+                    _log_rss_mb(f"after {case_count} case(s)")
 
                 if halted:
                     budget_halted = True
@@ -2127,19 +2266,38 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
                 break
 
             result.lines.append(
-                f"[smoke] {bench} × {reader}: {len(bench_results)} case-variant results"
+                f"[smoke] {bench} × {reader}: {bench_case_count} cases processed (streamed to {hypotheses_path.name})"
             )
 
         if budget_halted:
             break
 
-    # Write results.json.
+    # Rebuild results.json from the streamed JSONL on disk. No accumulator,
+    # no peak-memory cliff during JSON encode (which is what killed Stream A).
+    # Reading 60 questions × 2 variants of dict back is cheap.
     results_path = out_dir / "results.json"
-    results_json = [asdict(r) for r in all_results]
-    results_path.write_text(json.dumps(results_json, indent=2) + "\n", encoding="utf-8")
-    result.lines.append(f"[smoke] results.json written to {results_path}")
+    streamed_rows: list[dict[str, object]] = []
+    if hypotheses_path.is_file():
+        with hypotheses_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    streamed_rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    results_path.write_text(json.dumps(streamed_rows, indent=2) + "\n", encoding="utf-8")
+    result.lines.append(
+        f"[smoke] results.json written to {results_path} "
+        f"(rebuilt from {hypotheses_path.name}: {len(streamed_rows)} rows)"
+    )
     result.total_cost_usd = cumulative_cost[0]
-    result.total_cases = len(all_results)
+    result.total_cases = len(streamed_rows)
+    _log_rss_mb("after results.json rebuild")
+    # Reconstruct CaseResult objects for verdict logic (cheap; same data,
+    # just dataclasses for downstream callers expecting attribute access).
+    all_results = [CaseResult(**row) for row in streamed_rows]  # type: ignore[arg-type]
 
     if budget_halted:
         result.verdict = "FAIL"
