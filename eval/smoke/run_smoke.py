@@ -549,12 +549,12 @@ def _call_longmemeval_substrate_retrieval_con(
     reader_env: dict[str, str],
     top_k: int = 20,
 ) -> tuple[str, float, int, SubstrateStats, dict[str, Any]]:
-    """Stream A substrate variant: extract → retrieve(top-k + time-aware) → CoN.
+    """Stream A substrate variant: extract → retrieve(top-k) → CoN.
 
-    Wires the three Stream A pieces together:
+    Wires the Stream A pieces together:
     - `src.extraction.claim_extractor.extractor.make_llm_extractor` for claims.
-    - `src.substrate.retrieval.retrieve_relevant_claims` with bge-m3 + time
-      window from `eval.longmemeval.time_expansion.extract_time_window`.
+    - `src.substrate.retrieval.retrieve_relevant_claims` with bge-m3 sidecar
+      embeddings + supersession-active filter.
     - `eval.longmemeval.reader_con.answer_with_con` for the two-call CoN reader.
 
     Returns `(answer, latency_ms, tokens_used, substrate_stats, provenance)`.
@@ -562,13 +562,18 @@ def _call_longmemeval_substrate_retrieval_con(
     Reader purpose is `longmemeval_reader` (gpt-4o-2024-08-06 paper-faithful,
     gpt-4.1 under the documented Stream A fallback).
 
+    Time-aware retrieval was cut pre-merge — `Claim.created_ts` is wall-clock
+    at substrate ingestion, not original session time, so any time-window
+    filter would silently exclude every claim. Re-introducing requires the
+    `valid_from_ts` schema change. See reasons.md.
+
     NOTE: unit tests pass a mocked extractor/embedder; the smoke path resolves
-    live clients from env. This function is NOT called during the current
-    smoke — operator runs after Modal + Azure land.
+    live clients from env. This function is the default LongMemEval substrate
+    path post-FIX 2 (the older `_call_longmemeval_substrate` is gated behind
+    `--legacy-lme-substrate`).
     """
     from eval.longmemeval.adapter import LongMemEvalQuestion
     from eval.longmemeval.reader_con import answer_with_con
-    from eval.longmemeval.time_expansion import extract_time_window
     from src.extraction.claim_extractor.extractor import make_llm_extractor
     from src.substrate.retrieval import (
         EmbeddingClient,
@@ -588,15 +593,11 @@ def _call_longmemeval_substrate_retrieval_con(
     embed_client = EmbeddingClient()
     backfill_embeddings(conn, q.question_id, client=embed_client)
 
-    # Time-aware window from the question text (None on parse failure).
-    window = extract_time_window(q.question, getattr(q, "question_type", None))
-
     ranked = retrieve_relevant_claims(
         conn,
         session_id=q.question_id,
         question=q.question,
         k=top_k,
-        time_window=window,
         client=embed_client,
     )
     stats.top_k_retrieved = len(ranked)
@@ -611,14 +612,6 @@ def _call_longmemeval_substrate_retrieval_con(
     total_latency_ms = ingest_latency_ms + provenance.get("total_latency_ms", 0.0)
     # `answer_with_con` does not return token count; estimate as len(answer)/4.
     tokens_estimate = max(1, len(answer) // 4)
-    provenance["time_window_used"] = (
-        {
-            "start": window.start.isoformat() if window and window.start else None,
-            "end": window.end.isoformat() if window and window.end else None,
-        }
-        if window
-        else None
-    )
     return answer, total_latency_ms, tokens_estimate, stats, provenance
 
 

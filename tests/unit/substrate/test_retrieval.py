@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from src.substrate.claims import insert_claim, set_claim_status
 from src.substrate.retrieval import (
     BGE_M3_VERSION_TAG,
-    DateRange,
     EmbeddingClient,
     RankedClaim,
     backfill_embeddings,
@@ -257,65 +255,6 @@ class TestSupersessionFilter:
         )
         assert len(out) == 1
         assert out[0].claim.claim_id == c.claim_id
-
-
-class TestTimeWindowFilter:
-    def test_window_excludes_out_of_range(
-        self, conn: sqlite3.Connection, session_id: str, stub_embedder: _StubEmbedder
-    ) -> None:
-        c = _seed_claim(
-            conn, session_id, subject="patient", predicate="onset", value="3 days"
-        )
-        embed_and_store(conn, c, client=stub_embedder)
-        # Window entirely in the distant past — must reject the claim.
-        past = datetime(2020, 1, 1, tzinfo=timezone.utc)
-        window = DateRange(start=past - timedelta(days=1), end=past)
-        out = retrieve_relevant_claims(
-            conn,
-            session_id=session_id,
-            question=claim_retrieval_text(c),
-            time_window=window,
-            client=stub_embedder,
-        )
-        assert out == []
-
-    def test_window_half_open(
-        self, conn: sqlite3.Connection, session_id: str, stub_embedder: _StubEmbedder
-    ) -> None:
-        c = _seed_claim(
-            conn, session_id, subject="patient", predicate="onset", value="3 days"
-        )
-        embed_and_store(conn, c, client=stub_embedder)
-        claim_dt = datetime.fromtimestamp(c.created_ts / 1e9, tz=timezone.utc)
-        # end well before claim_dt should EXCLUDE (half-open).
-        out = retrieve_relevant_claims(
-            conn,
-            session_id=session_id,
-            question=claim_retrieval_text(c),
-            time_window=DateRange(start=None, end=claim_dt - timedelta(seconds=1)),
-            client=stub_embedder,
-        )
-        assert out == []
-        # end well after claim_dt should INCLUDE.
-        out = retrieve_relevant_claims(
-            conn,
-            session_id=session_id,
-            question=claim_retrieval_text(c),
-            time_window=DateRange(start=None, end=claim_dt + timedelta(seconds=1)),
-            client=stub_embedder,
-        )
-        assert len(out) == 1
-        # start after claim_dt should EXCLUDE.
-        out = retrieve_relevant_claims(
-            conn,
-            session_id=session_id,
-            question=claim_retrieval_text(c),
-            time_window=DateRange(
-                start=claim_dt + timedelta(seconds=1), end=None
-            ),
-            client=stub_embedder,
-        )
-        assert out == []
 
 
 class TestEmbeddingVersionMismatch:

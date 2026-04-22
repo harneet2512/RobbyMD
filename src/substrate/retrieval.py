@@ -17,10 +17,9 @@ Design (locked in `reasons.md` entries for this stream):
   makes the module unit-testable without a live deploy.
 - **Normalize embeddings=True** server- *and* client-side, so cosine reduces
   to a dot product and is stable across runs.
-- **Filter ordering**: supersession-active set is computed first, then the
-  optional time-window filter prunes further, only then do we embed the
-  question and rank. A superseded claim can never reach the reader even
-  when its embedding is still similar.
+- **Filter ordering**: supersession-active set is computed first, only then
+  do we embed the question and rank. A superseded claim can never reach the
+  reader even when its embedding is still similar.
 - **Top-k default 20** (Zep precedent; ICLR 2025 LongMemEval leaderboard
   entries cluster around 10–25).
 - **Cache** embeddings under `~/.cache/substrate/embeddings/`; write-time
@@ -38,7 +37,6 @@ import struct
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -67,28 +65,6 @@ DEFAULT_TOP_K: int = 20
 
 
 # --- dataclasses -------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class DateRange:
-    """Half-open [start, end) time window in UTC datetimes.
-
-    Either endpoint may be `None` (unbounded on that side). Retrieval treats
-    a window that excludes every claim as "no results" rather than an error —
-    a missing-source question returning zero notes is a valid outcome.
-    """
-
-    start: datetime | None
-    end: datetime | None
-
-    def contains(self, ts_ns: int) -> bool:
-        """Check whether a `time_ns()` timestamp lies in the half-open window."""
-        ts_seconds = ts_ns / 1_000_000_000
-        if self.start is not None and ts_seconds < self.start.timestamp():
-            return False
-        if self.end is not None and ts_seconds >= self.end.timestamp():
-            return False
-        return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,7 +390,6 @@ def retrieve_relevant_claims(
     question: str,
     branch: str | None = None,
     k: int = DEFAULT_TOP_K,
-    time_window: DateRange | None = None,
     client: EmbeddingClient | None = None,
 ) -> list[RankedClaim]:
     """Return top-k active claims by cosine similarity to `question`.
@@ -423,12 +398,18 @@ def retrieve_relevant_claims(
 
     1. `list_active_claims` → claims with status ∈ {active, confirmed}.
     2. Optional `branch` filter via predicate_pack sub_slot mapping.
-    3. Optional `time_window` half-open filter on `created_ts`.
-    4. Left-outer-join onto `claim_embeddings`; claims without an embedding
+    3. Left-outer-join onto `claim_embeddings`; claims without an embedding
        row (or with a mismatched `embedding_model_version`) are skipped
        with a DEBUG log. They can be recovered via `backfill_embeddings`.
-    5. Embed the question once, dot-product against candidates, sort desc,
+    4. Embed the question once, dot-product against candidates, sort desc,
        take top-k.
+
+    Time-window filtering was cut pre-merge — `Claim.created_ts` is the
+    substrate's wall-clock-at-ingestion timestamp, not the original session
+    time, so any window anchored on real-world dates would silently exclude
+    every claim during a smoke run. Re-introducing time-aware retrieval
+    requires a separate schema change (a `valid_from_ts` field carrying
+    the originating turn's timestamp). See reasons.md.
 
     Never raises on empty substrate — returns `[]`.
     """
@@ -441,8 +422,6 @@ def retrieve_relevant_claims(
     active = list_active_claims(conn, session_id)
     if branch is not None:
         active = _filter_by_branch(active, branch)
-    if time_window is not None:
-        active = [c for c in active if time_window.contains(c.created_ts)]
     if not active:
         return []
 
@@ -530,7 +509,6 @@ __all__ = [
     "BGE_M3_MODEL_REVISION",
     "BGE_M3_VERSION_TAG",
     "DEFAULT_TOP_K",
-    "DateRange",
     "EmbeddingClient",
     "RankedClaim",
     "backfill_embeddings",
