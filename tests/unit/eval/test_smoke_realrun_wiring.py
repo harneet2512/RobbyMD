@@ -563,11 +563,14 @@ class TestStructuralValidity:
             )
 
         monkeypatch.setattr(run_smoke, "_run_substrate_ingestion", _mock_ingestion)
-        monkeypatch.setattr(run_smoke, "_call_acibench_baseline", lambda *_: ("note", 20.0, 100))
-        # Substrate branch now routes through _call_acibench_substrate (two-step
-        # claim-extract + note-generate); mock it separately.
-        monkeypatch.setattr(run_smoke, "_call_acibench_substrate", lambda *_: ("note", 40.0, 200))
-        monkeypatch.setattr(run_smoke, "_score_acibench_case", lambda *_: 0.60)
+        monkeypatch.setattr(run_smoke, "_call_acibench_baseline", lambda *_, **__: ("note", 20.0, 100))
+        # Substrate branch now routes through _call_acibench_substrate (hybrid
+        # mode — single-call transcript + scaffold); mock accepts **kwargs so
+        # the new `hybrid=` keyword from _run_acibench_case flows through.
+        # Intentionally returns a 3-tuple (back-compat path) so this test
+        # also exercises the `_run_substrate_ingestion` fallback branch.
+        monkeypatch.setattr(run_smoke, "_call_acibench_substrate", lambda *_, **__: ("note", 40.0, 200))
+        monkeypatch.setattr(run_smoke, "_score_acibench_case", lambda *_, **__: 0.60)
 
         class _StubEnc:
             encounter_id = "enc_sv"

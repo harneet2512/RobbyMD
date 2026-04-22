@@ -86,6 +86,12 @@ class SmokeConfig:
     # path is kept under this flag for one cycle so any reproducibility
     # questions on the pre-FIX-2 numbers can be answered without git-checkout.
     legacy_lme_substrate: bool = False
+    # ACI-Bench substrate hybrid-mode toggle. Defaults True — the prior
+    # 2-step variant regressed baseline by −0.070 MEDCON-F1 and is kept
+    # disabled (raises NotImplementedError). Wired as a CLI flag so
+    # operators can see the mode choice reflected in results.json and
+    # so tests can exercise both code paths in isolation.
+    hybrid: bool = True
 
 
 @dataclass(slots=True)
@@ -145,6 +151,12 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
             "the post-FIX-2 ship target."
         ),
     )
+    # `--hybrid / --no-hybrid` toggles the ACI-Bench substrate variant's
+    # prompt shape. Default True (single-call transcript+scaffold);
+    # `--no-hybrid` raises NotImplementedError rather than silently
+    # reviving the regressed 2-step path.
+    ap.add_argument("--hybrid", dest="hybrid", action="store_true", default=True)
+    ap.add_argument("--no-hybrid", dest="hybrid", action="store_false")
     ns = ap.parse_args(argv)
 
     benchmarks = BENCHMARKS if ns.benchmark == "both" else (ns.benchmark,)
@@ -159,6 +171,7 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
         budget_usd=ns.budget_usd,
         dry_run=ns.dry_run,
         legacy_lme_substrate=ns.legacy_lme_substrate,
+        hybrid=ns.hybrid,
     )
 
 
@@ -205,6 +218,7 @@ def _print_planned_matrix(cfg: SmokeConfig) -> list[str]:
         f"{len(cfg.readers)} reader(s) × {len(cfg.variants)} variant(s) × {cfg.n_cases} cases"
     )
     lines.append(f"[smoke] Budget hard-cap: ${cfg.budget_usd:.2f}")
+    lines.append(f"[smoke] Hybrid mode: {cfg.hybrid}")
     lines.append("[smoke] Combinations:")
     for bench in cfg.benchmarks:
         for reader in cfg.readers:
@@ -981,32 +995,245 @@ def _normalised_edit_distance(a: str, b: str) -> float:
     return 1.0 - ratio
 
 
+
+# Exact string of the conflict-resolution rule baked into the hybrid prompt.
+# Exported as a constant so tests can assert it appears verbatim (audit
+# visibility requirement from Stream B Decision: conflict-resolution rule
+# baked into the prompt itself, not stashed in an external doc).
+HYBRID_CONFLICT_RULE: str = (
+    "When transcript and substrate disagree, prefer the substrate's "
+    "resolved state for facts where supersession has fired (chain shown "
+    "above); prefer the transcript for details not tracked by the "
+    "substrate."
+)
+
+# Section markers used in the hybrid prompt. Exported so tests can assert
+# presence/order without re-duplicating the strings.
+HYBRID_SECTION_1_MARKER: str = "SECTION 1 — RAW TRANSCRIPT"
+HYBRID_SECTION_2_MARKER: str = "SECTION 2 — STRUCTURED CLAIM SCAFFOLD"
+HYBRID_SECTION_3_MARKER: str = "SECTION 3 — CONFLICT-RESOLUTION RULE"
+HYBRID_SECTION_4_MARKER: str = "SECTION 4 — TASK"
+
+HYBRID_EMPTY_SCAFFOLD: str = "(no structured claims extracted)"
+
+
+def _load_soap_mapping_for_pack(pack_id: str) -> tuple[dict[str, str], str]:
+    """Load the predicate→SOAP-section mapping for `pack_id`.
+
+    Mirrors `src.note.generator._load_soap_mapping` but parameterised by
+    pack id so the hybrid harness can resolve the mapping without going
+    through the `active_pack()` lru_cache (which the harness already
+    mutates via ACTIVE_PACK env-var flips between benchmarks).
+    """
+    mapping_path = _REPO_ROOT / "predicate_packs" / pack_id / "soap_mapping.json"
+    if not mapping_path.is_file():
+        return {}, "S"
+    raw = json.loads(mapping_path.read_text(encoding="utf-8"))
+    mapping = raw.get("predicate_to_section") or {}
+    if not isinstance(mapping, dict):
+        return {}, "S"
+    default_section = str(raw.get("default_section", "S"))
+    return {str(k): str(v) for k, v in mapping.items()}, default_section
+
+
+def _build_supersession_chains(
+    conn: Any,
+    session_id: str,
+) -> dict[str, list[dict[str, str]]]:
+    """Return `{new_claim_id: [chain_entries]}` for all superseded claims.
+
+    Each chain entry is `{old_claim_id, edge_type, old_value}`. Used by
+    the hybrid-prompt builder to render supersession chains inline with
+    the winning active claim so the reader sees the full resolution
+    history instead of only the resolved state.
+
+    One-hop only for now — the substrate only writes single-edge chains,
+    transitive collapse is deferred (see supersession.py). If A→B→C all
+    fire, this returns `C: [{B}]`, and the caller can follow up with
+    `B: [{A}]` separately. Good enough for audit visibility.
+    """
+    chains: dict[str, list[dict[str, str]]] = {}
+    rows = conn.execute(
+        "SELECT e.old_claim_id, e.new_claim_id, e.edge_type, c.value AS old_value "
+        "FROM supersession_edges e "
+        "JOIN claims c ON c.claim_id = e.old_claim_id "
+        "WHERE c.session_id = ? "
+        "ORDER BY e.created_ts ASC",
+        (session_id,),
+    ).fetchall()
+    for row in rows:
+        new_id = row["new_claim_id"]
+        chains.setdefault(new_id, []).append(
+            {
+                "old_claim_id": row["old_claim_id"],
+                "edge_type": row["edge_type"],
+                "old_value": row["old_value"],
+            }
+        )
+    return chains
+
+
+def _build_claim_scaffold(
+    conn: Any,
+    session_id: str,
+    pack_id: str,
+) -> str:
+    """Render the active-claim projection as a SOAP-section-grouped scaffold.
+
+    Shape:
+
+        ## SUBJECTIVE
+        - [c:<claim_id>] subject / predicate = value
+          (chain: <old_id> → <new_id>: <edge_type> — previous value: "<old>")
+        - ...
+
+        ## OBJECTIVE
+        ...
+
+    A claim whose id appears as a `new_claim_id` in a supersession edge
+    carries the resolution chain inline so the reader can see the final
+    resolved state AND the corrections that led to it.
+
+    Returns `HYBRID_EMPTY_SCAFFOLD` when the substrate admitted zero
+    claims (extractor returned empty or no turns produced content) so
+    the downstream reader still gets a stable prompt shape.
+    """
+    from src.substrate.claims import list_active_claims
+
+    active = list_active_claims(conn, session_id)
+    if not active:
+        return HYBRID_EMPTY_SCAFFOLD
+
+    mapping, default_section = _load_soap_mapping_for_pack(pack_id)
+    chains = _build_supersession_chains(conn, session_id)
+
+    buckets: dict[str, list[Any]] = {"S": [], "O": [], "A": [], "P": []}
+    for claim in active:
+        section = mapping.get(claim.predicate, default_section)
+        buckets.setdefault(section, []).append(claim)
+
+    section_headings = {
+        "S": "## SUBJECTIVE",
+        "O": "## OBJECTIVE",
+        "A": "## ASSESSMENT",
+        "P": "## PLAN",
+    }
+    lines: list[str] = []
+    for section in ("S", "O", "A", "P"):
+        claims = buckets.get(section, [])
+        if not claims:
+            continue
+        lines.append(section_headings[section])
+        for c in claims:
+            lines.append(
+                f"- [c:{c.claim_id}] {c.subject} / {c.predicate} = {c.value}"
+            )
+            # Render resolved supersession chain inline so the reader
+            # sees why this claim superseded a prior one — the substrate's
+            # auditable contribution.
+            for entry in chains.get(c.claim_id, []):
+                lines.append(
+                    f"  (chain: {entry['old_claim_id']} → {c.claim_id}: "
+                    f"{entry['edge_type']} — previous value: "
+                    f"\"{entry['old_value']}\")"
+                )
+        lines.append("")  # blank line between sections
+    # Strip trailing blank.
+    return "\n".join(lines).rstrip()
+
+
+def _build_hybrid_prompt(
+    *,
+    transcript_text: str,
+    claim_scaffold: str,
+) -> str:
+    """Assemble the hybrid-mode SOAP-generation prompt.
+
+    Four explicit sections, each marked with a `SECTION N —` header so
+    the reader sees the structure and tests can verify prompt shape:
+
+    - SECTION 1: raw transcript (baseline input, unchanged)
+    - SECTION 2: structured claim scaffold (substrate contribution)
+    - SECTION 3: conflict-resolution rule (baked in; see HYBRID_CONFLICT_RULE)
+    - SECTION 4: task instruction — generate the SOAP note
+
+    The rule in SECTION 3 is load-bearing: it tells the reader how to
+    resolve disagreements between the two sources. Without it, a reader
+    given both signals may default to either one arbitrarily and we
+    lose whatever signal the substrate's supersession adds.
+    """
+    return (
+        f"# {HYBRID_SECTION_1_MARKER}\n\n"
+        f"{transcript_text}\n\n"
+        f"# {HYBRID_SECTION_2_MARKER}\n\n"
+        f"The substrate has extracted structured claims from the transcript "
+        f"above, grouped by SOAP section. Each claim carries a `[c:<id>]` "
+        f"provenance tag. Supersession chains are shown inline where the "
+        f"substrate resolved a contradiction (e.g., patient correction).\n\n"
+        f"{claim_scaffold}\n\n"
+        f"# {HYBRID_SECTION_3_MARKER}\n\n"
+        f"{HYBRID_CONFLICT_RULE}\n\n"
+        f"# {HYBRID_SECTION_4_MARKER}\n\n"
+        f"Generate a SOAP note in four sections "
+        f"(SUBJECTIVE / OBJECTIVE / ASSESSMENT / PLAN). "
+        f"Include every clinically relevant detail from the transcript. "
+        f"Apply the conflict-resolution rule above when transcript and "
+        f"substrate disagree. Do not fabricate findings, orders, or "
+        f"results. Output only the note. This is a research prototype, "
+        f"not a medical device; the physician makes every clinical decision."
+    )
+
+
 def _call_acibench_substrate(
     case_payload: object,
     reader: str,
     reader_env: dict[str, str],
     baseline_note_for_edit_distance: str | None = None,
+    *,
+    hybrid: bool = True,
 ) -> tuple[str, float, int, SubstrateStats]:
-    """Substrate variant — wires the real substrate end-to-end.
+    """Substrate variant — HYBRID mode (single-call, transcript + scaffold).
 
-    Flow (Phase 3):
+    The previous 2-step `pre-extract → prepend-claims → separate-SOAP-call`
+    implementation regressed baseline by −0.070 MEDCON-F1 on the
+    `20260422T081250Z` n=10 smoke and cost ~2× baseline latency. The
+    naive "prepend a claim list" prompt crowded out the baseline's
+    transcript fidelity. Hybrid replaces that with a single reader call
+    whose prompt carries BOTH the raw transcript and the structured
+    claim scaffold, plus an explicit conflict-resolution rule.
+
+    Flow (single-call hybrid):
     1. Ingest every turn via `on_new_turn` with the real LLM-backed
        extractor. Pass-1 + Pass-2 supersession fire as claims land.
-    2. Query `list_active_claims` from the substrate DB.
-    3. Call `src.note.generator.generate_soap_note` to compose a
-       provenance-tagged SOAP note.
-    4. Compute `sentence_with_provenance_ratio` and
-       `substrate_vs_baseline_edit_distance` (when baseline_note provided).
+       Stats captured via `_ingest_with_real_extractor`.
+    2. Build a structured claim scaffold (active claims grouped by SOAP
+       section, supersession chains rendered inline).
+    3. Build the hybrid prompt (SECTION 1-4) combining raw transcript
+       + scaffold + conflict-resolution rule + task instruction.
+    4. Single reader call → SOAP note.
+    5. Record `substrate_vs_baseline_edit_distance` when baseline note
+       was produced in the same case (see Phase 4A pass criterion).
 
-    Returns `(note_text, combined_latency_ms, combined_tokens, stats)`.
+    The `hybrid` kwarg defaults to True and is the only supported path
+    on the substrate arm. It's exposed as a kwarg so the CLI's
+    `--hybrid` flag can plumb through without breaking the mock-tested
+    call signature: the `_run_acibench_case` caller sets it explicitly.
+
+    Returns `(note_text, latency_ms, tokens, stats)`.
     """
     from eval.aci_bench.adapter import ACIEncounter
     from eval.aci_bench.baseline import _format_dialogue
     from src.extraction.claim_extractor.extractor import make_llm_extractor
-    from src.note.generator import generate_soap_note
 
     enc: ACIEncounter = case_payload  # type: ignore[assignment]
-    dialogue_text = _format_dialogue(enc)
+    transcript_text = _format_dialogue(enc)
+
+    if not hybrid:  # pragma: no cover — kept for explicit future toggling
+        raise NotImplementedError(
+            "Non-hybrid substrate mode is intentionally removed — the "
+            "2-step prior variant regressed baseline by −0.070 MEDCON-F1. "
+            "See reasons.md 2026-04-22 for the decision."
+        )
 
     # Step 1: ingest with real extractor.
     extractor = make_llm_extractor()
@@ -1014,27 +1241,51 @@ def _call_acibench_substrate(
     stats, conn = _ingest_with_real_extractor("acibench", enc, extractor)
     ingest_latency_ms = (time.monotonic() - t_ingest_start) * 1000
 
-    # Step 2+3: generate SOAP from claim store.
-    soap = generate_soap_note(
-        conn,
-        session_id=enc.encounter_id,
-        dialogue_text=dialogue_text,
-        reader=reader,
-        reader_env=reader_env,
+    # Step 2: build structured claim scaffold (SOAP-grouped, supersession
+    # chains inline). Uses the same pack id the harness set via
+    # ACTIVE_PACK for this benchmark.
+    pack_id = stats.active_pack or os.environ.get(
+        "ACTIVE_PACK", "clinical_general"
     )
+    claim_scaffold = _build_claim_scaffold(conn, enc.encounter_id, pack_id)
     conn.close()
 
-    # Step 4: enrich stats.
-    stats.sentence_with_provenance_ratio = soap.sentence_with_provenance_ratio
+    # Step 3: build the hybrid prompt.
+    hybrid_prompt = _build_hybrid_prompt(
+        transcript_text=transcript_text,
+        claim_scaffold=claim_scaffold,
+    )
+
+    system = (
+        "You are a clinical documentation assistant producing a SOAP note "
+        "from a doctor-patient conversation. Output only the note, in four "
+        "sections (SUBJECTIVE / OBJECTIVE / ASSESSMENT / PLAN). Use only "
+        "information present in the transcript and the structured claim "
+        "scaffold. Do NOT fabricate findings or orders. This is a research "
+        "prototype, not a medical device; the physician makes every "
+        "clinical decision."
+    )
+
+    # Step 4: single reader call.
+    t_read_start = time.monotonic()
+    if reader == "qwen2.5-14b":
+        note_text, tokens = _call_qwen(system, hybrid_prompt, reader_env)
+    else:
+        note_text, tokens = _call_openai(
+            reader, system, hybrid_prompt, reader_env.get("openai_key", "")
+        )
+    read_latency_ms = (time.monotonic() - t_read_start) * 1000
+
+    # Step 5: enrich stats (edit distance for Phase 4A pass criterion).
     if baseline_note_for_edit_distance is not None:
         stats.substrate_vs_baseline_edit_distance = _normalised_edit_distance(
-            baseline_note_for_edit_distance, soap.note_text
+            baseline_note_for_edit_distance, note_text
         )
 
     return (
-        soap.note_text,
-        ingest_latency_ms + soap.latency_ms,
-        soap.tokens_used,
+        note_text,
+        ingest_latency_ms + read_latency_ms,
+        tokens,
         stats,
     )
 
@@ -1432,8 +1683,13 @@ def _run_acibench_case(
     variants: tuple[str, ...],
     cumulative_cost: list[float],
     budget_usd: float,
+    *,
+    hybrid: bool = True,
 ) -> tuple[list[CaseResult], bool]:
     """Run one ACI-Bench case for specified variants.
+
+    `hybrid` toggles the substrate variant's prompt shape (default True;
+    propagated from `SmokeConfig.hybrid`).
 
     Returns (results, budget_halted).
     """
@@ -1493,9 +1749,10 @@ def _run_acibench_case(
         # pipeline internally, returning the full substrate stats as part
         # of its tuple. Pass baseline_note so the substrate stats can
         # record `substrate_vs_baseline_edit_distance` for Phase 4A pass
-        # criterion #4.
+        # criterion #4. Hybrid mode (Stream B) is the default; the 2-step
+        # path is intentionally removed.
         substrate_ret = _call_acibench_substrate(
-            enc, reader, reader_env, baseline_note
+            enc, reader, reader_env, baseline_note, hybrid=hybrid
         )
         # Back-compat: older test mocks return a 3-tuple ("note", lat, tok);
         # the production path returns a 4-tuple (note, lat, tok, stats).
@@ -1656,6 +1913,7 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
                     case_results, halted = _run_acibench_case(
                         case_payload, reader, reader_env,
                         cfg.variants, cumulative_cost, cfg.budget_usd,
+                        hybrid=cfg.hybrid,
                     )
 
                 bench_results.extend(case_results)
