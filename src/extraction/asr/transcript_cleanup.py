@@ -38,12 +38,10 @@ construction (config.py enforces this invariant).
 from __future__ import annotations
 
 import difflib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
-
-from src.extraction.asr.config import DemoCleanupConfig, _guard_no_opus
 
 logger = structlog.get_logger(__name__)
 
@@ -380,8 +378,6 @@ def _diff_corrections(
     Uses SequenceMatcher word-level diff to find changed spans, then
     categorises each change with a best-effort reason_category.
     """
-    import re
-
     orig_words = original.split()
     clean_words = cleaned.split()
     if not orig_words and not clean_words:

@@ -35,7 +35,7 @@ imports. All checks are O(n) in segment length.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 

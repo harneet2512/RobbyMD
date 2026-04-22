@@ -47,6 +47,56 @@ logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Edit-distance backend. Module-level so Pyright can resolve the call target.
+# Prefer rapidfuzz (MIT) when available; fall back to pure-Python Levenshtein
+# when rapidfuzz cannot be installed (e.g. disk-full CI).
+# ---------------------------------------------------------------------------
+try:
+    from rapidfuzz.distance import Levenshtein as _Lev  # type: ignore[import-not-found]
+    _HAS_RAPIDFUZZ = True
+except (ImportError, ModuleNotFoundError):  # pragma: no cover — environment-dependent
+    _HAS_RAPIDFUZZ = False
+
+
+def _levenshtein_pure(a: str, b: str) -> int:
+    """Pure-Python Levenshtein distance (O(mn) DP, two-row variant).
+
+    Correct but slower than rapidfuzz's C extension. For typical medical-token
+    lengths (3-15 chars) the 15x15 comparison takes < 1 microsecond.
+    """
+    if a == b:
+        return 0
+    if len(a) == 0:
+        return len(b)
+    if len(b) == 0:
+        return len(a)
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    curr = [0] * (len(b) + 1)
+    for i, ca in enumerate(a, 1):
+        curr[0] = i
+        for j, cb in enumerate(b, 1):
+            insert_cost = curr[j - 1] + 1
+            delete_cost = prev[j] + 1
+            replace_cost = prev[j - 1] + (0 if ca == cb else 1)
+            curr[j] = min(insert_cost, delete_cost, replace_cost)
+        prev, curr = curr, prev
+    return prev[len(b)]
+
+
+def _edit_dist(a: str, b: str) -> int:
+    """Return Levenshtein distance between `a` and `b`.
+
+    Dispatches to rapidfuzz if importable, otherwise to the pure-Python
+    fallback above.
+    """
+    if _HAS_RAPIDFUZZ:
+        return int(_Lev.distance(a, b))
+    return _levenshtein_pure(a, b)
+
+
+# ---------------------------------------------------------------------------
 # Common English words that MUST NOT be corrected to medical vocabulary.
 # (~200 of the most frequent English words + common clinical lay terms.)
 # Maintained as a hard-coded frozenset so there is no disk I/O on import.
@@ -147,20 +197,6 @@ def correct_medical_tokens(
     -------
     (corrected_transcript, corrections_applied)
     """
-    # Prefer rapidfuzz (MIT) for fast Levenshtein computation.
-    # Fall back to a minimal pure-Python implementation so the module works
-    # in environments where rapidfuzz cannot be installed (e.g. disk-full CI).
-    try:
-        from rapidfuzz.distance import Levenshtein as _Lev  # type: ignore[import-not-found]
-
-        def _edit_dist(a: str, b: str) -> int:
-            return int(_Lev.distance(a, b))
-
-    except (ImportError, ModuleNotFoundError):
-        # Pure-Python fallback — O(mn) DP, correct but slower.
-        def _edit_dist(a: str, b: str) -> int:  # type: ignore[misc]
-            return _levenshtein_pure(a, b)
-
     vocab_lower_map: dict[str, str] = {v.lower(): v for v in vocabulary}
     corrections: list[Correction] = []
 
@@ -224,36 +260,6 @@ def correct_medical_tokens(
 
     corrected = "".join(rebuilt_chars)
     return corrected, corrections
-
-
-def _levenshtein_pure(a: str, b: str) -> int:
-    """Pure-Python Levenshtein distance (O(mn) DP).
-
-    Used as a fallback when rapidfuzz is unavailable (e.g. corrupt install or
-    disk-full CI environment). Correct but slower than rapidfuzz C extension.
-    For the typical token lengths in medical transcription (3–15 chars) this is
-    fast enough: a 15×15 character comparison takes < 1 µs.
-    """
-    if a == b:
-        return 0
-    if len(a) == 0:
-        return len(b)
-    if len(b) == 0:
-        return len(a)
-    # Allocate two rows (previous + current) to keep memory O(min(m,n)).
-    if len(a) < len(b):
-        a, b = b, a  # b is the shorter string
-    prev = list(range(len(b) + 1))
-    curr = [0] * (len(b) + 1)
-    for i, ca in enumerate(a, 1):
-        curr[0] = i
-        for j, cb in enumerate(b, 1):
-            insert_cost = curr[j - 1] + 1
-            delete_cost = prev[j] + 1
-            replace_cost = prev[j - 1] + (0 if ca == cb else 1)
-            curr[j] = min(insert_cost, delete_cost, replace_cost)
-        prev, curr = curr, prev
-    return prev[len(b)]
 
 
 def _strip_trailing_punct(token: str) -> tuple[str, str]:
