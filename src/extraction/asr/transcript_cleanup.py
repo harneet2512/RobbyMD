@@ -43,6 +43,8 @@ from typing import Any
 
 import structlog
 
+from src.extraction.asr.config import _guard_no_opus
+
 logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
