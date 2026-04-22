@@ -420,3 +420,18 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **What we did instead**: patched `eval/infra/modal_bge_m3.py` to (a) explicitly pin `pydantic>=2.9,<3` in `pip_install` so the v1/v2 ambiguity is removed, and (b) annotate `def embed(req: EmbedRequest = Body(...))` with explicit `Body(...)` so FastAPI can never infer query-param for this route regardless of the pydantic version. Redeployed. This is defensive: either fix alone was likely sufficient.
 - **Citation**: probe results 2026-04-22 (HTTP 422 repro via `requests.post`); [FastAPI request-body docs](https://fastapi.tiangolo.com/tutorial/body/); Pydantic v1→v2 migration notes on body param inference.
 - **Revisit trigger**: FastAPI upgrade that changes body-param inference again. Keep the `Body(...)` annotation indefinitely — the cost is one import, the benefit is immunity to the next version drift.
+
+### Stream B.1 ACI-Bench hybrid n=10 seed 42 — PARITY result (post-merge cycle)
+
+- **Numbers** (T1 scispacy MEDCON-F1, Qwen2.5-14B-AWQ via Modal `glitch112213`):
+  - Mean baseline: **0.4937**
+  - Mean substrate (hybrid): **0.4911**
+  - **Mean Δ: −0.0026** (well within ±0.03 parity threshold)
+  - Per-case σ across the 10 cases: 0.0489
+  - Per-case wins/losses split: 5W / 5L
+  - Largest win: D2N096-virtassist Δ=+0.063
+  - Largest loss: D2N095-virtassist Δ=−0.086
+- **Decision-rule outcome**: at parity, escalate-eligible. Phase 1.5 multi-seed (seeds 43, 44) is in flight; only after all 3 seeds confirm parity do we call this defensible.
+- **Single-seed n=10 caveat**: per-case σ within 0.05 means individual cases are not noisy at temp=0, but aggregate σ from n=10 alone is ±0.05/√10 ≈ ±0.015 around the mean delta — single-seed mean is plausibly anywhere in [−0.018, +0.013]. Multi-seed collapses this.
+- **Deviations to label** in the final report: (1) Qwen2.5-14B-AWQ reader, not GPT-4-class; (2) T1 scispacy MEDCON, not T0 QuickUMLS (Stream E install blocked this cycle); (3) n=10 smoke, not the full aci+virtscribe 90-encounter test split; (4) seed 42 only at this point.
+- **Citation**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`; aggregator at `eval/smoke/aggregate_seeds.py`.

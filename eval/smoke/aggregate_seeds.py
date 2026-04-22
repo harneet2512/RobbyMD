@@ -158,12 +158,12 @@ def _format(summary: dict, *, benchmark: str) -> str:
         out.append(
             f"mean baseline: {g['mean_baseline']:.4f}   "
             f"mean substrate: {g['mean_substrate']:.4f}   "
-            f"mean Δ: {g['mean_delta']:+.4f}   "
-            f"σ(Δ)global: {g['stdev_delta']:.4f}"
+            f"mean Delta: {g['mean_delta']:+.4f}   "
+            f"σ(Delta)global: {g['stdev_delta']:.4f}"
             if g["stdev_delta"] is not None
             else f"mean baseline: {g['mean_baseline']:.4f}   "
                  f"mean substrate: {g['mean_substrate']:.4f}   "
-                 f"mean Δ: {g['mean_delta']:+.4f}   σ(Δ)global: n/a"
+                 f"mean Delta: {g['mean_delta']:+.4f}   σ(Delta)global: n/a"
         )
     out.append(
         f"robust wins: {g['robust_wins']}   "
@@ -174,8 +174,8 @@ def _format(summary: dict, *, benchmark: str) -> str:
     out.append("")
     out.append("per-case:")
     out.append(
-        f"  {'case_id':<30} {'Δ(42)':>8} {'Δ(43)':>8} {'Δ(44)':>8} "
-        f"{'meanΔ':>8} {'σ(Δ)':>8}  vote"
+        f"  {'case_id':<30} {'Delta(42)':>8} {'Delta(43)':>8} {'Delta(44)':>8} "
+        f"{'meanDelta':>8} {'σ(Delta)':>8}  vote"
     )
     for row in summary["per_case"]:
         deltas = {s: d for s, d in zip(row["seeds"], row["deltas"])}
