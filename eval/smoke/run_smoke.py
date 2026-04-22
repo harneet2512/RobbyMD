@@ -92,6 +92,13 @@ class SmokeConfig:
     # operators can see the mode choice reflected in results.json and
     # so tests can exercise both code paths in isolation.
     hybrid: bool = True
+    # FIX 3 (pre-merge gate): deterministic seed plumbed to reader sampling
+    # (gpt-4.1 + Qwen-vLLM both honour `seed` in chat.completions.create)
+    # and to the timestamped results-dir name. Case-selection is first-N
+    # which is already deterministic; seed does not change that. Default 42.
+    # Phase 1.5 multi-seed discipline (see reasons.md): re-run the winning
+    # arm with seeds {42, 43, 44} before any Phase-2 escalation.
+    seed: int = 42
 
 
 @dataclass(slots=True)
@@ -157,6 +164,10 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
     # reviving the regressed 2-step path.
     ap.add_argument("--hybrid", dest="hybrid", action="store_true", default=True)
     ap.add_argument("--no-hybrid", dest="hybrid", action="store_false")
+    # `--seed` is consumed by reader sampling (`seed` field on chat.completions
+    # for gpt-4.1 + Qwen-vLLM) and folded into the results-dir name. Phase 1.5
+    # multi-seed re-runs use {42, 43, 44} on the same n=10 sample. See reasons.md.
+    ap.add_argument("--seed", type=int, default=42)
     ns = ap.parse_args(argv)
 
     benchmarks = BENCHMARKS if ns.benchmark == "both" else (ns.benchmark,)
@@ -172,6 +183,7 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
         dry_run=ns.dry_run,
         legacy_lme_substrate=ns.legacy_lme_substrate,
         hybrid=ns.hybrid,
+        seed=ns.seed,
     )
 
 
@@ -498,7 +510,13 @@ def _call_longmemeval_baseline(
     if reader == "qwen2.5-14b":
         text, tokens = _call_qwen(system, prompt, reader_env)
     else:
-        text, tokens = _call_openai(reader, system, prompt, reader_env["openai_key"])
+        text, tokens = _call_openai(
+            reader,
+            system,
+            prompt,
+            reader_env["openai_key"],
+            seed=int(reader_env.get("seed", "42")),
+        )
     latency_ms = (time.monotonic() - t0) * 1000
     return text, latency_ms, tokens
 
@@ -792,7 +810,13 @@ def _call_acibench_baseline(
     if reader == "qwen2.5-14b":
         text, tokens = _call_qwen(system, dialogue_text, reader_env)
     else:
-        text, tokens = _call_openai(reader, system, dialogue_text, reader_env["openai_key"])
+        text, tokens = _call_openai(
+            reader,
+            system,
+            dialogue_text,
+            reader_env["openai_key"],
+            seed=int(reader_env.get("seed", "42")),
+        )
     latency_ms = (time.monotonic() - t0) * 1000
     return text, latency_ms, tokens
 
@@ -1268,11 +1292,16 @@ def _call_acibench_substrate(
 
     # Step 4: single reader call.
     t_read_start = time.monotonic()
+    seed = int(reader_env.get("seed", "42"))
     if reader == "qwen2.5-14b":
         note_text, tokens = _call_qwen(system, hybrid_prompt, reader_env)
     else:
         note_text, tokens = _call_openai(
-            reader, system, hybrid_prompt, reader_env.get("openai_key", "")
+            reader,
+            system,
+            hybrid_prompt,
+            reader_env.get("openai_key", ""),
+            seed=seed,
         )
     read_latency_ms = (time.monotonic() - t_read_start) * 1000
 
@@ -1319,10 +1348,17 @@ def _call_qwen(
 
     Priority: QWEN_ENDPOINT (self-hosted vLLM, OpenAI-compatible) →
               FIREWORKS_API_KEY → TOGETHER_API_KEY.
+
+    `seed` (FIX 3) is read from `reader_env["seed"]` and passed to the
+    chat.completions sampler. Both vLLM (OpenAI-compat) and Fireworks /
+    Together honour the OpenAI `seed` parameter — same-seed reruns at
+    `temperature=0.0` collapse most cross-run variance to deterministic
+    bytes-out, leaving only floating-point non-determinism on GPU paths.
     """
     endpoint = reader_env.get("endpoint", "")
     fireworks = reader_env.get("fireworks", "")
     together = reader_env.get("together", "")
+    seed = int(reader_env.get("seed", "42"))
 
     if endpoint:
         # Self-hosted vLLM exposes an OpenAI-compatible /v1/chat/completions endpoint.
@@ -1337,6 +1373,7 @@ def _call_qwen(
             ],
             max_tokens=512,
             temperature=0.0,
+            seed=seed,
         )
         text = resp.choices[0].message.content or ""
         tokens = resp.usage.total_tokens if resp.usage else len(text.split())
@@ -1390,6 +1427,8 @@ def _call_openai(
     system: str,
     user: str,
     openai_key: str,
+    *,
+    seed: int = 42,
 ) -> tuple[str, int]:
     """Call an OpenAI model. Returns (text, approx_token_count).
 
@@ -1398,6 +1437,11 @@ def _call_openai(
     AZURE_OPENAI_GPT4OMINI_DEPLOYMENT / AZURE_OPENAI_GPT4O_DEPLOYMENT)
     are used when set; otherwise falls back to direct OpenAI with
     `openai_key`.
+
+    `seed` (FIX 3) — gpt-4o / gpt-4.1 + Azure OpenAI honour the OpenAI
+    `seed` field on chat.completions.create. With `temperature=0.0`
+    same-seed reruns reproduce token streams except for low-probability
+    rounding flips. Default 42; multi-seed Phase 1.5 sweeps {42, 43, 44}.
     """
     _purpose_map = {
         "gpt-4o-mini": "llm_medcon_gpt4omini",
@@ -1431,6 +1475,7 @@ def _call_openai(
         ],
         max_tokens=512,
         temperature=0.0,
+        seed=seed,
     )
     text = resp.choices[0].message.content or ""
     tokens = resp.usage.total_tokens if resp.usage else len(text.split())
@@ -1848,7 +1893,11 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
     # Validate required env vars up front — fail fast with actionable messages.
     reader_envs: dict[str, dict[str, str]] = {}
     for reader in cfg.readers:
-        reader_envs[reader] = _get_reader_env(reader)
+        env = _get_reader_env(reader)
+        # FIX 3: stamp the seed into reader_env so _call_qwen / _call_openai
+        # can pull it without an extra param across the four-deep call stack.
+        env["seed"] = str(cfg.seed)
+        reader_envs[reader] = env
 
     # Check datasets exist.
     for bench in cfg.benchmarks:
@@ -1861,8 +1910,31 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
     reference_baselines = _load_reference_baselines()
 
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_dir = _RESULTS_ROOT / "results" / ts
+    # FIX 3: seed in the dir name so multi-seed re-runs land in distinct dirs
+    # and `ls eval/smoke/results/` is a per-seed audit trail at a glance.
+    out_dir = _RESULTS_ROOT / "results" / f"{ts}_seed{cfg.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Sidecar config snapshot so the seed + matrix shape is recoverable
+    # without re-parsing argv. Written before any case runs so a crash
+    # mid-run still leaves a config audit.
+    config_path = out_dir / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "seed": cfg.seed,
+                "benchmarks": list(cfg.benchmarks),
+                "readers": list(cfg.readers),
+                "variants": list(cfg.variants),
+                "n_cases": cfg.n_cases,
+                "budget_usd": cfg.budget_usd,
+                "hybrid": cfg.hybrid,
+                "started_at_utc": ts,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     all_results: list[CaseResult] = []
     # Cumulative cost tracked across all API calls. Use a list for mutability in closures.

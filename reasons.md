@@ -317,3 +317,24 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Decision rule** (pinned in the plan): at parity or above → Phase 2 n=40. Below parity → stop, investigate worst-regression case, log in `reasons.md`, no Phase 2. No metric-gaming, no cherry-picking.
 - **Citation**: parallel-execution plan `C:\Users\Lenovo\.claude-work\plans\parallel-execution-synthetic-rain.md` Stream B Decision 4 + B.2 decision rule.
 - **Revisit trigger**: two consecutive n=10 hybrid smokes land within ±0.01 (tighter than the threshold); at that point the gate is proving nothing and a tighter rule (or smaller sample) becomes defensible.
+
+### Pre-merge gate FIX 3: single-seed Phase 1 result accepted as final (2026-04-22)
+
+- **Context**: Phase 1 (n=10 hybrid vs baseline) was originally specified as a single-seed run with the ±0.03 mean-delta gate alone. Pre-merge gate audit caught that the prior +1.62 MEDCON delta on the legacy 2-step path was ~1σ above zero given ±0.10 per-case noise at temperature=0 — the gate could be tripped by noise alone.
+- **What was considered**: keep Phase 1 single-seed and let the ±0.03 mean threshold do all the discrimination work, accepting that ~16% of runs sit above zero by chance even when the underlying delta is exactly zero.
+- **Why it lost**: a single-seed +0.03 delta is only ~0.6σ of the per-case noise — well inside the band where the prior single-seed +1.62 was. The gate would say "go" on noise. With the substrate change being load-bearing for the demo claim, an "escalated to Phase 2 on noise" outcome is a demo-narrative landmine: if Phase 2 then regresses, the story becomes "we chased noise" rather than "we measured carefully."
+- **What we did instead**: **Phase 1.5 multi-seed discipline.** After Phase 1 (n=10, seed=42) completes, re-run the winning arm 3× with seeds {42, 43, 44}. Compute mean delta and per-case standard deviation across seeds. Decision rule:
+  - **Mean delta across 3 seeds within ±0.03 of baseline** → escalate to Phase 2 (n=40 stratified).
+  - **Mean delta across 3 seeds below −0.03** → stop, diagnose per-encounter, no Phase 2.
+  - **Per-case σ > 0.15 across seeds** → flag as noisy, require 5 seeds {42, 43, 44, 45, 46} instead of 3 before any decision.
+
+  If Phase 1 fails (mean delta below −0.03 on the single-seed run), multi-seed the failure BEFORE diagnosing — confirms the regression is real, not noise.
+
+  Three seeds collapse the noise contribution from ~1σ to ~0.6σ; per the central-limit math on n=10 cases × 3 seeds, the gate's false-positive rate at the ±0.03 mean-delta threshold drops from ~16% to ~4%.
+
+  **Code**: `--seed <int>` flag (default 42), threaded through `SmokeConfig.seed` → `reader_env["seed"]` → `_call_qwen` and `_call_openai` (both pass `seed` to `chat.completions.create`; gpt-4.1 via Azure and Qwen via vLLM both honour the OpenAI `seed` field). Results dir name now `<UTC-timestamp>_seed<N>`; sidecar `config.json` carries the seed alongside the matrix shape.
+- **Decision rule** (pinned in the plan):
+  - Phase 1 → Phase 1.5 (3-seed re-run on the winning arm) → Phase 2 escalation gate.
+  - All seeds at temperature=0 (we are not testing sampling temperature, only run-to-run reproducibility).
+- **Citation**: pre-merge gate prompt 2026-04-22 FIX 3; OpenAI `seed` parameter docs (https://platform.openai.com/docs/api-reference/chat/create#chat-create-seed); vLLM sampling-params reference (https://docs.vllm.ai/en/latest/dev/sampling_params.html#vllm.SamplingParams.seed).
+- **Revisit trigger**: per-case σ across the 3 seeds is consistently < 0.05 (rare for 14B-class models at temp=0 on note generation, but possible if reader becomes more deterministic). At that point single-seed becomes statistically defensible.
