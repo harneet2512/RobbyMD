@@ -382,3 +382,41 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
   - All seeds at temperature=0 (we are not testing sampling temperature, only run-to-run reproducibility).
 - **Citation**: pre-merge gate prompt 2026-04-22 FIX 3; OpenAI `seed` parameter docs (https://platform.openai.com/docs/api-reference/chat/create#chat-create-seed); vLLM sampling-params reference (https://docs.vllm.ai/en/latest/dev/sampling_params.html#vllm.SamplingParams.seed).
 - **Revisit trigger**: per-case σ across the 3 seeds is consistently < 0.05 (rare for 14B-class models at temp=0 on note generation, but possible if reader becomes more deterministic). At that point single-seed becomes statistically defensible.
+
+---
+
+## 2026-04-22 (post-merge execution cycle)
+
+### LongMemEval reader/judge model: `gpt-4o-2024-08-06` (paper-pinned)
+
+- **Rejected**: shipping LongMemEval numbers keyed to `gpt-4o-2024-08-06`, the LongMemEval paper's originally pinned reader+judge.
+- **Reason**: Azure deprecated `gpt-4o-2024-08-06` on 2026-03-31; the `az cognitiveservices account deployment create` call returns `ServiceModelDeprecated`. Two options considered: (a) fall back to `gpt-4.1-mini` (already deployed) with a loud methodology-deviation WARN; (b) create a newer same-family checkpoint. Chose (b) — `gpt-4o-2024-11-20` — because it is the OpenAI-recommended successor to `-08-06`, still in the gpt-4o family, and preserves apples-to-apples with Zep / Mastra / Supermemory / EmergenceMem / TiMem / EverMemOS LongMemEval numbers that also use gpt-4o-class readers. Deviation is minor-version, not model-family, and is labeled in every results.json under the cycle.
+- **Citation**: Azure CLI error on `2024-08-06` create (full error text in progress.md Stream P.2 entry); [OpenAI gpt-4o model card](https://platform.openai.com/docs/models/gpt-4o); LongMemEval paper [arXiv 2410.10813](https://arxiv.org/abs/2410.10813).
+- **Code impact**: `eval/_openai_client.py` already routes through `AZURE_OPENAI_GPT4O_LME_DEPLOYMENT`. `eval/smoke/run_smoke.py` `READERS` now includes `"gpt-4o-2024-11-20"`. `.env` pins `AZURE_OPENAI_GPT4O_LME_DEPLOYMENT=gpt-4o-2024-11-20`.
+- **Revisit trigger**: Azure re-opens `2024-08-06` (unlikely) OR OpenAI deprecates `2024-11-20` too (in which case we re-pin to the latest same-family checkpoint and log another entry here).
+
+### P0 (pre-hybrid) ACI-Bench reproduction: SKIPPED
+
+- **Rejected**: re-running the earlier +1.62 MEDCON ACI-Bench "P0" configuration against seed 42 on the same 10 cases as the 2026-04-22T081250Z baseline.
+- **Reason**: the P0 code path is **architecturally removed** on current main. `eval/smoke/run_smoke.py::_call_acibench_substrate` at line 1255–1257 explicitly raises `NotImplementedError` when `hybrid=False`, with the guard comment "Non-hybrid substrate mode is intentionally removed — the prior 2-step variant regressed baseline by −0.070 MEDCON-F1 and is kept disabled." The Stream B pre-merge cycle deleted the 2-step variant rather than flagging it off. Re-implementing it for a one-shot reproduction is out of scope for this cycle (operator directive: "do not re-implement P0 this cycle").
+- **Impact**: `+1.62 MEDCON` cannot be reproduced from HEAD. Anyone asking "does current main still win?" has to read the hybrid 3-seed aggregate instead (Stream B in this cycle). Flagged as architecture drift in progress.md.
+- **Citation**: `eval/smoke/run_smoke.py` line 1255 (verified on commit `58b7db2`); operator directive 2026-04-22.
+- **Revisit trigger**: operator explicitly requests P0 resurrection as its own cycle. That cycle would restore the 2-step path under a new `--legacy-p0-substrate` flag mirroring the existing `--legacy-lme-substrate`.
+
+### Stream E UMLS T0 install: paused at Step 1/2 (compound blocker)
+
+- **Rejected**: proceeding with QuickUMLS T0 install on Windows this cycle.
+- **Reason**: compound blocker, neither half soluble within a 10-minute window:
+  1. **Filename/release mismatch.** `umls-2025AB-Level0.zip` returns HTTP 404. 2025AB is not yet in the NLM catalog (UMLS releases cadence: AA=May, AB=November; today is 2026-04-22 so a 2025B release would have been Nov 2025 but it is absent). Also NLM does not publish a file literally named `-Level0.zip`: the actual packaging is `umls-<REL>-metathesaurus-full.zip` (`Level 0` is a MetamorphoSys *filter configuration*, not a filename). Verified 200 OK on `2024AA-metathesaurus-full.zip` (4.1 GB) — authenticated download flow works, just the assumed filename was wrong.
+  2. **No Java runtime.** MetamorphoSys is a Java tool; `java -version` exits "command not found". Without a JDK on PATH, even if the download were salvaged, the index build cannot run. Silent substitute (downloading 2024AA without the T0 label matching the plan) would violate MEMORY.md eval-legitimacy (flag deviations loudly).
+- **What we did instead**: **T1 scispacy MEDCON remains the ship-tier.** Stream B 3-seed aggregate is reported under T1 only; T0 re-scoring opportunity is noted as a follow-up cycle. No Modal compute spent on T0; no `.env` state changed by Stream E.
+- **Citation**: Stream E agent report 2026-04-22 (full trace in progress.md); [UMLS Knowledge Sources page](https://www.nlm.nih.gov/research/umls/licensedcontent/umlsknowledgesources.html); MetamorphoSys Java requirement per NLM docs.
+- **Revisit trigger**: operator installs Temurin/OpenJDK 21 on Windows AND confirms release target (2024AA-Active acceptable). Follow-up cycle runs the T0 install + re-scores the already-generated B.1/B.2 note outputs (no Modal re-inference needed).
+
+### bge-m3 Modal deploy: FastAPI body-parsing bug (HTTP 422 on /embed)
+
+- **Rejected**: shipping the first `bge-m3-embeddings` Modal deploy as-is.
+- **Reason**: first deploy returned HTTP 422 on POST /embed with `{"detail":[{"type":"missing","loc":["query","req"],"msg":"Field required"}]}`. FastAPI 0.115 + ambient Pydantic v1 on the container mis-infers the `EmbedRequest` Pydantic-model body parameter as a query parameter. The `/health` GET worked, confirming the app was up — the bug is FastAPI body-binding, not transport.
+- **What we did instead**: patched `eval/infra/modal_bge_m3.py` to (a) explicitly pin `pydantic>=2.9,<3` in `pip_install` so the v1/v2 ambiguity is removed, and (b) annotate `def embed(req: EmbedRequest = Body(...))` with explicit `Body(...)` so FastAPI can never infer query-param for this route regardless of the pydantic version. Redeployed. This is defensive: either fix alone was likely sufficient.
+- **Citation**: probe results 2026-04-22 (HTTP 422 repro via `requests.post`); [FastAPI request-body docs](https://fastapi.tiangolo.com/tutorial/body/); Pydantic v1→v2 migration notes on body param inference.
+- **Revisit trigger**: FastAPI upgrade that changes body-param inference again. Keep the `Body(...)` annotation indefinitely — the cost is one import, the benefit is immunity to the next version drift.

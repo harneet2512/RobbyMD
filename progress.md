@@ -8,9 +8,9 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-22 (post pre-merge gate; Streams A/B/D landed on main)
-- **Main commit**: `a92910f` — `Merge branch 'feature/asr-spec'` (Stream D). Tip after the three sequential feature-branch merges (A → B → D) with the four pre-merge-gate fixes baked into A (FIX 1 + FIX 2) and B (FIX 3) before merge. Pushed to origin/main.
-- **Tests on main**: **351 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 286 baseline + 29 net A (40 added − 12 cut by FIX 1 + 1 added by FIX 2) + 26 net B (19 + 7 from FIX 3) + 10 D = 351. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green.
+- **Date**: 2026-04-22 (post-merge execution cycle: harness P.1 edits + Modal/Azure deploys + Stream D clips + smokes partial/throttled)
+- **Main commit**: `c896b05` — `eval+infra: bge-m3 dict body + gpt-4o-* route via longmemeval_reader purpose`. Tip after three post-merge cycle commits (`6085827` harness P.1, `26bdc78` Stream D clips, `c896b05` infra fixes). Not yet pushed to origin.
+- **Tests on main**: **360 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 351 pre-cycle + 9 new (P.1 `test_smoke_output_dir_and_stratified.py`: 9). Existing tests unchanged green (bge-m3 redeploy, purpose-map addition don't alter tests).
 - **Streams landed** (parallel-execution-synthetic-rain plan + pre-merge gate, 2026-04-22):
   - Stream C (critical-path landing): **DONE** — commits `2d90abd`, `835039a`.
   - Stream A (LongMemEval retrieval + CoN, time_expansion CUT, dispatcher flipped to default): **DONE** — merged at `c52aa0a`. Branch `feature/lme-retrieval` ready for delete on origin.
@@ -25,14 +25,19 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
 - **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); GPT-4 ICL 57.78 MEDCON (ACI-Bench). Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
 - **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
+- **Infrastructure live** (post-merge execution cycle, 2026-04-22):
+  - **Modal (profile `glitch112213`)**: `bge-m3-embeddings` deployed, probe 200 OK 1024-dim × 2 in ~17 s cold; `qwen25-14b-vllm` deployed, probe 200 OK ~80 s first-token cold / sub-second warm. URLs stashed in `.env` as `MODAL_BGE_M3_URL` / `QWEN_API_BASE`.
+  - **Azure OpenAI (`gt-swebench-aoai-3`)**: `gpt-4o-2024-11-20` created (paper-pinned `gpt-4o-2024-08-06` was deprecated 2026-03-31 per Azure CLI `ServiceModelDeprecated`; minor-version deviation logged). Key + endpoint stashed in `.env`. Probe 200 OK 0.75 s. Companion `gpt-4-1-mini-2025-04-14` deployment remains (drives LLM-MEDCON + claim extractor).
+  - **LongMemEval cleaned dataset**: `data/longmemeval_s_cleaned.json` (265 MB, 500 questions) + `data/longmemeval_oracle.json` (15 MB) downloaded from HF `xiaowu0162/longmemeval-cleaned`; `data/` gitignored.
+  - **scispacy T1 MEDCON assets**: `en_core_sci_lg` (528 MB) installed; scispacy UMLS linker assets (~2 GB) on `D:\hack_it\.cache\scispacy/` (C: was full at 240/242 GB). `SCISPACY_CACHE` env var pinned in `.env`; HF_HOME + SENTENCE_TRANSFORMERS_HOME also redirected to D:.
 - **Open decisions / next actions** (priority order):
-  1. **Stream A smoke run** — blocked on `gpt-4o-2024-08-06` deployment on a spare Azure account (`gt-swebench-aoai-3` proposed); fallback codepath uses `gpt-4.1` with structlog WARN. Operator runs `python eval/smoke/run_smoke.py --benchmark longmemeval --reader gpt-4o-2024-08-06 --variant both --n 60 --budget-usd 50` after deploy; dispatcher defaults to the new bge-m3 + retrieval + CoN path (FIX 2 — no operator action needed to light it up). Time-aware filtering was cut pre-merge (FIX 1); re-introduce after a `valid_from_ts` schema change (q7).
-  2. **Stream B Phase 1 + Phase 1.5 multi-seed** — operator runs hybrid n=10 against same 10 cases as the −0.070 baseline run (`20260422T081250Z`). At parity (mean delta within ±0.03 of baseline) → re-run winning arm 3× with `--seed {42,43,44}` for Phase 1.5; if 3-seed mean still in parity, escalate to Phase 2 n=40. Below parity → multi-seed the failure first, diagnose per-encounter, no Phase 2.
-  3. **Stream D ASR measurement run** — GPU window (GCP L4 spot or Modal A10, ~60 min) + 3–5 additional synthetic clips beyond chest-pain demo (abdominal, dyspnoea, headache, fatigue, ambient-noise) needed to populate `docs/asr_benchmark.md §4` with real RTF / WER / latency numbers per the engineering spec.
-  4. **Modal deploys** under profile `glitch112213`: `modal deploy --profile glitch112213 eval/infra/modal_bge_m3.py` (set `MODAL_BGE_M3_URL` for Stream A); `eval/infra/modal_qwen.py` for the Qwen reader.
-  5. **Origin branch deletes** — `feature/lme-retrieval`, `feature/aci-hybrid`, `feature/asr-spec` ready to delete on origin once operator confirms (`git push origin --delete <branch>`).
-  6. **Worktree pruning** — 8 worktrees on disk, all branches merged. Operator can `git worktree remove <path>` for any/all. Decision left to operator.
-  7. **UMLS licence** — operator monitors CMU inbox (background; non-blocking).
+  1. **Stream B.1 (ACI-Bench hybrid n=10 seed 42)** — smoke started 2026-04-22T20:37 and still running at cycle-report time; first encounter ingested (82 turns), rate-limited by Azure gpt-4.1-mini TPM on the claim-extraction loop but making forward progress. Let it drain; if `results.json` lands, trigger B.2 (seeds 43, 44) and the 3-seed aggregate. If it doesn't drain within ~40 min additional, accept as "throttled-partial" and report what ran.
+  2. **Stream A (LongMemEval stratified n=60 seed 42)** — running against `gpt-4o-2024-11-20` reader+judge. Claim-extractor (gpt-4.1-mini Azure) throttled at >1 429/min; questions advancing but throughput is slow. If it doesn't finish in ~1 h, snapshot partial results + label throttling.
+  3. **Stream E UMLS T0 install — PAUSED (blocker)**: filename mismatch (`umls-<REL>-Level0.zip` is not an NLM filename; real pattern is `-metathesaurus-full.zip`) AND no Java on PATH AND C: near-full. T1 scispacy MEDCON remains the ship-tier this cycle. Operator resolutions: install Temurin/OpenJDK 21, confirm UMLS release target, free C: ≥20 GB. See `reasons.md` entry.
+  4. **Stream B Phase 2 (n=40)** — operator-gated on 3-seed aggregate; not attempted this cycle.
+  5. **Azure gpt-4.1-mini TPM raise** — the throttling on the claim-extractor deployment dominates Stream A/B runtime. Operator can raise `gpt-4-1-mini-2025-04-14` SKU capacity from 10 to 30+ to cut Stream A end-to-end by ~3×. Uncapped on Azure per this cycle's budget decision.
+  6. **Stream D ASR measurement run** — GPU window still pending. Five new synthetic-clip scripts landed this cycle (`eval/synthetic_clips/`) but TTS rendering + benchmark numbers are still the GPU-window follow-up task.
+  7. **Origin push** — cycle commits `6085827` / `26bdc78` / `c896b05` not yet pushed to `origin/main`. Push when operator confirms.
 - **Invariant tests** (must stay green every commit):
   - `tests/licensing/test_open_source.py` — OSI allowlist, green
   - `tests/licensing/test_model_attributions.py` — model-weight attribution registry, green
@@ -377,3 +382,51 @@ Three sequential merges, test gate green between each. Each push gated on `pytes
 - **Stream D** merged into main at `a92910f` (`Merge branch 'feature/asr-spec'`). Test gate: 341 → **351 passed, 2 skipped**. Pushed to `origin/main` (`c59168b..a92910f`).
 
 Final main commit: `a92910f`. Final test gate: **351 passed, 2 skipped, 0 failed, 0 xfail**. Open asks for operator: gpt-4o Azure deploy, Modal bge-m3 deploy + Qwen reader, Stream A smoke run, Stream B Phase 1 + Phase 1.5 smoke runs, ASR measurement GPU window + extra synthetic clips, demo video narration confirmation, origin feature-branch deletes, worktree pruning.
+
+### 2026-04-22T20:13:07Z — Stream E UMLS T0 install
+- PREFLIGHT: UMLS_API_KEY present (length=36), D: free=262 GB (>=30 GB ok), Java=NOT INSTALLED (blocker for Step 2 MetamorphoSys) — RESULT: attempting Step 1 (download) anyway; Step 2 will hard-block if Java not resolved
+- STEP 1: begin authenticated UMLS 2025AB Level0 download via TGT flow — RESULT: in progress
+- STEP 1 DETAIL: TGT + ST flow works (201 Created, ST obtained). Cookie jar + redirect-follow required (MOD_AUTH_CAS cookie set on first hop, consumed on second). Verified against 2023AB full-metathesaurus URL which returned HTTP 200 Content-Length=4135708549 (4.1 GB).
+- STEP 1 BLOCKER A: URL `umls-2025AB-Level0.zip` returns HTTP 404. Release 2025AB is not yet published on NLM (today is 2026-04-22; UMLS naming cadence is AA=May, AB=November — 2025AB would have been Nov 2025 but is not in the catalog). Also tested 2025AA, 2024AB, 2024AA, all with `-Level0.zip` suffix: all 404. NLM does not package a file literally named "Level0" — confirmed by directory probing. The real filenames are `umls-<REL>-metathesaurus-full.zip` (verified 200 for 2024AA and 2023AB) and `umls-<REL>-mrconso.zip`. "Level 0" refers to the source-license tier, not a filename; the full zip contains all levels and MetamorphoSys filters at extract time.
+- STEP 1 BLOCKER B (compound): `java` is not installed on PATH (`java: command not found`). MetamorphoSys (Step 2) is a Java GUI/CLI tool — without a JRE/JDK installed, Step 2 cannot run even if Step 1 is salvaged.
+- DECISION: Pausing. Downloading ~4 GB of a different release (2024AA) that cannot then be processed by MetamorphoSys (no Java) is wasted bandwidth and also a silent deviation from the task spec (2025AB). Per failure discipline + MEMORY.md eval-legitimacy rule, flagging both issues rather than silently substituting.
+- RESOLUTIONS NEEDED FROM MAIN THREAD:
+  (1) Confirm desired release given 2025AB unavailable — accept 2024AA as substitute (label numbers `MEDCON-T0 @ UMLS-2024AA`), or defer to T1 scispaCy for now.
+  (2) Install a JDK (e.g., `winget install Microsoft.OpenJDK.21` or Temurin 21) so MetamorphoSys can run headless. Without this, T0 path is dead on this Windows box.
+- STATE: T0 NOT installed. Blocker-at-Step-1/2 (release-naming + no-Java). No files written under `.cache/umls/` beyond the empty target directory. `.env` not modified. No git changes.
+
+### 2026-04-22T20:13:07Z onwards — Post-merge execution cycle
+
+Cycle invoked via `/search-first` with "Post-merge execution cycle — parallel smokes, P0 confirmation, Stream D kickoff". Three compute streams (A/B/D) + Stream E UMLS install launched in parallel from `main=58b7db2`. Detailed notes:
+
+**Commits landed** (not yet pushed):
+- `6085827` eval: P.1 harness — `--output-dir` + `--stratified` + `gpt-4o-2024-11-20` in READERS + `data/longmemeval_s_cleaned.json` resolver. Adds 9 unit tests (`tests/unit/eval/test_smoke_output_dir_and_stratified.py`). 2 mocks in `test_smoke_realrun_wiring.py` updated to accept `**kwargs`; combination-count assertion in `test_smoke_harness_dryrun.py` bumped 16 → 20.
+- `26bdc78` extraction: Stream D — 5 new chief-complaint dialogue scripts under `eval/synthetic_clips/` (abdominal pain, dyspnea, headache, fatigue+weight loss, dizziness/syncope), text-only, each 150–250 words with biasing-vocab block, supersession moments, and expected claim-extraction targets. `docs/asr_engineering_spec.md` §8.2 updated to strike the "3–5 additional clips" open ask.
+- `c896b05` eval+infra: bge-m3 dict-body fix (FastAPI+pydantic v2 ForwardRef issue resolved by using `req: dict = Body(...)` instead of an inner BaseModel) + `_purpose_map` routing for `gpt-4o-2024-11-20` / `gpt-4o-2024-08-06` through `longmemeval_reader` purpose (Azure routing, not OpenAI direct).
+
+**Infrastructure deployed this cycle**:
+- Modal: `bge-m3-embeddings` (L4 GPU, 1024-dim embeddings) + `qwen25-14b-vllm` (L4 GPU, vLLM OpenAI-compatible on :8000). Both live under profile `glitch112213`.
+- Azure: `gpt-4o-2024-11-20` (successor to paper-pinned deprecated `2024-08-06`) on `gt-swebench-aoai-3`. Reader+judge for LongMemEval this cycle route via `AZURE_OPENAI_GPT4O_LME_DEPLOYMENT`.
+- scispacy T1 MEDCON: `en_core_sci_lg` (528 MB wheel) installed via D:-drive TMPDIR workaround (C: was full); UMLS linker assets (~2 GB) on `D:\hack_it\.cache\scispacy/` via `SCISPACY_CACHE` env var.
+
+**Blockers encountered and resolved this cycle**:
+- **Modal bge-m3 HTTP 422 on /embed**: FastAPI+pydantic v2 ForwardRef bug. Dropped inner BaseModel for `dict` body + explicit `Body(...)`. Redeployed. 200 OK.
+- **Stream A 401 "no API key"**: `_call_openai` `_purpose_map` missing `gpt-4o-*` routes. Added to map under `longmemeval_reader` purpose. Fixed.
+- **Stream B.1 `OSError: [Errno 28] No space left`**: C: drive full (240/242 GB). scispacy linker cache needed ~2 GB. Redirected via `SCISPACY_CACHE=D:/hack_it/.cache/scispacy` + HF_HOME + SENTENCE_TRANSFORMERS_HOME. Initial cache copy had a truncated jsonl (`umls_2022_ab_cat0129.jsonl`, char 486) because the previous C:-partial-download got copied forward; nuked and let scispacy re-download fresh to D:.
+- **Modal Windows encoding HTTP 422-adjacent**: first `modal deploy` hit charmap encode error on stdout progress bars; set `PYTHONIOENCODING=utf-8` + `PYTHONUTF8=1` for subsequent Modal CLI calls.
+
+**Blockers unresolved (deferred follow-up)**:
+- **Stream E UMLS T0**: compound blocker — (a) assumed filename `umls-2025AB-Level0.zip` is wrong (real pattern `umls-<REL>-metathesaurus-full.zip`; 2025AB release also not yet in NLM catalog), (b) no Java on PATH for MetamorphoSys, (c) C: disk full. T1 scispacy MEDCON remains the ship-tier. Follow-up cycle needs Java install + UMLS release-target confirmation + C: cleanup.
+- **Azure gpt-4.1-mini TPM throttling**: `claim_extractor_gpt4omini` purpose routed to `gpt-4-1-mini-2025-04-14` SKU capacity=10. Stream A (60 questions × ~50 sessions × ~5 turns each) and Stream B (10 encounters × ~30 turns each) both hammer this endpoint; 429s are persistent (every ~1 min in logs). Both streams retry and make forward progress; throughput is limited to Azure TPM. Operator can raise capacity to 30+ to ~3× throughput. Azure spend is uncapped per this cycle's budget decision.
+
+**Smoke runs launched**:
+- Stream B.1 ACI-Bench hybrid n=10 seed 42 → `eval/acibench/results/20260423_postmerge_hybrid_phase1_<UTC>_seed42/`
+- Stream A LongMemEval stratified n=60 seed 42 → `eval/longmemeval/results/20260423_postmerge_lme_stratified_<UTC>_seed42/`
+
+At cycle-report time both were still running with Azure throttle back-pressure; see rolling-state for the next-actions on their partial/final results.
+
+**Reasons.md entries appended** (4): (1) `gpt-4o-2024-08-06` rejected in favour of `gpt-4o-2024-11-20` as reader/judge (Azure deprecation); (2) P0 (pre-hybrid) ACI-Bench reproduction skipped (architecturally removed from main; `NotImplementedError` at `run_smoke.py:1255`); (3) Stream E UMLS T0 install paused at Step 1/2 with compound blocker; (4) bge-m3 Modal deploy FastAPI body-parsing bug (Pydantic ForwardRef) patched to dict body + `Body(...)`.
+
+**Memory entries added**: `reference_umls_api_key.md` (points at `D:\hack_it\.env`; raw UMLS API key never echoed).
+
+**Modal spend this cycle**: <$0.25 (bge-m3 + Qwen cold-starts + probes; Stream B.1 ingestion-phase tokens low). Azure spend: several thousand gpt-4.1-mini extraction calls plus a handful of gpt-4o-2024-11-20 LongMemEval reader calls — rough estimate $2–$5, well within uncapped-Azure scope.
