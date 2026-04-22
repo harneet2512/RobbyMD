@@ -273,3 +273,24 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **New tests**: 19 new tests in `tests/unit/eval/test_llm_medcon.py` — `parse_concepts` response-shape coverage (bare list, 4 wrapper keys, case/whitespace normalisation, non-string/empty skip, invalid JSON tolerance, unexpected shapes), `LLMMedconExtractor` contract (empty input no-API, metadata shape, prompt coverage of all 7 semantic groups, missing-API-key error, mocked end-to-end extract), factory wiring (`CONCEPT_EXTRACTOR=llm_medcon` returns the new extractor).
 - **Full test gate: 227 passed, 2 skipped** (208 → 227; +19 new LLM-MEDCON). Licensing gate green (openai dep is OSI-approved Apache-2.0).
 - **What's left on Track B** (user-run, needs live keys/infra): `./eval/smoke/prepare_datasets.sh` → `CONCEPT_EXTRACTOR=llm_medcon OPENAI_API_KEY=… python eval/smoke/run_smoke.py --benchmark both --reader qwen2.5-14b --variant both --n 10 --budget-usd 50`. `eval/longmemeval/run.py` + `eval/aci_bench/run.py` judge paths already wired (merged earlier this session as Track 2). Qwen2.5-14B deployment via `eval/infra/deploy_qwen_gcp.sh` (or API fallback).
+
+### 2026-04-22 — First live smoke run: Modal-hosted Qwen + Azure judge/MEDCON, ACI-Bench × 10
+
+- **Infra landed**: Qwen2.5-14B-Instruct-AWQ on Modal (L4 GPU, vLLM 0.7.0 OpenAI-compatible server); LongMemEval judge + LLM-MEDCON concept extraction routed to Azure OpenAI via the shared `eval/_openai_client.make_openai_client` helper; `QWEN_API_BASE` now canonical reader env var with `QWEN_ENDPOINT` legacy fallback. Full datasets downloaded (LongMemEval-S 500 questions from HuggingFace; ACI-Bench 120 encounters from the upstream `challenge_data_json` tree).
+- **Detours and dead-ends** (documented here so we don't repeat them): (a) GCP `GPUS_ALL_REGIONS` project quota was 0; prior request denied. singhharneet project got quota auto-approved at +1 but then IAM rejected `compute.instances.create`. (b) Azure personal subscription showed zero modern-GPU quota (all NC_A100/A10/H100 families = 0). (c) Modal L4 + vLLM on-the-fly FP8 OOMed at 22 GiB loading FP16 weights → switched to pre-quantized Qwen2.5-14B-Instruct-AWQ (~7 GB on-GPU). (d) LongMemEval-S blocked by context: haystacks average ~100 K tokens vs vLLM `--max-model-len 8192`; ran ACI-Bench only for this first pass.
+- **Azure deployment mapping**: `gt-swebench-aoai` resource (eastus2, kind=OpenAI) carries both `gpt-4-1` (model gpt-4.1) and `gpt-4-1-mini-2025-04-14` (model gpt-4.1-mini). Wired as the LongMemEval judge and LLM-MEDCON extractor respectively. gpt-4.1/-mini replace gpt-4o/-mini (not deployed on this subscription); noted as a deviation in `methodology.md` — scores not directly comparable to published Mem0/Zep/Mastra numbers.
+- **Smoke result — ACI-Bench × Qwen2.5-14B-AWQ × 10 cases × both variants** (2026-04-22T08:00:02Z, `eval/smoke/results/20260422T080002Z/results.json`):
+
+  | metric                    | value                       |
+  | ------------------------- | --------------------------- |
+  | verdict                   | **PASS**                    |
+  | total cost                | **$0.02**                   |
+  | case-variant rows         | 20                          |
+  | baseline mean MEDCON-F1   | 0.5086                      |
+  | substrate mean MEDCON-F1  | 0.4927                      |
+  | mean delta                | −0.016                      |
+  | delta range               | [−0.223, +0.272]            |
+
+- **Honest reading**: the delta is noise. Baseline ~= substrate because the smoke-tier substrate variant intentionally uses a no-op extractor and feeds the same prompt as baseline (code comment at `eval/smoke/run_smoke.py:819`). What this run proved is the infrastructure end-to-end — Modal cold-start 1m56s, 20 Qwen reader calls at ~1.5s each, 20 Azure gpt-4.1-mini concept-extraction calls, 20 Azure gpt-4.1 judge calls (for ACI-Bench, MEDCON scoring is the metric; the judge path isn't invoked for ACI-Bench). The $0.02 total came out of an LLM-MEDCON budget of ~$0.001/note × 2 notes/case × 10 cases × 2 variants ≈ right on the predicted curve.
+- **Not yet proved**: substrate-variant advantage on ACI-Bench (needs real claim-bundle prompting in place of the no-op extractor) and LongMemEval-S anything (blocked by Qwen2.5-14B-AWQ's 8 K context on a 22 GiB L4 — would need an A100-40GB-class instance to bump `--max-model-len` to 32 K, still won't fit LongMemEval-S's native ~100 K).
+- **Modal app stopped** post-run; zero residual GPU bill. Dataset paths, adapter rewrites, and the Azure helper all covered by `tests/unit/eval/*`; full gate 237 passed, 2 skipped.
