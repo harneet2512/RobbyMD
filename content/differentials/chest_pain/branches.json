@@ -1,13 +1,208 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "_comment": "Placeholder. Real tree structure to be authored by wt-trees worktree per Eng_doc.md §4.3 and §5.4. Four branches with nodes + features; each feature keyed to the LR table.",
-  "_synthetic": "SYNTHETIC — clinical content only; no real patient data.",
-  "version": "0.0.1",
+  "_synthetic": "SYNTHETIC — clinical content only; no real patient data. See rules.md §2.",
+  "_comment": "Four differential trees for chest pain per Eng_doc.md §4.3 and PRD.md §6.3. Each node references a feature key from lr_table.json; the differential engine (src/differential/engine.py) is the source of truth for scoring. Nodes here are the UI tree structure only — sub-diagnosis groupings for the ReactFlow panel — not a second scoring surface. Rules: rules.md §4.4 (every LR sourced), §5.1 (engine deterministic), §8.1 (4 branches — do not expand).",
+  "version": "0.1.0",
   "chief_complaint": "chest_pain",
   "branches": [
-    {"id": "cardiac", "label": "Cardiac", "nodes": []},
-    {"id": "pulmonary", "label": "Pulmonary", "nodes": []},
-    {"id": "msk", "label": "Musculoskeletal", "nodes": []},
-    {"id": "gi", "label": "GI", "nodes": []}
+    {
+      "id": "cardiac",
+      "label": "Cardiac",
+      "rationale": "Acute coronary syndromes (UA/NSTEMI/STEMI), chronic CAD/stable angina, aortic dissection, heart failure. Highest stakes; strongest pooled-LR evidence base (Fanaroff 2015, Panju 1998, Klompas 2002, HEART/TIMI/Marburg).",
+      "subtrees": [
+        {
+          "id": "cardiac__acs",
+          "label": "Acute Coronary Syndrome",
+          "features": [
+            "exertional_trigger",
+            "radiation_both_arms",
+            "radiation_left_arm",
+            "radiation_right_arm_or_shoulder",
+            "pain_similar_to_prior_ischemia",
+            "change_in_pain_pattern_24h",
+            "diaphoresis",
+            "nausea_or_vomiting",
+            "pleuritic_pain_rules_out_acs",
+            "reproducible_with_palpation_rules_out_acs",
+            "sharp_stabbing_quality_rules_out_acs",
+            "nitroglycerin_response",
+            "prior_cad_history",
+            "prior_abnormal_stress_test",
+            "peripheral_arterial_disease",
+            "prior_mi",
+            "third_heart_sound_s3",
+            "hypotension_sbp_lt_100"
+          ]
+        },
+        {
+          "id": "cardiac__risk_scores",
+          "label": "Risk Scores",
+          "features": [
+            "heart_score_high_7_10",
+            "heart_score_low_0_3",
+            "timi_score_high_5_7",
+            "timi_score_low_0_1",
+            "marburg_heart_score_high_4_5",
+            "marburg_heart_score_low_0_1"
+          ]
+        },
+        {
+          "id": "cardiac__heart_failure",
+          "label": "Heart Failure",
+          "features": [
+            "history_of_heart_failure"
+          ]
+        },
+        {
+          "id": "cardiac__aortic_dissection",
+          "label": "Aortic Dissection",
+          "features": [
+            "aortic_dissection_pulse_deficit",
+            "sudden_onset_tearing_pain",
+            "chest_or_back_pain_plus_pulse_differential"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pulmonary",
+      "label": "Pulmonary",
+      "rationale": "Pulmonary embolism, pneumonia, pleural disease. Evidence density: West 2007 QJM for PE (per-feature LRs), AAFP 2013 for pneumonia findings, BMC 2025 for Wells / Singh 2012 for PERC.",
+      "subtrees": [
+        {
+          "id": "pulmonary__pe",
+          "label": "Pulmonary Embolism",
+          "features": [
+            "sudden_dyspnea",
+            "any_dyspnea",
+            "hemoptysis",
+            "syncope",
+            "shock",
+            "leg_swelling",
+            "leg_pain_unilateral",
+            "current_dvt_signs",
+            "active_cancer",
+            "recent_surgery_or_immobilization",
+            "prior_vte_dvt",
+            "wells_pe_high_probability",
+            "wells_pe_low_probability",
+            "perc_rule_negative"
+          ]
+        },
+        {
+          "id": "pulmonary__pneumonia",
+          "label": "Pneumonia",
+          "features": [
+            "egophony_on_auscultation",
+            "dullness_to_percussion",
+            "fever",
+            "tachypnea_rr_gt_20",
+            "cough"
+          ]
+        },
+        {
+          "id": "pulmonary__pleuritic_general",
+          "label": "Pleuritic Pain (generic)",
+          "features": [
+            "pleuritic_pain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "msk",
+      "label": "Musculoskeletal",
+      "rationale": "Chest-wall pain, costochondritis, muscle strain. Weakest pooled-LR branch — Bruyninckx 2008 4-factor composite is the main primary reference; most single-feature LRs are flagged approximations per rules.md §4.4.",
+      "subtrees": [
+        {
+          "id": "msk__chest_wall_rule",
+          "label": "Bruyninckx 4-Factor Rule",
+          "features": [
+            "chest_wall_combined_rule",
+            "pain_reproducible_with_palpation",
+            "stinging_quality",
+            "localized_muscle_tension",
+            "absence_of_cough"
+          ]
+        },
+        {
+          "id": "msk__mechanical",
+          "label": "Mechanical / Injury",
+          "features": [
+            "well_localized_point_tenderness",
+            "pain_worsened_by_movement",
+            "pain_aggravated_by_torso_movement",
+            "recent_trauma_or_strain",
+            "repetitive_activity_history",
+            "duration_days_to_weeks"
+          ]
+        },
+        {
+          "id": "msk__costochondritis",
+          "label": "Costochondritis",
+          "features": [
+            "costochondral_joint_tenderness",
+            "pain_with_deep_breath_costochondritis",
+            "sharp_well_localized_pain"
+          ]
+        },
+        {
+          "id": "msk__low_cardiac_prior",
+          "label": "Low Cardiac Prior",
+          "features": [
+            "younger_age_lt_40",
+            "no_cad_risk_factors",
+            "no_exertional_pattern"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gi",
+      "label": "GI / Functional",
+      "rationale": "GERD, peptic disease, esophageal motility, plus functional/panic as the non-cardiac-non-pulmonary-non-MSK catch-all (panic mapped here per research/clinical_chest_pain.md §8 open question #1).",
+      "subtrees": [
+        {
+          "id": "gi__gerd",
+          "label": "GERD",
+          "features": [
+            "retrosternal_burning_pain",
+            "acid_regurgitation",
+            "sour_or_bitter_taste",
+            "ppi_trial_response",
+            "pain_after_meals",
+            "relief_with_antacids",
+            "worse_lying_down",
+            "history_gerd_or_hiatal_hernia",
+            "obesity_bmi_gt_30",
+            "smoking_tobacco",
+            "non_exertional_trigger",
+            "symptoms_chronic_months"
+          ]
+        },
+        {
+          "id": "gi__esophageal_alarm",
+          "label": "Esophageal Alarm Symptoms",
+          "features": [
+            "dysphagia",
+            "odynophagia"
+          ]
+        },
+        {
+          "id": "gi__peptic",
+          "label": "Peptic / NSAID",
+          "features": [
+            "nsaid_use"
+          ]
+        },
+        {
+          "id": "gi__functional",
+          "label": "Panic / Functional",
+          "features": [
+            "panic_disorder_single_question"
+          ]
+        }
+      ]
+    }
   ]
 }
