@@ -229,3 +229,13 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Full test suite: 174 passed, 0 failed, 0 xfail** (155 → 174; +19 new smoke-wiring tests).
 - **Commit**: `fix: wire smoke harness to benchmark judge loops + final LR citation swap` — sha `6d33e83`.
 - **Surprise**: New tests initially caused 2 pre-existing extraction tests to fail due to `ACTIVE_PACK` env var leakage across tests — resolved by autouse fixture on the new test file.
+
+### 2026-04-22 — wt-ui Track 1 MVP slice (scaffold + disclaimer + Panel 1 + mock replay)
+
+- **DisclaimerHeader** updated to show full verbatim text from rules.md §3.7 (all 6 sentences, warning icon, always visible, not abbreviated).
+- **TranscriptPanel** auto-scroll now pauses when user has manually scrolled up (userScrolledUp ref + onScroll handler); resumes when user scrolls back to bottom.
+- **MockServer** migrated to new `ui/fixtures/chest_pain_demo.json` fixture (18 turns, patient correction supersession at t04, 4 differential ranking updates, verifier output, 3 SOAP sentences); dispatches all event types (turn/claim/supersede/differential/verifier/soap_delta).
+- **ui/src/lib/ws.ts** created: real WebSocket manager with `parseWsMessage` (unknown events silently dropped — no crash), `routeEvent` (identical routing to api/client.ts), `connectWs` (exponential back-off, max 30s).
+- **ui/mock_server/server.ts** created: Node.js WebSocket replay server (uses `ws` MIT); run with `npm run mock-server`; streams fixture at real-time cadence to `ws://localhost:8765/session/chest_pain_01/events`.
+- **25 new UI tests** (Vitest, jsdom): 10 in `transcriptSlice.test.ts` (turn dispatch, selection axes, lifecycle); 15 in `ws.test.ts` (parseWsMessage + routeEvent contract). All pass. TypeScript strict-mode clean.
+- Branch `feature/ui` HEAD: `06a8f4e`.
