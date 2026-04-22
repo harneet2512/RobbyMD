@@ -362,6 +362,9 @@ def _run_substrate_ingestion(
                 stats.claims_written_count += len(res.created_claims)
                 stats.supersessions_fired_count += len(res.supersession_edges)
 
+    else:
+        raise ValueError(f"unknown benchmark: {benchmark!r} (expected 'longmemeval' or 'acibench')")
+
     # Check projection non-emptiness — the substrate projection is rebuilt
     # after each turn; here we check the final state. With a no-op extractor,
     # projection will have 0 active claims (no extraction), so we check that
@@ -696,7 +699,11 @@ def _determine_verdict(
     # 3. Baseline within ±20pp of reference.
     baseline_cases = [r for r in case_results if r.variant == "baseline" and r.baseline_score is not None]
     for r in baseline_cases[:1]:  # Check one representative case per benchmark/reader.
-        ok, msg = _check_baseline_within_reference(r.benchmark, r.reader, r.baseline_score, reference_baselines)
+        # Filtered above to `is not None`, but Pyright doesn't narrow the attr
+        # through a list comprehension — assign to a local to narrow.
+        bs = r.baseline_score
+        assert bs is not None  # noqa: S101 — loop-invariant; filtered above
+        ok, msg = _check_baseline_within_reference(r.benchmark, r.reader, bs, reference_baselines)
         if not ok:
             anomaly_reasons.append(f"baseline outside ±20pp: {msg}")
 
