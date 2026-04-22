@@ -41,7 +41,6 @@ as they are not used on the demo path). See `methodology.md`.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
@@ -93,27 +92,20 @@ class LLMMedconExtractor:
     label: ClassVar[str] = "LLM-MEDCON (gpt-4o-mini concept extraction)"
     semantic_groups: ClassVar[frozenset[str]] = LLM_MEDCON_SEMANTIC_GROUPS
 
-    model: str = "gpt-4o-mini"
-    api_key_env: str = "OPENAI_API_KEY"
+    # Model / deployment selection happens inside `make_openai_client`. When
+    # AZURE_OPENAI_ENDPOINT is set, the call targets
+    # AZURE_OPENAI_GPT4OMINI_DEPLOYMENT; otherwise it falls back to direct
+    # OpenAI `gpt-4o-mini`.
     temperature: float = 0.0
     _client: Any = field(default=None, repr=False, compare=False)
+    _model: str = field(default="", repr=False, compare=False)
 
-    def _get_client(self) -> Any:
+    def _get_client(self) -> tuple[Any, str]:
         if self._client is None:
-            try:
-                from openai import OpenAI  # type: ignore[import-not-found]
-            except ImportError as e:
-                raise RuntimeError(
-                    "openai not installed; add `openai` to pyproject.toml "
-                    "runtime dependencies or install into the eval venv"
-                ) from e
-            api_key = os.environ.get(self.api_key_env, "").strip()
-            if not api_key:
-                raise RuntimeError(
-                    f"{self.api_key_env} not set — required for LLM-MEDCON"
-                )
-            self._client = OpenAI(api_key=api_key)
-        return self._client
+            from eval._openai_client import make_openai_client
+
+            self._client, self._model = make_openai_client("llm_medcon_gpt4omini")
+        return self._client, self._model
 
     def extract(self, text: str) -> set[str]:
         """Call gpt-4o-mini once; return a normalised concept-string set.
@@ -123,9 +115,9 @@ class LLMMedconExtractor:
         """
         if not text.strip():
             return set()
-        client = self._get_client()
+        client, model = self._get_client()
         response = client.chat.completions.create(  # type: ignore[attr-defined]
-            model=self.model,
+            model=model,
             messages=[
                 {"role": "system", "content": LLM_MEDCON_SYSTEM_PROMPT},
                 {"role": "user", "content": text},

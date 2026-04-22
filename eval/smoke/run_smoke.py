@@ -263,13 +263,19 @@ def _get_reader_env(reader: str) -> dict[str, str]:
     Exits with actionable error on missing vars.
     """
     if reader == "qwen2.5-14b":
-        endpoint = os.environ.get("QWEN_ENDPOINT", "").strip()
+        # QWEN_API_BASE is the canonical var (matches user's deploy recipe and
+        # vLLM's openai-compatible endpoint convention). QWEN_ENDPOINT is kept
+        # as a legacy fallback so older .env files still work.
+        endpoint = (
+            os.environ.get("QWEN_API_BASE", "").strip()
+            or os.environ.get("QWEN_ENDPOINT", "").strip()
+        )
         fireworks = os.environ.get("FIREWORKS_API_KEY", "").strip()
         together = os.environ.get("TOGETHER_API_KEY", "").strip()
         if not (endpoint or fireworks or together):
             sys.exit(
                 "[smoke] ERROR: qwen2.5-14b reader requires at least one of:\n"
-                "[smoke]   QWEN_ENDPOINT (self-hosted vLLM endpoint URL)\n"
+                "[smoke]   QWEN_API_BASE (self-hosted vLLM OpenAI-compatible URL, e.g. http://host:8000/v1)\n"
                 "[smoke]   FIREWORKS_API_KEY (Fireworks.ai hosted)\n"
                 "[smoke]   TOGETHER_API_KEY (Together.ai hosted)\n"
                 "[smoke] Set one of these before running the real smoke pass."
@@ -431,6 +437,11 @@ def _call_longmemeval_judge(
     judge prompt format (binary correct/incorrect). Re-uses the judge module
     from eval.longmemeval if it exists, otherwise falls back to a direct
     GPT-4o call with the official prompt.
+
+    Routes to Azure OpenAI when AZURE_OPENAI_ENDPOINT is set; otherwise
+    falls back to direct OpenAI using `openai_key`. `openai_key` is
+    ignored in the Azure branch — the Azure client picks up
+    AZURE_OPENAI_API_KEY itself via `make_openai_client`.
     """
     # Try to import a judge module if it exists.
     try:
@@ -450,11 +461,20 @@ def _call_longmemeval_judge(
         "Reply with CORRECT or INCORRECT, then a one-sentence explanation."
     )
     try:
-        import openai
+        # Azure-aware routing. If AZURE_OPENAI_ENDPOINT is set, we use the
+        # Azure GPT-4o deployment; otherwise the direct-OpenAI fallback uses
+        # `openai_key` (which came from OPENAI_API_KEY upstream).
+        if os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip():
+            from eval._openai_client import make_openai_client
 
-        client = openai.OpenAI(api_key=openai_key)
+            client, model = make_openai_client("judge_gpt4o")
+        else:
+            import openai
+
+            client = openai.OpenAI(api_key=openai_key)
+            model = "gpt-4o-2024-08-06"
         resp = client.chat.completions.create(
-            model="gpt-4o-2024-08-06",
+            model=model,
             messages=[{"role": "user", "content": judge_prompt}],
             max_tokens=128,
             temperature=0.0,
