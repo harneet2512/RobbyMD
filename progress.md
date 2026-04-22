@@ -227,5 +227,5 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Import-time comment** added at top of `src/differential/lr_table.py` (before first import, after module docstring): warns callers to set `ACTIVE_PACK` before importing, documents `cache_clear()` + `importlib.reload` pattern.
 - **New tests**: 19 new tests in `tests/unit/eval/test_smoke_realrun_wiring.py` covering: CaseResult schema, pack switching, budget halt, missing env var clean exit, baseline/substrate variant → right module invoked, structural_validity populated, verdict logic, dry-run regression guard. Autouse fixture restores `ACTIVE_PACK` + clears `active_pack.cache_clear()` after each test to prevent cross-test contamination.
 - **Full test suite: 174 passed, 0 failed, 0 xfail** (155 → 174; +19 new smoke-wiring tests).
-- **Commit**: `fix: wire smoke harness to benchmark judge loops + final LR citation swap` (sha appended after commit).
+- **Commit**: `fix: wire smoke harness to benchmark judge loops + final LR citation swap` — sha `6d33e83`.
 - **Surprise**: New tests initially caused 2 pre-existing extraction tests to fail due to `ACTIVE_PACK` env var leakage across tests — resolved by autouse fixture on the new test file.
