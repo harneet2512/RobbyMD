@@ -64,6 +64,10 @@ image = (
     .pip_install(
         "sentence-transformers==3.3.1",
         "fastapi==0.115.0",
+        # Pin pydantic v2 explicitly — transitive deps can otherwise pull v1
+        # and FastAPI 0.115 + pydantic v1 mis-infers Pydantic-annotated body
+        # params as query params (HTTP 422 "Field required loc: [query, req]").
+        "pydantic>=2.9,<3",
         "huggingface-hub[hf-transfer]==0.27.1",
         "hf-transfer==0.1.9",
     )
@@ -83,46 +87,54 @@ hf_cache = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
 @modal.concurrent(max_inputs=10)
 @modal.asgi_app()
 def serve():
-    """FastAPI app exposing POST /embed."""
-    from fastapi import FastAPI, HTTPException
-    from pydantic import BaseModel
+    """FastAPI app exposing POST /embed.
+
+    Request body:  {"texts": ["...", ...]}
+    Response body: {"embeddings": [[...floats...], ...], "model_version": "...", "count": N}
+
+    Using a raw dict body (rather than an inner Pydantic BaseModel with
+    `Body(...)`) because Pydantic v2 + FastAPI 0.115 can't build a TypeAdapter
+    for a ForwardRef-resolved class defined inside the `serve()` function
+    scope (PydanticUserError: class-not-fully-defined). Dict-body sidesteps
+    that entirely while keeping the same on-the-wire payload shape the
+    substrate client expects.
+    """
+    from fastapi import Body, FastAPI, HTTPException
     from sentence_transformers import SentenceTransformer
 
     # Load once per container. Subsequent requests reuse the model.
     model = SentenceTransformer(MODEL_ID, revision=MODEL_REVISION)
 
-    class EmbedRequest(BaseModel):
-        texts: list[str]
-
-    class EmbedResponse(BaseModel):
-        embeddings: list[list[float]]
-        model_version: str
-        count: int
-
     api = FastAPI()
 
-    @api.post("/embed", response_model=EmbedResponse)
-    def embed(req: EmbedRequest) -> EmbedResponse:
-        if not req.texts:
-            return EmbedResponse(embeddings=[], model_version=MODEL_VERSION, count=0)
-        if len(req.texts) > 512:
+    @api.post("/embed")
+    def embed(req: dict = Body(...)) -> dict:
+        texts = req.get("texts", [])
+        if not isinstance(texts, list):
+            raise HTTPException(
+                status_code=422,
+                detail="'texts' must be a list of strings",
+            )
+        if not texts:
+            return {"embeddings": [], "model_version": MODEL_VERSION, "count": 0}
+        if len(texts) > 512:
             raise HTTPException(
                 status_code=413,
-                detail=f"batch too large: {len(req.texts)} texts (max 512)",
+                detail=f"batch too large: {len(texts)} texts (max 512)",
             )
         # normalize_embeddings=True → unit-length cosine-ready vectors.
         # batch_size=32 fits comfortably in L4 VRAM with bge-m3.
         vecs = model.encode(
-            req.texts,
+            texts,
             batch_size=32,
             normalize_embeddings=True,
             show_progress_bar=False,
         )
-        return EmbedResponse(
-            embeddings=[[float(x) for x in v] for v in vecs],
-            model_version=MODEL_VERSION,
-            count=len(req.texts),
-        )
+        return {
+            "embeddings": [[float(x) for x in v] for v in vecs],
+            "model_version": MODEL_VERSION,
+            "count": len(texts),
+        }
 
     @api.get("/health")
     def health() -> dict[str, str]:

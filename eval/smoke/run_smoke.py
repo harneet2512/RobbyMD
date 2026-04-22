@@ -1503,6 +1503,12 @@ def _call_openai(
         "gpt-4o-mini": "llm_medcon_gpt4omini",
         "gpt-4.1-mini": "reader_gpt41mini",
         "gpt-4.1": "reader_gpt41",
+        # LongMemEval reader/judge variants route through the dedicated
+        # Azure deployment env (AZURE_OPENAI_GPT4O_LME_DEPLOYMENT) so n=60
+        # smoke traffic doesn't compete with the shared gpt-4.1-mini
+        # endpoint used by LLM-MEDCON on ACI-Bench.
+        "gpt-4o-2024-08-06": "longmemeval_reader",
+        "gpt-4o-2024-11-20": "longmemeval_reader",
     }
     purpose = _purpose_map.get(model_key)
     if purpose is None:
