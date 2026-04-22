@@ -106,6 +106,26 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Reason**: Validator 2026-04-21 surfaced that three `lr_table.json` rows (`pain_reproducible_with_palpation`, `younger_age_lt_40`, `no_exertional_pattern`) cite "bosner_2010_marburg" but their `source_url` points to [PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/), which is Haasenritter et al. 2015 *BJGP* — an MHS-adjacent paper but not the 2010 CMAJ derivation. Either the URL must be changed to the correct Bösner 2010 CMAJ DOI (`10.1503/cmaj.100212`) or a new `haasenritter_2015_bjgp` source-key added to `sources.md`. Same failure mode as the Cremonini DOI swap: cite-looks-plausible, never WebFetched.
 - **Citation**: [Haasenritter 2015 BJGP at PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/); [Bösner 2010 CMAJ DOI](https://doi.org/10.1503/cmaj.100212); `rules.md §7.4`; `research/validation_report.md` blocker #3.
 
+### DDXPlus — dropped for substrate-benchmark misalignment (2026-04-21)
+
+- **Context**: benchmark selection.
+- **What it is**: 1.3M synthetic patients across 49 respiratory pathologies (URTI, bronchitis, pneumonia, TB, influenza, HIV, Chagas).
+- **Why it was considered**: originally picked as a differential-diagnosis benchmark to exercise the parallel-hypothesis-trees + LR-weighted update + counterfactual verifier stack.
+- **Why it lost**: the 49-pathology respiratory set doesn't map to our `clinical_general` pack's seeded chest-pain differential. Running DDXPlus would require either seeding a full respiratory-pathologies differential pack (significant clinical-content work, not in scope) or reporting a meaningless number against a non-matching LR table. Neither option is defensible as a substrate-contribution claim.
+- **Citation**: Tchango et al., *DDXPlus*, NeurIPS 2022 — https://arxiv.org/abs/2205.09148.
+- **Superseded by**: LongMemEval-S (directly tests memory substrate — lifecycle + supersession + projection) and ACI-Bench (directly tests extraction + SOAP-note pipeline). Both load an already-seeded pack (`personal_assistant` and `clinical_general` respectively); neither requires additional content work to run.
+- **Revisit trigger**: if a respiratory-pathologies differential pack ships post-hackathon — at that point DDXPlus becomes a direct test of a second seeded pack and is worth including.
+
+### MedQA — dropped for testing reader knowledge, not substrate architecture (2026-04-21)
+
+- **Context**: benchmark selection.
+- **What it is**: USMLE-style multiple-choice medical licensing questions; 1,273 test questions (Jin et al. 2021; HuggingFace Open Medical-LLM Leaderboard).
+- **Why it was considered**: medical-reasoning axis — adds a breadth claim alongside the two substrate-focused benchmarks.
+- **Why it lost**: MedQA scores track the reader model's pre-trained medical knowledge, not substrate contribution. Our substrate has no meaningful surface on a closed-form MCQ — the claim store and supersession edges don't participate. Running MedQA reports which reader we picked, not whether our architecture helps. Including it would dilute the eval slide's signal and invite the apples-to-apples kill discussed in `Eng_doc.md §3.5`.
+- **Citation**: Jin et al., *MedQA*, Applied Sciences 2021; [HuggingFace Open Medical-LLM Leaderboard](https://huggingface.co/blog/leaderboard-medicalllm).
+- **Superseded by**: LongMemEval-S (memory-architecture contribution is measurable) and ACI-Bench (extraction + SOAP-note-generation contribution is measurable). Both have substrate-visible surfaces.
+- **Revisit trigger**: never for this hackathon. Post-hackathon, MedQA becomes relevant if we build a retrieval-augmented answering layer that actively uses stored claims to justify MCQ picks — but that's a different product, not this substrate.
+
 ### Tank for the war, not the gun fight — Opus 4.7 scoped to demo-path only (2026-04-21)
 
 - **Context**: Principle 1 of the 2026-04-21 user directive. Opus 4.7 is a capable sponsored tool, but it IS costly and using it everywhere muddies benchmark comparisons.

@@ -116,24 +116,24 @@ Opus 4.7 is a capable sponsored tool. It is not a scarce resource to ration, but
 
 Supersession Pass 2 semantic identity uses `e5-small-v2` only (no LLM — pure cosine over embeddings).
 
-**Eval loops and infrastructure (Opus 4.7 NOT USED; match published SOTA reader)**:
+**Eval loops and infrastructure (Opus 4.7 NOT USED; primary reader Qwen2.5-14B-Instruct + secondary comparability readers match published SOTA)**:
 
 | Call site | Model | Rationale |
 |---|---|---|
-| DDXPlus adapter turn synthesis (`EVIDENCES` → dialogue) | `gpt-4.1-mini` | Bulk off-demo-path transform; no judge-facing output |
-| DDXPlus reader (baseline + substrate variant) | `gpt-4o` | Matches [H-DDx 2025 Table 2](https://arxiv.org/abs/2510.03700) comparator set |
-| LongMemEval-S reader (baseline + substrate variant) | `gpt-5-mini` | Matches [Mastra OM's 94.87% driver](https://mastra.ai/research/observational-memory) |
-| ACI-Bench reader (baseline + substrate variant) | `gpt-4.1-mini` | Modern cost-sensitive GPT-4-class; [WangLab 2023 GPT-4 ICL](https://arxiv.org/abs/2305.02220) is the ROUGE/BERTScore comparator |
-| MedQA reader (baseline + substrate variant) | `gpt-4.1-mini` | Modern cost-sensitive MedQA comparator; pin resolved in `eval/medqa/README.md` when harness ships |
-| SOAP note generation on the ACI-Bench eval path | **match reader model (NOT Opus 4.7)** — `gpt-4.1-mini` | Apples-to-apples with WangLab 2023 GPT-4. Demo-path SOAP note uses Opus 4.7; eval-path SOAP note uses the benchmark's reader model. |
-| LLM judge — DDXPlus Top-5 semantic equivalence | `gpt-4o-2024-08-06` (pinned) | Reproducibility; pinned release cannot drift |
+| LongMemEval-S reader, primary (baseline + substrate variant) | `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Together / Fireworks / DeepInfra API) | Reader-agnostic baseline not tied to any closed-model pricing; Apache-2.0; empirically establishes substrate delta at a fixed open-weight reader |
+| LongMemEval-S reader, secondary (comparability) | `gpt-4o-mini` | Published Mem0 / Mastra OM / EverMemOS comparator axis — apples-to-apples with leaderboard |
+| ACI-Bench reader, primary (baseline + substrate variant) | `Qwen2.5-14B-Instruct` | Same self-hosted stack; same reader-agnostic claim |
+| ACI-Bench reader, secondary (comparability) | `gpt-4.1-mini` | 2026 cost-equivalent of [WangLab 2023 GPT-4 ICL](https://arxiv.org/abs/2305.02220) (MEDIQA-CHAT 2023 1st place) |
+| SOAP note generation on the ACI-Bench eval path | **match reader model (NOT Opus 4.7)** | Apples-to-apples. Demo-path SOAP note uses Opus 4.7; eval-path SOAP note uses the active benchmark reader |
 | LLM judge — LongMemEval-S accuracy | `gpt-4o-2024-08-06` (pinned) | Per LongMemEval paper mandate |
 | Offline bulk reprocessing | `gpt-4.1-mini` | Non-demo path, cost-sensitive |
 | Infrastructure loops (retry wrappers, validators) | N/A (deterministic code) | No LLM |
 
+**Hosting the primary reader**: `eval/infra/deploy_qwen_gcp.sh` (primary path — GCP L4 spot + vLLM INT8 quantization) and `eval/infra/deploy_qwen_azure.sh` (documented fallback — Azure NVadsA10_v5 spot). Host machine already authenticated for `gcloud` + `az`. Rationale at `eval/infra/README.md`.
+
 **The rule**: if a call is on the demo-video playback path and shapes what a judge sees → Opus 4.7. Otherwise → the cheapest model that preserves apples-to-apples comparison with the benchmark's published SOTA reader.
 
-**Why the rule exists**: using Opus 4.7 as the eval reader when the published SOTA used `gpt-4.1-mini` conflates "our substrate vs their substrate" with "Opus 4.7 vs gpt-4.1-mini" and kills the comparison. Benchmark comparability is the eval slide's entire value. See `reasons.md` → "Tank for the war, not the gun fight" for the full rationale.
+**Why the rule exists**: using Opus 4.7 as the eval reader when the published SOTA used `gpt-4o-mini` or `Qwen2.5-14B`-class readers conflates "our substrate vs their substrate" with "Opus 4.7 vs their reader" and kills the comparison. Benchmark comparability is the eval slide's entire value. Running the same substrate against two readers (primary Qwen2.5-14B for reader-agnostic claim; secondary closed-model for published-comparator alignment) makes the substrate delta attributable to the substrate, not the reader. See `reasons.md` → "Tank for the war, not the gun fight" for the full rationale.
 
 ---
 
@@ -285,7 +285,7 @@ Sources: 2021 AHA/ACC Chest Pain Guideline (open); HEART score, TIMI, Wells, PER
 
 Reject turn if: <3 content words; filler-only; embedding similarity to current active-claim set ≥0.95 (already known). Else admit.
 
-Target false-rejection ≤5% on the DDXPlus-derived dialogue eval.
+Target false-rejection ≤5% on the LongMemEval-S / ACI-Bench dialogue evals.
 
 ### 5.2 Claim extractor (`src/extraction/claim_extractor/`)
 
@@ -410,21 +410,7 @@ Lives in `eval/`. Run with `make eval`. Outputs JSON + mini-charts for the video
 
 Every benchmark is published and peer-reviewed. No homemade metrics.
 
-### 10.1 DDXPlus (`eval/ddxplus/`)
-
-**Dataset**: public, https://github.com/mila-iqia/ddxplus. Subsample 500–730 cases via stratified sampling across the 49 pathologies (H-DDx 2025 methodology).
-
-**Adapter**: converts DDXPlus's `{EVIDENCES, AGE, SEX, PATHOLOGY, DIFFERENTIAL_DIAGNOSIS}` record into a natural-dialogue turn stream our pipeline can ingest. The adapter is deterministic and documented.
-
-**Variants**:
-- `baseline.py` — Opus 4.7 prompted with the full case, asked for top-5 differential.
-- `full.py` — turn stream → our substrate → differential engine → verifier → top-5 differential.
-
-**Metrics**: Top-5 accuracy + HDF1 (ICD-10 hierarchical F1) per the H-DDx 2025 methodology. LLM judge pinned to `gpt-4o-2024-08-06` for Top-5 semantic-equivalence; HDF1 is computed deterministically via ICD-10 retrieval+rerank. Top-1 and Top-3 computed internally but not reported against H-DDx (which publishes Top-5 + HDF1 only in Table 2, covering 22 LLMs).
-
-**Comparison**: report alongside H-DDx 2025 published numbers for selected comparator models.
-
-### 10.2 LongMemEval-S (`eval/longmemeval/`)
+### 10.1 LongMemEval-S (`eval/longmemeval/`)
 
 **Dataset**: public, https://github.com/xiaowu0162/LongMemEval, `longmemeval_s` split.
 
@@ -438,7 +424,7 @@ Every benchmark is published and peer-reviewed. No homemade metrics.
 
 **Comparison**: TiMem 76.88%, EverMemOS 83.0%, Zep/Graphiti 71.2%, MemOS.
 
-### 10.3 ACI-Bench (`eval/aci_bench/`)
+### 10.2 ACI-Bench (`eval/aci_bench/`)
 
 **Dataset**: public, https://github.com/wyim/aci-bench. Run both `aci` (66 test encounters across test1/test2/test3) and `virtscribe` (24 test encounters). No slicing — full authors' test set.
 
@@ -454,12 +440,14 @@ Every benchmark is published and peer-reviewed. No homemade metrics.
 
 **Comparison**: MEDIQA-CHAT 2023 leaderboard.
 
-### 10.4 Outputs
+### 10.3 Outputs
 
 `eval/reports/<timestamp>/`:
 - `results.json` — raw numbers
-- `ddxplus_chart.png`, `longmemeval_chart.png`, `aci_bench_chart.png`
+- `longmemeval_chart.png`, `aci_bench_chart.png`
 - `summary.md` — one-page summary for README
+
+(DDXPlus and MedQA were dropped 2026-04-21 — see `reasons.md` → DDXPlus and MedQA entries. Only two benchmarks remain, both scoped to the substrate's load-bearing contributions.)
 
 ---
 
@@ -490,7 +478,7 @@ Static scan of `pyproject.toml` / `package.json` / model download list. Every de
 | Supersession doesn't fire cleanly on demo case | Demo-blocking | Scripted case, deterministic rule catches it by construction; property test protects |
 | Trees don't "breathe" | Demo-blocking | Explicit 200 ms transitions; integration polish is the last workstream |
 | Opus 4.7 rate limits during eval | Medium | Stagger runs; keep BioMistral warm as offline fallback |
-| DDXPlus adapter produces unrealistic dialogue | Medium | Use the dialogue form already suggested in DDXPlus paper (structured turns); validate on 5 cases by eye before running at scale |
+| LongMemEval-S baseline-vs-substrate delta is noisy on small N | Medium | Smoke-first discipline — eval/smoke/run_smoke.py runs a deterministic first-10-case sanity pass before committing to full 500; published baselines pinned in eval/smoke/reference_baselines.json for ±20pp sanity check |
 | LongMemEval-S numbers underwhelm | Medium | Report honestly; even partial wins on knowledge-update and temporal categories defend the architecture |
 | ACI-Bench `aci` subset is small (40 test cases) | Low | Good — faster iteration; if we want more, add `virtscribe` |
 | Closed model dependency (Gemma-licensed) sneaks in | Disqualifying | `test_open_source.py` enforces; review all new deps in CI |
@@ -502,8 +490,8 @@ Static scan of `pyproject.toml` / `package.json` / model download list. Every de
 
 ## 13. Open questions
 
-1. Exact DDXPlus subset size (500 vs 730 vs full 1k+) — balance eval runtime vs published methodology.
+1. First smoke-run verdict on the harness once user signs off on real execution (LongMemEval-S + ACI-Bench × baseline + substrate × 10 cases each, Qwen2.5-14B reader, $50 budget cap per `eval/smoke/`).
 2. ACI-Bench MEDCON implementation — use published eval scripts as-is.
 3. Custom ASR vocabulary — start with a public drug/anatomy list, iterate on demo-case WER.
-4. Semantic supersession threshold — 0.92 default, empirically validate on a 50-case subset of the DDXPlus-derived dialogue.
+4. Semantic supersession threshold — 0.92 default, empirically validate on a 50-case subset of the LongMemEval-S / ACI-Bench dialogue.
 5. ReactFlow performance with 4 live trees at ~10 Hz during extraction bursts — test early in UI build.

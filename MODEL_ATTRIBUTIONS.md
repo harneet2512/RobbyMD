@@ -17,6 +17,7 @@ Every model weight referenced by this repository is listed below with its licens
 | `distil-whisper/distil-large-v3` | v3 | Hugging Face (Gandhi et al.) | MIT | https://huggingface.co/distil-whisper/distil-large-v3 | *"Distil-Whisper large-v3 by Hugging Face, MIT License. Paper: Gandhi et al., arXiv:2311.00430."* (MIT does not strictly require per-use attribution; listed for audit transparency.) |
 | `intfloat/e5-small-v2` | v2 | intfloat / Microsoft Research (Wang et al.) | MIT | https://huggingface.co/intfloat/e5-small-v2 | *"e5-small-v2 by intfloat, MIT License. Paper: Wang et al., arXiv:2212.03533."* (MIT does not strictly require per-use attribution; listed for audit transparency.) |
 | `snakers4/silero-vad` | v5 | Silero Team | MIT | https://github.com/snakers4/silero-vad | *"silero-vad v5 by Silero Team, MIT License."* (MIT does not strictly require per-use attribution; listed for audit transparency.) |
+| `Qwen/Qwen2.5-14B-Instruct` | 2.5-14B-Instruct | Alibaba (Qwen Team) | Apache-2.0 | https://huggingface.co/Qwen/Qwen2.5-14B-Instruct | *"Qwen2.5-14B-Instruct by Alibaba Qwen Team, Apache-2.0. Paper: Qwen2.5 Technical Report, arXiv:2412.15115."* Loaded by `eval/smoke/run_smoke.py` and `eval/<benchmark>/full.py` baselines — NOT from `src/` — so `tests/licensing/test_model_attributions.py` doesn't require this row. Added proactively 2026-04-21 because the attribution registry is the audit surface, not just the CI gate. |
 
 ---
 

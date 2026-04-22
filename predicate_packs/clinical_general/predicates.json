@@ -1,0 +1,34 @@
+{
+  "pack_id": "clinical_general",
+  "description": "General medical vocabulary covering any chief complaint — chest pain, abdominal pain, dyspnoea, headache, fatigue, etc. The engine has no clinical medicine hardcoded; medicine lives entirely in this data.",
+  "predicate_families": [
+    "onset",
+    "character",
+    "severity",
+    "location",
+    "radiation",
+    "aggravating_factor",
+    "alleviating_factor",
+    "associated_symptom",
+    "duration",
+    "medical_history",
+    "medication",
+    "allergy",
+    "family_history",
+    "social_history",
+    "risk_factor",
+    "vital_sign",
+    "lab_value",
+    "imaging_finding",
+    "physical_exam_finding",
+    "review_of_systems"
+  ],
+  "sub_slots": {
+    "medication": ["name", "dose", "route", "frequency", "indication", "start_date"],
+    "vital_sign": ["kind", "value", "unit", "measured_at"],
+    "lab_value": ["name", "value", "unit", "reference_range", "specimen_type", "collected_at"],
+    "imaging_finding": ["modality", "body_part", "finding_text", "reported_at"],
+    "physical_exam_finding": ["body_part", "finding", "elicitation_method"],
+    "allergy": ["agent", "reaction", "severity", "verified_by"]
+  }
+}

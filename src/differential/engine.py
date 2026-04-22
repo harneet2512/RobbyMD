@@ -24,7 +24,7 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from src.differential.lr_table import BRANCHES, LRRow, LRTable
+from src.differential.lr_table import LRRow, LRTable
 from src.differential.types import ActiveClaim
 
 
@@ -111,11 +111,18 @@ def rank_branches(
     neutralise iteration-order noise from upstream callers — required by
     rules.md §5.1.
     """
+    # Empty LR table → empty ranking. Engine no-ops gracefully when the active
+    # pack has no differentials (e.g. personal_assistant). Addresses audit finding
+    # #1 from commit 8f0d9db.
+    branches = lr_table.branches
+    if not branches:
+        return BranchRanking(scores=())
+
     # Materialise + deterministic sort so we don't depend on upstream ordering.
     claims = sorted(active_claims, key=lambda c: (c.claim_id, c.predicate_path, c.polarity))
 
-    log_scores: dict[str, float] = dict.fromkeys(BRANCHES, 0.0)
-    applied: dict[str, list[AppliedLR]] = {b: [] for b in BRANCHES}
+    log_scores: dict[str, float] = dict.fromkeys(branches, 0.0)
+    applied: dict[str, list[AppliedLR]] = {b: [] for b in branches}
 
     for claim in claims:
         for row in lr_table.rows_for(claim.predicate_path):

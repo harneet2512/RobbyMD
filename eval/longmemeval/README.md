@@ -33,7 +33,7 @@ Per LongMemEval ICLR 2025 §4 (official evaluator):
   - `knowledge_update`
   - `abstention`
 - LLM judge pinned to `gpt-4o-2024-08-06` via `LONGMEMEVAL_JUDGE_MODEL`.
-- Official evaluator script: `<ddxplus-repo>/src/evaluation/evaluate_qa.py`
+- Official evaluator script: `<longmemeval-repo>/src/evaluation/evaluate_qa.py`
   (imported at run time; we don't fork or reimplement the evaluator — doing so
   would violate `rules.md §6.1` "no homemade metrics").
 

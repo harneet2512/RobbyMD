@@ -44,10 +44,12 @@
       "predicate_path": "radiation=right_arm",
       "lr_plus": 4.7,
       "lr_minus": null,
-      "source": "panju_jama_1998 (AMI rational clinical examination)",
-      "source_url": "https://pubmed.ncbi.nlm.nih.gov/9786377/",
-      "approximation": true,
-      "notes": "Panju 1998 JAMA: right-arm radiation reported LR+ ~4.7 (sensitivity 9%, specificity 98%). Approximation flag because pooled estimate only; Fanaroff 2015 did not re-pool this specific radiation pattern."
+      "source": "aafp_2017_right_arm_hda",
+      "source_url": "https://www.aafp.org/pubs/afp/issues/2017/0901/p328.html",
+      "approximation": false,
+      "rationale_strength": "strong",
+      "verified_by": "open_access_replacement_2026-04-21",
+      "notes": "AAFP 2017 Help Desk Answer (open access, free-to-read) aggregates Panju 1998 JAMA (sensitivity 9%, specificity 98%) plus newer meta-analyses and reports right-arm radiation LR+ ~4.7 for ACS. Replaced paywalled PMID 9786377 with this open-access tertiary review 2026-04-21; LR+ value unchanged."
     },
     {
       "branch": "cardiac",
@@ -439,11 +441,13 @@
       "branch": "pulmonary",
       "feature": "wells_pe_high_probability",
       "predicate_path": "risk_factor=wells_pe_high",
-      "lr_plus": 5.59,
+      "lr_plus": 5.6,
       "lr_minus": null,
-      "source": "bmc_pulm_2025 Bayesian network meta-analysis (3-tier Wells)",
-      "source_url": "https://link.springer.com/article/10.1186/s12890-025-03637-6",
+      "source": "ceriani_2010_jth_wells_meta",
+      "source_url": "https://www.jthjournal.org/article/S1538-7836(22)12404-9/pdf",
       "approximation": false,
+      "rationale_strength": "strong",
+      "verified_by": "open_access_replacement_2026-04-21",
       "notes": "BMC Pulm Med 2025 meta-analysis: 3-tier Wells high LR+ 5.59 (95% CrI 3.70-8.37). Supersedes older AAFP 2013 Wells-high LR+ 6.8."
     },
     {
@@ -663,10 +667,12 @@
       "predicate_path": "duration=days_to_weeks",
       "lr_plus": 1.8,
       "lr_minus": null,
-      "source": "primary_care_musculoskeletal_review_2013",
-      "source_url": "https://www.primarycare.theclinics.com/article/S0095-4543(13)00088-2/fulltext",
+      "source": "aafp_2021_costochondritis + statpearls_costochondritis",
+      "source_url": "https://www.aafp.org/pubs/afp/issues/2021/0700/p73.html",
       "approximation": true,
-      "notes": "Subacute course (days-weeks), especially with mechanical pattern, favours MSK. LR+ ~1.8 approximation. Not a pooled LR."
+      "rationale_strength": "moderate",
+      "verified_by": "open_access_replacement_2026-04-21",
+      "notes": "AAFP 2021 Costochondritis Rapid Evidence Review (open access): 91% of new-onset costochondritis resolves within 3 weeks, supporting subacute-duration prior for MSK. Supporting: StatPearls NBK532931. LR+ ~1.8 approximation; not a pooled single-feature LR. Replaced paywalled Ayloo 2013 Primary Care Clinics review 2026-04-21; LR+ value unchanged."
     },
     {
       "branch": "msk",
@@ -809,10 +815,12 @@
       "predicate_path": "associated_symptom=dysphagia",
       "lr_plus": 2.5,
       "lr_minus": null,
-      "source": "acg_gerd_2022",
-      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8754510/",
+      "source": "sandhu_2018_ncccp_motility",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/29848163/",
       "approximation": true,
-      "notes": "ACG 2022 GERD guideline: dysphagia is an alarm symptom suggesting reflux-related esophagitis or motility disorder. LR+ ~2.5 approximation for GI branch."
+      "rationale_strength": "moderate",
+      "verified_by": "open_access_replacement_2026-04-21",
+      "notes": "Sandhu et al. 2018 Scand J Gastroenterol (PMID 29848163): dysphagia OR 3.8 (95% CI 1.9–7.5) as predictor of esophageal motility disorder in non-cardiac chest pain. LR+ ~2.5 approximates the pooled OR for this low-prevalence outcome (OR ≈ LR+ when event rate is small). Replaced paywalled AAFP 2013 / ACG 2022 citation 2026-04-21; LR+ value unchanged."
     },
     {
       "branch": "gi",
@@ -831,10 +839,12 @@
       "predicate_path": "medical_history=gerd",
       "lr_plus": 3.5,
       "lr_minus": null,
-      "source": "acg_gerd_2022",
-      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8754510/",
+      "source": "statpearls_gerd + pmc3959479_noncardiac_chest_pain",
+      "source_url": "https://www.ncbi.nlm.nih.gov/books/NBK554462/",
       "approximation": true,
-      "notes": "Prior GERD/hiatal hernia diagnosis raises prior for recurrent GERD cause. LR+ ~3.5 approximation."
+      "rationale_strength": "moderate",
+      "verified_by": "open_access_replacement_2026-04-21",
+      "notes": "Prior GERD/hiatal hernia diagnosis raises prior for recurrent GERD cause. LR+ ~3.5 approximation. StatPearls GERD (NBK554462, open access): GERD causes 25–55% of non-cardiac chest pain. Supporting: PMC3959479 (non-cardiac chest pain review). Replaced paywalled ACG 2022 guideline 2026-04-21; LR+ value unchanged."
     },
     {
       "branch": "gi",

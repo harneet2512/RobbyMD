@@ -1,0 +1,38 @@
+{
+  "_comment": "Published reference numbers per reader × benchmark. Used by run_smoke.py to verify our baseline runs land within ±20pp of the published figure. When no published number exists ('establish empirically'), the smoke verdict reports ⚠ ANOMALY only if the value is implausibly low or high; otherwise accepted.",
+  "longmemeval_s": {
+    "qwen2.5-14b-instruct": {
+      "full_context": {
+        "overall": "estimated ~50%",
+        "source": "no published Qwen2.5-14B LongMemEval score; establish empirically"
+      }
+    },
+    "gpt-4o-mini": {
+      "full_context": {
+        "overall": 61.2,
+        "source": "LongMemEval paper Table 2, arXiv 2410.10813"
+      },
+      "mem0": {
+        "overall": 49.0,
+        "source": "Mem0 blog April 2025"
+      },
+      "zep": {
+        "overall": 63.8,
+        "source": "Zep blog Dec 2025"
+      }
+    }
+  },
+  "acibench_test1": {
+    "gpt-4.1-mini": {
+      "baseline_icl": {
+        "medcon": "estimated 55-60",
+        "source": "extrapolated from GPT-4 ICL 57.78 MEDCON, WangLab 2023"
+      }
+    },
+    "qwen2.5-14b-instruct": {
+      "baseline_icl": {
+        "medcon": "not reported; establish empirically"
+      }
+    }
+  }
+}

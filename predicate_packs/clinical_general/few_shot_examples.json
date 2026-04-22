@@ -1,0 +1,78 @@
+{
+  "_note": "Migrated from src/extraction/claim_extractor/prompt.py FEW_SHOT_EXAMPLES (commit 8f0d9db) into per-pack JSON so a non-clinical pack (e.g. personal_assistant) can supply its own few-shots without code changes. Addresses audit finding #2.",
+  "examples": [
+    {
+      "name": "multi_claim_utterance",
+      "scenario": "One patient sentence packs multiple independent clinical facts. The extractor must emit one claim per fact, not bundle them.",
+      "prior_turns": [
+        {"speaker": "physician", "text": "Tell me about the chest pain."}
+      ],
+      "current_turn": {
+        "speaker": "patient",
+        "text": "It started about an hour ago, feels like pressure, and radiates to my left arm."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"chest_pain\",\"predicate\":\"onset\",\"value\":\"1 hour ago\",\"confidence\":0.92},\n  {\"subject\":\"chest_pain\",\"predicate\":\"character\",\"value\":\"pressure\",\"confidence\":0.95},\n  {\"subject\":\"chest_pain\",\"predicate\":\"radiation\",\"value\":\"left_arm\",\"confidence\":0.97}\n]"
+    },
+    {
+      "name": "negative_finding",
+      "scenario": "Patient explicitly denies a feature. Encode as a claim with value prefixed 'negated:' so the differential engine can apply LR-.",
+      "prior_turns": [
+        {"speaker": "physician", "text": "Any shortness of breath?"}
+      ],
+      "current_turn": {"speaker": "patient", "text": "No, I can breathe fine."},
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"chest_pain\",\"predicate\":\"associated_symptom\",\"value\":\"negated:dyspnea\",\"confidence\":0.93}\n]"
+    },
+    {
+      "name": "patient_self_correction_supersession",
+      "scenario": "Patient corrects a prior statement. Emit the new claim; the substrate's deterministic supersession Pass 1 will link it to the superseded claim (same (subject, predicate), different value).",
+      "prior_turns": [
+        {"speaker": "patient", "text": "The pain started about an hour ago."},
+        {"speaker": "physician", "text": "You said an hour — can you be more precise?"}
+      ],
+      "current_turn": {
+        "speaker": "patient",
+        "text": "Actually, thinking again, it was more like thirty minutes ago."
+      },
+      "active_claims_summary": "c_001: chest_pain.onset = '1 hour ago' (confidence 0.92)",
+      "expected_output": "[\n  {\"subject\":\"chest_pain\",\"predicate\":\"onset\",\"value\":\"30 minutes ago\",\"confidence\":0.94}\n]"
+    },
+    {
+      "name": "rare_symptom",
+      "scenario": "A specific, low-base-rate symptom that matters diagnostically (here: radiation to jaw, suggestive of ACS). Encode crisply; don't normalise away the clinical specificity.",
+      "prior_turns": [
+        {"speaker": "physician", "text": "Does the pain travel anywhere?"}
+      ],
+      "current_turn": {
+        "speaker": "patient",
+        "text": "It goes up into my jaw and makes my teeth ache."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"chest_pain\",\"predicate\":\"radiation\",\"value\":\"jaw\",\"confidence\":0.95},\n  {\"subject\":\"chest_pain\",\"predicate\":\"associated_symptom\",\"value\":\"jaw_ache\",\"confidence\":0.80}\n]"
+    },
+    {
+      "name": "ambiguous_phrasing",
+      "scenario": "Utterance is vague. The extractor must emit a low-confidence claim (never fabricate) OR emit nothing. Confidence must honestly reflect the ambiguity so the UI can dim the claim and the differential engine can under-weight it.",
+      "prior_turns": [
+        {"speaker": "physician", "text": "How would you describe the pain?"}
+      ],
+      "current_turn": {"speaker": "patient", "text": "It's just... weird. Like a strange feeling."},
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"chest_pain\",\"predicate\":\"character\",\"value\":\"unspecified\",\"confidence\":0.30}\n]"
+    },
+    {
+      "name": "medication_history",
+      "scenario": "Drug names are high-value, often mispronounced. Normalise to RxNorm-style lowercase ingredient names; keep the patient's surface form in `value` for provenance.",
+      "prior_turns": [
+        {"speaker": "physician", "text": "What medications do you take regularly?"}
+      ],
+      "current_turn": {
+        "speaker": "patient",
+        "text": "I take metoprolol and aspirin every morning, and atorvastatin in the evening."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"patient\",\"predicate\":\"medication\",\"value\":\"metoprolol\",\"confidence\":0.97},\n  {\"subject\":\"patient\",\"predicate\":\"medication\",\"value\":\"aspirin\",\"confidence\":0.98},\n  {\"subject\":\"patient\",\"predicate\":\"medication\",\"value\":\"atorvastatin\",\"confidence\":0.95}\n]"
+    }
+  ]
+}

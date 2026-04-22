@@ -1,10 +1,12 @@
 """Benchmark harnesses for the hack_it clinical-reasoning substrate.
 
-Three published benchmarks (no homemade metrics, no slicing — rules.md §6):
-- ddxplus: DDXPlus (NeurIPS 2022) via H-DDx 2025 (Top-5 + HDF1, 730-case stratified).
-- longmemeval: LongMemEval-S (ICLR 2025) — all 500 questions, per-category.
-- aci_bench: ACI-Bench (Nature Sci Data 2023) — aci + virtscribe test splits, 90 encounters.
+Two published benchmarks (no homemade metrics, no slicing — rules.md §6):
+- longmemeval: LongMemEval-S (ICLR 2025) — all 500 questions, per-category;
+  runs with `personal_assistant` pack for substrate variant.
+- aci_bench: ACI-Bench (Nature Sci Data 2023) — aci + virtscribe test splits,
+  90 encounters; runs with `clinical_general` pack.
 
-Each subpackage scaffolds fetch.py, adapter.py, baseline.py, full.py, run.py,
-README.md, and LIMITATIONS.md per CLAUDE.md §5.5 and Eng_doc.md §10.
+DDXPlus + MedQA were dropped 2026-04-21 — see `reasons.md` and
+`eval/README.md`. Each surviving subpackage provides fetch.py, adapter.py,
+baseline.py, full.py, run.py, README.md, LIMITATIONS.md per CLAUDE.md §5.5.
 """

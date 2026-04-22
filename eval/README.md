@@ -1,17 +1,17 @@
 # eval — Published-benchmark harnesses
 
-Three harnesses scaffolded + one stub. Per `rules.md §6` — no homemade metrics, no slicing of canonical splits, no unverified comparator claims.
+**Two** harnesses scaffolded: LongMemEval-S and ACI-Bench. Per `rules.md §6` — no homemade metrics, no slicing of canonical splits, no unverified comparator claims.
 
-Per `Eng_doc.md §3.5` (model-usage policy): **Opus 4.7 is NOT used as the eval reader** for any benchmark. Eval readers match each benchmark's published SOTA reader so numbers are apples-to-apples. Using Opus 4.7 as the eval reader when the published SOTA used `gpt-4.1-mini` or `gpt-5-mini` conflates "our substrate vs their substrate" with "Opus 4.7 vs their reader" — and kills the comparison.
+Per `Eng_doc.md §3.5` (model-usage policy): **Opus 4.7 is NOT used as the eval reader** for any benchmark. Primary reader is `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot). Secondary comparability readers match each benchmark's published SOTA so numbers are apples-to-apples with the leaderboard.
+
+**Why two, not four**: DDXPlus + MedQA were dropped 2026-04-21 (see `reasons.md` → DDXPlus and MedQA entries). DDXPlus's 49-pathology respiratory set didn't map to our seeded `clinical_general` chest-pain differential without a respiratory-extension pack; MedQA tests reader knowledge, not substrate architecture. LongMemEval-S + ACI-Bench directly exercise the substrate's load-bearing contributions (memory lifecycle + note-gen pipeline).
 
 ## Per-benchmark reader + judge table
 
-| Benchmark | Reader (baseline + substrate variant) | LLM judge | SOTA precedent |
-|---|---|---|---|
-| **DDXPlus** | `gpt-4o` | `gpt-4o-2024-08-06` (pinned) | [H-DDx 2025 Table 2 (arXiv 2510.03700)](https://arxiv.org/abs/2510.03700) — 22 LLM comparators; GPT-4o sits mid-table (0.804 Top-5 / 0.350 HDF1) as a neutral comparator. HDF1 scoring is deterministic via ICD-10 retrieval+rerank; Top-5 semantic-equivalence uses the pinned GPT-4o judge. |
-| **LongMemEval-S** | `gpt-5-mini` | `gpt-4o-2024-08-06` (pinned by LongMemEval paper) | [Mastra Observational Memory — 94.87%](https://mastra.ai/research/observational-memory) uses `gpt-5-mini` as the driver. Matching this makes our substrate-variant number directly comparable to Mastra OM (our per-category claim is on TR / multi-session / KU — the hard categories). |
-| **ACI-Bench** | `gpt-4.1-mini` | None (ROUGE-1/2/L, BERTScore, BLEURT are deterministic; MEDCON computed via 3-tier concept extractor — `docs/decisions/2026-04-21_medcon-tiered-fallback.md`) | [WangLab 2023 GPT-4 ICL](https://arxiv.org/abs/2305.02220) — MEDIQA-CHAT 2023 1st place. `gpt-4.1-mini` is the modern cost-sensitive GPT-4-class equivalent; budget-permitting upgrade to full GPT-4 for a direct WangLab comparison. |
-| **MedQA** (stub) | `gpt-4.1-mini` | None (multi-choice accuracy is deterministic) | MedQA canonical benchmark (Jin et al. 2021). Modern comparators include GPT-4 (~86.7%), Med-PaLM-2 (~86.5%), frontier models. Reader pinned in `eval/medqa/README.md` when the harness ships. |
+| Benchmark | Primary reader (baseline + substrate variant) | Secondary reader (comparability) | LLM judge | SOTA precedent |
+|---|---|---|---|---|
+| **LongMemEval-S** | `Qwen2.5-14B-Instruct` (GCP L4 self-hosted) | `gpt-4o-mini` | `gpt-4o-2024-08-06` (pinned by LongMemEval paper) | Primary: reader-agnostic open-weight baseline at fixed Qwen scale. Secondary: matches [Mem0](https://mem0.ai/research) / [Mastra Observational Memory 94.87%](https://mastra.ai/research/observational-memory) / [EverMemOS](https://arxiv.org/abs/2601.02163) reporting axis. |
+| **ACI-Bench** | `Qwen2.5-14B-Instruct` (same self-hosted stack) | `gpt-4.1-mini` | None (ROUGE-1/2/L, BERTScore, BLEURT are deterministic; MEDCON via 3-tier concept extractor — `docs/decisions/2026-04-21_medcon-tiered-fallback.md`) | Primary: same reader-agnostic story. Secondary: [WangLab 2023 GPT-4 ICL](https://arxiv.org/abs/2305.02220), MEDIQA-CHAT 2023 1st place; `gpt-4.1-mini` is the modern cost-sensitive GPT-4-class equivalent. |
 
 ## Adapter convention
 
@@ -30,18 +30,34 @@ eval/<benchmark>/
 
 ## Pack × benchmark mapping
 
-Per `context.md §6`: each benchmark loads a specific `PredicatePack` — the substrate's domain-agnosticism is tested here under the hood. Packs shipped this build: `clinical_general` (only). Consequence for the substrate variant:
+Per `context.md §6`: each benchmark loads a specific `PredicatePack`. Both packs shipped this build: `clinical_general` + `personal_assistant`.
 
 | Benchmark | Pack | Substrate variant shippable this build? |
 |---|---|---|
-| DDXPlus | `clinical_general` + respiratory-pathologies extension | Yes |
-| LongMemEval-S | `personal_assistant` (future pack) | **Baseline only** this build — substrate variant deferred until `personal_assistant` seeds |
+| LongMemEval-S | `personal_assistant` (seeded this commit — `predicate_packs/personal_assistant/`) | Yes |
 | ACI-Bench | `clinical_general` | Yes |
-| MedQA | `clinical_general` (MCQ mode) | When harness ships (stub currently) |
+
+## Smoke-first discipline
+
+Before any full run, use `eval/smoke/run_smoke.py` with `--n 10` on the first-10-by-sorted-case-id selection:
+
+```bash
+eval/smoke/prepare_datasets.sh                                    # one-shot dataset fetch
+python eval/smoke/run_smoke.py --dry-run --benchmark both \
+       --reader qwen2.5-14b --variant both --n 10                 # dry-run sanity
+python eval/smoke/run_smoke.py --benchmark both \
+       --reader qwen2.5-14b --variant both --n 10 --budget-usd 50 # real smoke, budget-capped
+```
+
+Harness enforces a hard `--budget-usd` cap with early halt + `BUDGET HALT` summary. Outputs `eval/smoke/<benchmark>/<timestamp>/{results.json, methodology.md}`. Verdict: ✅ PASS / ⚠ ANOMALY / ❌ FAIL per `eval/smoke/reference_baselines.json`.
+
+## Hosting the primary reader
+
+See `eval/infra/README.md` for cloud-choice rationale. Primary: `eval/infra/deploy_qwen_gcp.sh` (GCP L4 spot + vLLM INT8 — Qwen2.5-14B fits in 24 GB VRAM at INT8). Fallback: `eval/infra/deploy_qwen_azure.sh` (Azure NVadsA10_v5 spot; sketch-only, untested). Host already authenticated for both (`gcloud` + `az`).
 
 ## Rule
 
-If a call on the eval path needs an LLM → use the reader above for that benchmark. If it needs a judge → the pinned judge. **Do not substitute Opus 4.7 for cost.** See `reasons.md` → "Tank for the war, not the gun fight" + "Scope widened under the hood; demo narrative stays clinical" for the full rationale.
+If a call on the eval path needs an LLM → use the reader above for that benchmark. If it needs a judge → the pinned judge. **Do not substitute Opus 4.7 for cost or capability.** See `reasons.md` → "Tank for the war, not the gun fight" + "Scope widened under the hood; demo narrative stays clinical" for the full rationale.
 
 ## MEDCON 3-tier fallback (ACI-Bench specifically)
 

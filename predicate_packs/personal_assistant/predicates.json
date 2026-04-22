@@ -1,0 +1,13 @@
+{
+  "pack_id": "personal_assistant",
+  "description": "Personal-assistant domain vocabulary for the LongMemEval-S memory benchmark. Tracks user-asserted facts, preferences, events, relationships, goals, and constraints across multi-session conversations. No LR table — no differential hypotheses to rank.",
+  "predicate_families": [
+    "user_fact",
+    "user_preference",
+    "user_event",
+    "user_relationship",
+    "user_goal",
+    "user_constraint"
+  ],
+  "sub_slots": {}
+}

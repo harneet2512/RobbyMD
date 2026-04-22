@@ -73,10 +73,10 @@ predicate_packs/
 
 eval/
   README.md             per-benchmark reader + judge table
-  ddxplus/              H-DDx 730-case stratified subset
   longmemeval/          500 questions, all categories
   aci_bench/            aci + virtscribe subsets
-  medqa/                stub — next iteration
+  smoke/                smoke-run harness (built, not yet run)
+  infra/                deploy_qwen_gcp.sh + deploy_qwen_azure.sh
 ```
 
 See `CLAUDE.md §3` for the canonical layout.

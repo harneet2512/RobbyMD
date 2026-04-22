@@ -1,70 +1,16 @@
-"""Pure-Python unit tests for the three benchmark adapters.
+"""Pure-Python unit tests for the benchmark adapters.
 
 Exercises the deterministic transforms (record → Turn list) without touching
 the substrate, API, or external files. Keeps the wt-eval scaffold CI-green
 before the full fetchers run.
+
+DDXPlus adapter tests removed 2026-04-21 — DDXPlus dropped from benchmark set
+(see `reasons.md` → "DDXPlus — dropped for substrate-benchmark misalignment").
 """
 from __future__ import annotations
 
 from eval.aci_bench.adapter import ACIEncounter, encounter_to_turns
-from eval.ddxplus.adapter import DDXPlusCase, record_to_turns
 from eval.longmemeval.adapter import LongMemEvalQuestion, session_to_turns
-
-
-class TestDDXPlusAdapter:
-    def test_record_to_turns_opens_with_physician(self) -> None:
-        case = DDXPlusCase(
-            patient_id="P1",
-            age=42,
-            sex="F",
-            pathology="Acute pulmonary embolism",
-            evidences=["E_1", "E_2_@_V_1"],
-            differential=[("Acute pulmonary embolism", 0.7)],
-            initial_evidence=None,
-        )
-        ev_dict = {
-            "E_1": {"question_en": "Do you have chest pain?"},
-            "E_2": {
-                "question_en": "Where is the pain?",
-                "value_meaning": {"1": {"en": "left side"}},
-            },
-        }
-        turns = record_to_turns(case, ev_dict)
-        assert turns[0].speaker == "physician"
-        assert "42-year-old" in turns[0].text
-        # Each evidence yields a physician + patient pair.
-        assert any(t.speaker == "patient" and t.text == "Yes." for t in turns)
-        assert any(t.speaker == "patient" and "left side" in t.text for t in turns)
-
-    def test_record_to_turns_is_deterministic(self) -> None:
-        case = DDXPlusCase(
-            patient_id="P1",
-            age=30,
-            sex="M",
-            pathology="X",
-            evidences=["E_1"],
-            differential=[],
-            initial_evidence=None,
-        )
-        ev_dict = {"E_1": {"question_en": "Q?"}}
-        t1 = record_to_turns(case, ev_dict)
-        t2 = record_to_turns(case, ev_dict)
-        assert t1 == t2
-
-    def test_unknown_evidence_is_skipped(self) -> None:
-        case = DDXPlusCase(
-            patient_id="P1",
-            age=30,
-            sex="M",
-            pathology="X",
-            evidences=["E_UNKNOWN"],
-            differential=[],
-            initial_evidence=None,
-        )
-        turns = record_to_turns(case, {})
-        # Only the opener physician turn — no evidence was resolved.
-        assert len(turns) == 1
-        assert turns[0].speaker == "physician"
 
 
 class TestLongMemEvalAdapter:

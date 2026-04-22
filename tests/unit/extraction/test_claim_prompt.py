@@ -48,6 +48,10 @@ def test_prompt_rejects_invention() -> None:
     )
 
 
-def test_predicate_family_set_matches_eng_doc() -> None:
-    """Eng_doc.md §4.2 lists exactly 14 predicate families."""
-    assert len(PREDICATE_FAMILIES) == 14
+def test_predicate_family_set_matches_active_pack() -> None:
+    """Active pack (default: clinical_general) ships 20 predicate families per Eng_doc.md §4.2."""
+    # clinical_general was expanded 2026-04-21 to 20 families (added allergy,
+    # vital_sign, lab_value, imaging_finding, physical_exam_finding,
+    # review_of_systems). Prompt is pack-aware now — this test pins the default
+    # pack's count so drift is caught.
+    assert len(PREDICATE_FAMILIES) == 20

@@ -30,6 +30,19 @@ Every row in `lr_table.json` cites a peer-reviewed or guideline source. This fil
 | `primary_care_musculoskeletal_review_2013` | Ayloo A, Cvengros T, Marella S. *Evaluation and Treatment of Musculoskeletal Chest Pain*. Primary Care: Clinics in Office Practice 40(4):863–887, 2013. | https://doi.org/10.1016/j.pop.2013.08.007 | Peer-reviewed |
 | `liu_jeccm_2018` | Liu et al. Systematic review covering HEART, TIMI, GRACE and HRV-based risk scores in acute chest pain. Journal of Emergency and Critical Care Medicine Vol 2, 2018. (Originally mis-cited as 2021 with Wells/PERC scope; corrected per `research/validation_report.md` blocker #6.) | https://jeccm.amegroups.org/article/view/4088/html | Open access |
 
+### Open-access replacements (2026-04-21)
+
+Added in a single revision pass that swapped 5 paywalled citations for open-access equivalents. Row-level notes flag each replacement with `verified_by: "open_access_replacement_2026-04-21"`.
+
+| Short key | Full citation | URL | License |
+|---|---|---|---|
+| `aafp_2017_right_arm_hda` | AAFP 2017 Help Desk Answer: *Does chest pain radiating to the right arm indicate acute coronary syndrome?* | https://www.aafp.org/pubs/afp/issues/2017/0901/p328.html | Free-to-read (AAFP copyright) |
+| `statpearls_gerd` | Antunes C, Aleem A, Curtis SA. *Gastroesophageal Reflux Disease*. StatPearls Publishing, continuous update. | https://www.ncbi.nlm.nih.gov/books/NBK554462/ | Open access (NCBI Bookshelf) |
+| `pmc3959479_noncardiac_chest_pain` | Fass R, Achem SR. *Noncardiac chest pain: epidemiology, natural course and pathogenesis*. PMC-indexed review. | https://pmc.ncbi.nlm.nih.gov/articles/PMC3959479/ | Open access (PMC) |
+| `sandhu_2018_ncccp_motility` | Sandhu BS et al. *Dysphagia and other symptoms as predictors of esophageal motility disorders in non-cardiac chest pain*. Scandinavian Journal of Gastroenterology, 2018. PMID 29848163. | https://pubmed.ncbi.nlm.nih.gov/29848163/ | Peer-reviewed (abstract open access) |
+| `statpearls_costochondritis` | Schumann JA, Sood T, Parente JJ. *Costochondritis*. StatPearls Publishing, continuous update. | https://www.ncbi.nlm.nih.gov/books/NBK532931/ | Open access (NCBI Bookshelf) |
+| `ceriani_2010_jth_wells_meta` | Ceriani E, Combescure C, Le Gal G et al. *Clinical prediction rules for pulmonary embolism: a systematic review and meta-analysis*. Journal of Thrombosis and Haemostasis 8(5):957–970, 2010. Pooled 31,215 patients across 29 studies. Wells high-probability tier post-test prevalence 49%; at ED baseline 14.9% this yields LR+ ≈ 5.6. | https://www.jthjournal.org/article/S1538-7836(22)12404-9/pdf | Peer-reviewed (publisher open-access PDF) |
+
 ## Usage
 
 In `lr_table.json`, each row's `source` field names a short key above, optionally with a `§` / Table suffix pointing to a specific section:

@@ -1,0 +1,84 @@
+{
+  "_note": "Hand-authored 2026-04-21 per rules.md §1.1 fresh-code rule. NO CONTENT copied from the LongMemEval dataset (https://github.com/xiaowu0162/LongMemEval) — scenarios are generic personal-assistant vignettes covering the same extraction patterns clinical_general teaches.",
+  "examples": [
+    {
+      "name": "user_fact_basic",
+      "scenario": "User states a durable fact about themselves. One claim per fact.",
+      "prior_turns": [
+        {"speaker": "assistant", "text": "Tell me a bit about yourself."}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "I work as a data engineer at a fintech startup in Brooklyn. I've been there about two years."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_fact\",\"value\":\"occupation: data engineer\",\"confidence\":0.97},\n  {\"subject\":\"user\",\"predicate\":\"user_fact\",\"value\":\"employer sector: fintech startup\",\"confidence\":0.95},\n  {\"subject\":\"user\",\"predicate\":\"user_fact\",\"value\":\"work location: Brooklyn\",\"confidence\":0.94},\n  {\"subject\":\"user\",\"predicate\":\"user_fact\",\"value\":\"tenure at current employer: ~2 years\",\"confidence\":0.90}\n]"
+    },
+    {
+      "name": "user_preference_negation",
+      "scenario": "User expresses a dislike. Encode as a preference claim with value prefixed 'dislikes:' (parallel to clinical_general's 'negated:' convention for denials).",
+      "prior_turns": [
+        {"speaker": "assistant", "text": "Any food allergies or dislikes to know about for the restaurant recs?"}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "I can't stand cilantro — tastes like soap to me. No actual allergies though."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_preference\",\"value\":\"dislikes: cilantro\",\"confidence\":0.97}\n]"
+    },
+    {
+      "name": "user_self_correction_supersession",
+      "scenario": "User corrects a prior fact. Emit the new claim; the substrate's Pass 1 supersession links it to the older one (same (subject, predicate), different value).",
+      "prior_turns": [
+        {"speaker": "user", "text": "My sister Anna just moved to Seattle last month."},
+        {"speaker": "assistant", "text": "Nice — how's she liking it?"}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "Actually wait, I got mixed up — she moved to Portland, not Seattle. Portland, Oregon."
+      },
+      "active_claims_summary": "c_001: user.user_relationship = 'sister Anna, recently moved to Seattle' (confidence 0.94)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_relationship\",\"value\":\"sister Anna, recently moved to Portland, Oregon\",\"confidence\":0.96}\n]"
+    },
+    {
+      "name": "user_event_with_dates",
+      "scenario": "User states a future event. Preserve date specificity from the utterance. LongMemEval-S weighs temporal-reasoning heavily — do not drop dates.",
+      "prior_turns": [
+        {"speaker": "assistant", "text": "Anything on your calendar I should know about?"}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "I'm flying to Boston next Wednesday for a three-day conference, back Friday night."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_event\",\"value\":\"conference trip to Boston, Wednesday-Friday next week\",\"confidence\":0.95}\n]"
+    },
+    {
+      "name": "user_goal_ongoing",
+      "scenario": "User describes a multi-session effort. Encode the active goal + any concrete parameters (daily target, duration, method).",
+      "prior_turns": [
+        {"speaker": "assistant", "text": "What have you been up to outside of work?"}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "Mostly Japanese — I've been doing about 30 minutes a day on Anki, roughly since February."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_goal\",\"value\":\"learning Japanese, ~30 min/day on Anki, since February\",\"confidence\":0.95}\n]"
+    },
+    {
+      "name": "user_constraint_scheduling",
+      "scenario": "User gives a hard scheduling limit. Useful for later event-planning decisions. Encode crisply — the constraint applies across sessions, not just this turn.",
+      "prior_turns": [
+        {"speaker": "assistant", "text": "I can suggest a lunch spot — what time works?"}
+      ],
+      "current_turn": {
+        "speaker": "user",
+        "text": "Has to be after 1 PM. I have back-to-back meetings until then every weekday."
+      },
+      "active_claims_summary": "(no active claims)",
+      "expected_output": "[\n  {\"subject\":\"user\",\"predicate\":\"user_constraint\",\"value\":\"weekday lunch must be after 1 PM due to back-to-back meetings\",\"confidence\":0.96}\n]"
+    }
+  ]
+}
