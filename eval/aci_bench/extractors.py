@@ -11,7 +11,12 @@ Per `docs/decisions/2026-04-21_medcon-tiered-fallback.md`:
   "MEDCON omitted" path in `run.py`; supplementary metrics kick in.
 
 Factory: `build_extractor()` picks based on `CONCEPT_EXTRACTOR` env var.
-Defaults to `scispacy`. Env variable choices: `quickumls` | `scispacy` | `null`.
+Defaults to `scispacy`. Env variable choices: `quickumls` | `scispacy` | `null` | `llm_medcon`.
+
+Hackathon note (2026-04-22): UMLS Metathesaurus licence did not arrive
+before the 2026-04-26 deadline. ACI-Bench leaderboard runs score against
+`CONCEPT_EXTRACTOR=llm_medcon` (gpt-4o-mini set-based F1). See
+`eval/aci_bench/llm_medcon.py` and `methodology.md`.
 
 All three implementations return a `set[str]` of normalised CUIs.
 
@@ -214,6 +219,13 @@ def build_extractor(env: dict[str, str] | None = None) -> ConceptExtractor:
 
     if choice == "null":
         return NullExtractor()
+
+    if choice == "llm_medcon":
+        # Imported here (not at module top) so `extractors.py` keeps its
+        # zero-weight import footprint for unit tests that never touch LLM-MEDCON.
+        from eval.aci_bench.llm_medcon import LLMMedconExtractor
+
+        return LLMMedconExtractor()
 
     if choice != "scispacy":
         print(

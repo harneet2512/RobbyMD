@@ -29,6 +29,7 @@ dependencies = [
     "pydantic>=2.5",        # data models (MIT)
     "structlog>=24.1",      # structured logging per CLAUDE.md §8 (Apache-2.0 / MIT dual)
     "rapidfuzz>=3.0",       # Levenshtein / fuzzy-match for word_correction.py (MIT)
+    "openai>=1.0",          # gpt-4o-mini for LLM-MEDCON + eval-time judge loops (Apache-2.0)
 ]
 
 [project.optional-dependencies]
