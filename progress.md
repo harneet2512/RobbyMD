@@ -330,3 +330,30 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Honest finding**: the naive "pre-extract claims → prepend to note prompt" approximation of the substrate **underperforms baseline by 7 pp** on this 10-case slice. D2N088 collapsing to F1=0.000 suggests the note is being crowded out by a rehearsed claim list rather than producing a proper SOAP narrative. Three plausible causes — noisy claim extraction, over-constrained "reflect every claim" instruction, and Qwen2.5-14B-AWQ at 8K context not being strong enough to integrate structured pre-content without distraction. Worth probing further next session: drop the "reflect every claim" instruction, use a recall-pruned claim list, or move the claim list from prompt-prepend to a separate tool-call round.
 - **What the smoke does prove**: infra clean end-to-end, the substrate vs baseline comparison is now real (was artificially identical before), cost per 10-case pair is $0.03 including two extra Qwen calls per substrate case, and the scoring pipeline discriminates (stdev 0.23, range 0.4+ pp).
 - Modal app stopped post-run. Total additional spend this sub-session: ~$0.35 (Modal L4 active ~25 min × $0.80/hr) + $0.01 Azure.
+
+### 2026-04-22 — Stream B: ACI-Bench hybrid substrate variant (worktree `D:\wt-aci-hybrid`, `feature/aci-hybrid`)
+
+- **Branch**: `feature/aci-hybrid` off `main@835039a`. Head: `59c7af8` (pending operator merge). No push performed.
+- **What landed**:
+  - Replaced `_call_acibench_substrate` with a single-call hybrid implementation. Prompt shape: `SECTION 1 — RAW TRANSCRIPT` / `SECTION 2 — STRUCTURED CLAIM SCAFFOLD` (grouped by SOAP section using `predicate_packs/clinical_general/soap_mapping.json`; supersession chains rendered inline per claim) / `SECTION 3 — CONFLICT-RESOLUTION RULE` (baked in verbatim; see `HYBRID_CONFLICT_RULE` constant) / `SECTION 4 — TASK`.
+  - `--hybrid / --no-hybrid` CLI flag (default True) and `SmokeConfig.hybrid` field. `--no-hybrid` raises `NotImplementedError` rather than reviving the regressed 2-step path.
+  - Three new module-level helpers: `_build_hybrid_prompt`, `_build_claim_scaffold`, `_build_supersession_chains`.
+  - +19 unit tests: `tests/unit/eval/test_acibench_hybrid.py` (15 tests — prompt structure, empty-substrate placeholder, supersession-chain rendering, single-call invariant, edit-distance enrichment), `tests/unit/eval/test_acibench_dead_weight_dormancy.py` (4 tests — hallucination guard / differential / verifier / lr_table not invoked). Updated `test_smoke_realrun_wiring.py` mocks for the new `hybrid` kwarg.
+- **Test gate**: 305 passed, 2 skipped (from baseline 286 → 305, +19 new). Clean.
+- **Dead-weight verified by code inspection AND regression test**: hallucination guard (`src/extraction/asr/*`), differential engine (`src/differential/engine.py`, `lr_table.py`), verifier (`src/verifier/verifier.py`) are not touched on the ACI-Bench hybrid path. The smoke harness's `_call_acibench_substrate` only imports `eval.aci_bench.{adapter,baseline}`, `src.extraction.claim_extractor.extractor`, and substrate primitives; no transitive import chain reaches differential/verifier. Test asserts per-call dormancy.
+- **Reasons.md updated**: four new 2026-04-22 entries — Stream B parity-not-dominance posture; conflict rule baked into prompt; single-call over 2-step; ±0.03 gate threshold.
+- **Smoke command for operator** (gated on live Modal + Azure endpoints; not run by this agent):
+
+  ```bash
+  AZURE_OPENAI_ENDPOINT=<operator-fills> AZURE_OPENAI_API_KEY=<operator-fills> \
+  AZURE_OPENAI_GPT4OMINI_DEPLOYMENT=gpt-4-1-mini-2025-04-14 \
+  AZURE_OPENAI_GPT4O_DEPLOYMENT=gpt-4-1 \
+  ACTIVE_PACK=clinical_general \
+  CONCEPT_EXTRACTOR=llm_medcon \
+  QWEN_API_BASE=<modal-url-after-deploy> \
+  python eval/smoke/run_smoke.py --benchmark acibench --reader qwen2.5-14b \
+      --variant both --n 10 --hybrid --budget-usd 5
+  ```
+
+- **Phase 1 / Phase 2 gate (pinned)**: Phase 1 is n=10 hybrid against the same 10 cases as `20260422T081250Z`. Decision rule: **at parity (mean delta within ±0.03 of baseline) or above → Phase 2 (n=40 stratified, operator-confirmed, $1 budget cap)**; **below parity → stop, investigate worst-regression case, log diagnostic in reasons.md, no Phase 2**. Half the prior regression magnitude (−0.070) is the discrimination threshold.
+- **Hands-off reminder**: PID 9290 (live `gpt-4.1-mini` × n=10 smoke on `D:\hack_it`, started 13:37) untouched; this work is in a separate worktree and has not written to `eval/smoke/results/` or touched the `main` checkout.
