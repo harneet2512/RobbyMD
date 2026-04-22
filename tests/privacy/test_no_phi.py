@@ -27,6 +27,15 @@ SCAN_ROOT_FILES = [
 
 # Paths / patterns to skip.
 SKIP_PARTS = ("__pycache__", ".git", "node_modules", ".venv", ".hf_cache", ".cache", ".pytest_cache")
+
+# Relative-path prefixes to skip — more precise than SKIP_PARTS when the
+# name we want to exclude is common (e.g. "data"). Paths match by
+# startswith on the POSIX relative path from repo root. Entries:
+#   - `eval/data/` holds the cloned public benchmark repos (LongMemEval-S +
+#     ACI-Bench). Contents are synthetic by construction but pre-date our
+#     sentinel convention, so we exclude the tree from PHI scanning.
+#   - `eval/smoke/results/` is gitignored run output driven by the above.
+SKIP_PREFIXES = ("eval/data/", "eval/smoke/results/")
 SKIP_SUFFIXES = (".pyc", ".so", ".db", ".sqlite", ".sqlite3", ".png", ".jpg", ".jpeg", ".mp3", ".wav")
 
 # Text-like file extensions we inspect.
@@ -65,6 +74,9 @@ def _iter_scan_files() -> Iterator[Path]:
             if not f.is_file():
                 continue
             if any(part in f.parts for part in SKIP_PARTS):
+                continue
+            rel_posix = f.relative_to(ROOT).as_posix()
+            if any(rel_posix.startswith(pfx) for pfx in SKIP_PREFIXES):
                 continue
             if f.suffix.lower() in SKIP_SUFFIXES:
                 continue

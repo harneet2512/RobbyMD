@@ -153,9 +153,9 @@ def _check_dataset(benchmark: str) -> tuple[bool, str]:
             return True, f"{p} ({p.stat().st_size} bytes)"
         return False, f"missing: {p} — run eval/smoke/prepare_datasets.sh"
     if benchmark == "acibench":
-        p = _DATA_DIR / "acibench" / "data" / "challenge_data" / "test1"
-        if p.is_dir():
-            return True, str(p)
+        p = _DATA_DIR / "acibench" / "data" / "challenge_data_json" / "clinicalnlp_taskB_test1.json"
+        if p.is_file():
+            return True, f"{p} ({p.stat().st_size} bytes)"
         return False, f"missing: {p} — run eval/smoke/prepare_datasets.sh"
     return False, f"unknown benchmark: {benchmark}"
 
@@ -970,9 +970,9 @@ def _load_acibench_cases(n: int) -> list[object]:
     """Load first-N ACI-Bench cases deterministically."""
     from eval.aci_bench.adapter import iter_all_test_encounters
 
-    data_root = (
-        _DATA_DIR / "acibench" / "data" / "challenge_data"
-    )
+    # Adapter auto-resolves `.../challenge_data_json/` when handed the parent
+    # `data/` directory (see adapter._resolve_challenge_data_root).
+    data_root = _DATA_DIR / "acibench" / "data"
     cases: list[object] = []
     for i, enc in enumerate(iter_all_test_encounters(data_root)):
         if i >= n:

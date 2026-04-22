@@ -31,7 +31,7 @@ from eval.aci_bench.extractors import (
 from eval.aci_bench.full import FullRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATA = REPO_ROOT / "eval" / "aci_bench" / "data" / "aci-bench-repo" / "src" / "data"
+DEFAULT_DATA = REPO_ROOT / "eval" / "data" / "acibench" / "data"
 REPORTS_ROOT = REPO_ROOT / "eval" / "reports"
 
 

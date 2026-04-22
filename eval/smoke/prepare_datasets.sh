@@ -41,27 +41,53 @@ clone_or_skip() {
 clone_or_skip "longmemeval" "${LONGMEMEVAL_REPO}" "${LONGMEMEVAL_SHA}"
 clone_or_skip "acibench" "${ACIBENCH_REPO}" "${ACIBENCH_SHA}"
 
+# ----- LongMemEval-S data file (not in the repo; lives on HuggingFace) -----
+# The LongMemEval repo README directs users to `wget` the cleaned JSON from
+# HuggingFace at runtime (see repo README §Setup › Data). We fetch the 500-
+# question cleaned split and place it at the path `adapter.py` expects.
+LM_DATA_DIR="${DATA_DIR}/longmemeval/data"
+LM_JSON_PATH="${LM_DATA_DIR}/longmemeval_s.json"
+mkdir -p "${LM_DATA_DIR}"
+if [[ ! -f "${LM_JSON_PATH}" ]]; then
+    echo "[datasets] LongMemEval-S: fetching longmemeval_s_cleaned.json from HuggingFace..."
+    curl -L --fail --show-error \
+        "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/longmemeval_s_cleaned.json" \
+        -o "${LM_JSON_PATH}"
+fi
+
 # ----- summary -----
 echo
 echo "[datasets] === Summary ==="
-if [[ -d "${DATA_DIR}/longmemeval" ]]; then
-    # LongMemEval-S JSON lives at data/longmemeval_s.json; count case entries.
-    lm_file="${DATA_DIR}/longmemeval/data/longmemeval_s.json"
-    if [[ -f "${lm_file}" ]]; then
-        lm_count=$(python3 -c "import json; print(len(json.load(open('${lm_file}'))))")
-        echo "[datasets] LongMemEval-S: ${lm_count} cases at ${lm_file}"
-    else
-        echo "[datasets] LongMemEval-S: data file not found at expected path ${lm_file}"
-    fi
+if [[ -f "${LM_JSON_PATH}" ]]; then
+    lm_count=$(python3 -c "import json; print(len(json.load(open('${LM_JSON_PATH}'))))")
+    echo "[datasets] LongMemEval-S: ${lm_count} cases at ${LM_JSON_PATH}"
+else
+    echo "[datasets] LongMemEval-S: data file not found at ${LM_JSON_PATH}"
 fi
-if [[ -d "${DATA_DIR}/acibench" ]]; then
-    ab_test1="${DATA_DIR}/acibench/data/challenge_data/test1"
-    if [[ -d "${ab_test1}" ]]; then
-        ab_count=$(find "${ab_test1}" -maxdepth 1 -type d | wc -l)
-        echo "[datasets] ACI-Bench test1: ~${ab_count} encounter dirs at ${ab_test1}"
-    else
-        echo "[datasets] ACI-Bench: test1 dir not found at expected path ${ab_test1}"
-    fi
+# ACI-Bench ships three JSON files under challenge_data_json/ — one per test
+# split (test1 = clinicalnlp_taskB, test2 = clinicalnlp_taskC, test3 = clef_taskC).
+# The adapter (eval/aci_bench/adapter.py) now reads this flat JSON layout.
+AB_JSON_DIR="${DATA_DIR}/acibench/data/challenge_data_json"
+if [[ -d "${AB_JSON_DIR}" ]]; then
+    ab_files=(
+        "clinicalnlp_taskB_test1.json"
+        "clinicalnlp_taskC_test2.json"
+        "clef_taskC_test3.json"
+    )
+    total=0
+    for f in "${ab_files[@]}"; do
+        path="${AB_JSON_DIR}/${f}"
+        if [[ -f "${path}" ]]; then
+            n=$(python3 -c "import json; print(len(json.load(open('${path}'))['data']))")
+            echo "[datasets] ACI-Bench ${f}: ${n} rows"
+            total=$((total + n))
+        else
+            echo "[datasets] ACI-Bench: expected file missing at ${path}"
+        fi
+    done
+    echo "[datasets] ACI-Bench total rows: ${total}"
+else
+    echo "[datasets] ACI-Bench: JSON dir not found at ${AB_JSON_DIR}"
 fi
 
 echo
