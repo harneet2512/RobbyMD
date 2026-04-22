@@ -154,11 +154,19 @@ def parse_concepts(raw: str) -> set[str]:
     if isinstance(parsed, list):
         items = parsed
     elif isinstance(parsed, dict):
-        for key in ("concepts", "items", "list", "data"):
+        # Prefer the well-known wrapper keys first for determinism.
+        for key in ("concepts", "medical_concepts", "items", "list", "data"):
             value = parsed.get(key)
             if isinstance(value, list):
                 items = value
                 break
+        # Lenient fallback: if the dict has exactly one value and it's a list,
+        # accept it. Handles arbitrary wrapper keys gpt-4o-mini invents under
+        # json_object response_format (e.g. `{"results": [...]}`).
+        if items is None and len(parsed) == 1:
+            only_value = next(iter(parsed.values()))
+            if isinstance(only_value, list):
+                items = only_value
         if items is None:
             logger.warning(
                 "llm_medcon.parse_unexpected_shape",

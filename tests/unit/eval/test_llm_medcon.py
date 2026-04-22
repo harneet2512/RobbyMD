@@ -46,6 +46,22 @@ class TestParseConcepts:
         raw = '{"data": ["Dyspnoea"]}'
         assert parse_concepts(raw) == {"dyspnoea"}
 
+    def test_wrapper_medical_concepts_key(self) -> None:
+        # gpt-4.1-mini under response_format=json_object picks this wrapper
+        # (observed live during the 2026-04-22 Azure probe).
+        raw = '{"medical_concepts": ["Chest pain", "Hypertension", "Aspirin"]}'
+        assert parse_concepts(raw) == {"chest pain", "hypertension", "aspirin"}
+
+    def test_lenient_single_list_fallback(self) -> None:
+        # Arbitrary wrapper key with a single list value still gets accepted.
+        raw = '{"findings_extracted": ["dyspnoea"]}'
+        assert parse_concepts(raw) == {"dyspnoea"}
+
+    def test_multi_key_dict_with_no_known_wrapper_returns_empty(self) -> None:
+        # Lenient fallback only fires when the dict has exactly one key.
+        raw = '{"meta": 1, "notes": ["x"]}'
+        assert parse_concepts(raw) == set()
+
     def test_normalises_case_and_whitespace(self) -> None:
         raw = '["  CHEST PAIN  ", "chest pain", "Chest Pain"]'
         assert parse_concepts(raw) == {"chest pain"}
