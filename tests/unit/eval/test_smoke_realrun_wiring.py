@@ -174,11 +174,11 @@ class TestPackSwitching:
         """Verify that _real_run sets ACTIVE_PACK env var per benchmark before loading cases."""
         packs_seen: list[str] = []
 
-        def mock_load_longmemeval(_n: int) -> list[object]:
+        def mock_load_longmemeval(_n: int, **_kw: object) -> list[object]:
             packs_seen.append(os.environ.get("ACTIVE_PACK", ""))
             return []  # No cases to run
 
-        def mock_load_acibench(_n: int) -> list[object]:
+        def mock_load_acibench(_n: int, **_kw: object) -> list[object]:
             packs_seen.append(os.environ.get("ACTIVE_PACK", ""))
             return []
 
@@ -225,7 +225,9 @@ class TestBudgetHalt:
             haystack_dates = None
 
         stub_cases = [_StubQ(), _StubQ()]
-        monkeypatch.setattr(run_smoke, "_load_longmemeval_cases", lambda _n: stub_cases)
+        monkeypatch.setattr(
+            run_smoke, "_load_longmemeval_cases", lambda _n, **_kw: stub_cases
+        )
 
         # Each reader+judge call costs 0.011; budget is 0.005 → halt on first call.
         monkeypatch.setattr(run_smoke, "_READER_COST_PER_CALL", {"gpt-4o-mini": 0.004})
@@ -274,7 +276,9 @@ class TestBudgetHalt:
             haystack_session_ids = None
             haystack_dates = None
 
-        monkeypatch.setattr(run_smoke, "_load_longmemeval_cases", lambda _n: [_StubQ()])
+        monkeypatch.setattr(
+            run_smoke, "_load_longmemeval_cases", lambda _n, **_kw: [_StubQ()]
+        )
         monkeypatch.setattr(run_smoke, "_call_longmemeval_baseline", lambda *_: ("ans", 10.0, 50))
         monkeypatch.setattr(run_smoke, "_call_longmemeval_judge", lambda *_: (1.0, "CORRECT"))
 

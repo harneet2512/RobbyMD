@@ -66,6 +66,10 @@ models/
 eval/**/data/
 eval/reports/*/
 eval/smoke/results/
+eval/acibench/results/
+eval/longmemeval/results/
+# Downloaded benchmark datasets — too large for git, reconstructable from HF.
+/data/
 
 # Logs
 *.log

@@ -54,7 +54,11 @@ BENCHMARK_PACK: dict[str, str] = {
 }
 
 BENCHMARKS = ("longmemeval", "acibench")
-READERS = ("qwen2.5-14b", "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1")
+# gpt-4o-2024-11-20 is the LongMemEval reader+judge per ICLR 2025 methodology.
+# The paper used 2024-08-06 which is deprecated on Azure (retired 2026-03-31);
+# 2024-11-20 is the successor OpenAI-recommended checkpoint in the same family.
+# Minor version deviation is logged in reasons.md.
+READERS = ("qwen2.5-14b", "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o-2024-11-20")
 VARIANTS = ("baseline", "substrate")
 
 # Cost estimates per 1k tokens (USD) — conservative upper bounds for budget-halt.
@@ -65,6 +69,11 @@ _READER_COST_PER_CALL: dict[str, float] = {
     "gpt-4o-mini": 0.003,
     "gpt-4.1-mini": 0.004,
     "gpt-4.1": 0.030,
+    # gpt-4o-2024-11-20 per-call estimate on LME haystacks: Azure pricing
+    # $2.50/M input + $10/M output. LME haystack averages ~5k input tokens
+    # × 2 arms × ~300 output tokens ≈ $0.016/call. Use $0.020 to leave
+    # budget headroom against longer haystacks.
+    "gpt-4o-2024-11-20": 0.020,
 }
 # GPT-4o judge per call (LongMemEval only).
 _JUDGE_COST_PER_CALL: float = 0.01
@@ -99,6 +108,17 @@ class SmokeConfig:
     # Phase 1.5 multi-seed discipline (see reasons.md): re-run the winning
     # arm with seeds {42, 43, 44} before any Phase-2 escalation.
     seed: int = 42
+    # LongMemEval stratified sampling — when True, bucket by `question_type`
+    # and take ceil(n/6) per bucket deterministically (sorted by question_id
+    # within bucket). Required for balanced per-category reporting; with
+    # n=60 and 6 canonical question types, produces 10 per type.
+    stratified: bool = False
+    # Operator-supplied output directory override. When set, results land
+    # here instead of the auto-timestamped path under eval/smoke/results/.
+    # Used by the post-merge execution cycle so phase/seed labels travel
+    # in the dir name: eval/<benchmark>/results/20260423_postmerge_<phase>_
+    # <UTC>_seed<N>/.
+    output_dir: str | None = None
 
 
 @dataclass(slots=True)
@@ -168,6 +188,31 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
     # for gpt-4.1 + Qwen-vLLM) and folded into the results-dir name. Phase 1.5
     # multi-seed re-runs use {42, 43, 44} on the same n=10 sample. See reasons.md.
     ap.add_argument("--seed", type=int, default=42)
+    # `--stratified` buckets LongMemEval questions by `question_type` and
+    # samples ceil(n/6) per type deterministically. Required when the
+    # benchmark's per-category deltas are the load-bearing signal (e.g.
+    # knowledge-update headline for the substrate arm). No-op on ACI-Bench.
+    ap.add_argument(
+        "--stratified",
+        action="store_true",
+        help=(
+            "LongMemEval only: sample ceil(n/6) questions per question_type "
+            "deterministically instead of first-N. Required for balanced "
+            "per-category reporting. With --n 60 produces 10 per type."
+        ),
+    )
+    # `--output-dir` lets the operator pin a results directory instead of
+    # the auto-timestamped path. The post-merge execution cycle uses this
+    # to carry phase/seed labels in the path.
+    ap.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        default=None,
+        help=(
+            "Override results directory. When unset, results land at "
+            "eval/smoke/results/<UTC>_seed<N>/. Subdir is created if absent."
+        ),
+    )
     ns = ap.parse_args(argv)
 
     benchmarks = BENCHMARKS if ns.benchmark == "both" else (ns.benchmark,)
@@ -184,16 +229,27 @@ def _parse_args(argv: list[str]) -> SmokeConfig:
         legacy_lme_substrate=ns.legacy_lme_substrate,
         hybrid=ns.hybrid,
         seed=ns.seed,
+        stratified=ns.stratified,
+        output_dir=ns.output_dir,
     )
 
 
 def _check_dataset(benchmark: str) -> tuple[bool, str]:
     """Return (found, message) — True when the expected dataset path exists."""
     if benchmark == "longmemeval":
-        p = _DATA_DIR / "longmemeval" / "data" / "longmemeval_s.json"
+        # Prefer the HF cleaned release (post-merge standard); fall back to the
+        # originally-bundled file. `_resolve_longmemeval_dataset` picks the
+        # first existing, so mirror that check here.
+        p = _resolve_longmemeval_dataset()
         if p.is_file():
             return True, f"{p} ({p.stat().st_size} bytes)"
-        return False, f"missing: {p} — run eval/smoke/prepare_datasets.sh"
+        cleaned = _REPO_ROOT / "data" / "longmemeval_s_cleaned.json"
+        original = _DATA_DIR / "longmemeval" / "data" / "longmemeval_s.json"
+        return False, (
+            f"missing: neither {cleaned} nor {original} found — "
+            "run eval/smoke/prepare_datasets.sh or download "
+            "xiaowu0162/longmemeval-cleaned"
+        )
     if benchmark == "acibench":
         p = _DATA_DIR / "acibench" / "data" / "challenge_data_json" / "clinicalnlp_taskB_test1.json"
         if p.is_file():
@@ -1846,19 +1902,73 @@ def _run_acibench_case(
     return results, False
 
 
-def _load_longmemeval_cases(n: int) -> list[object]:
-    """Load first-N LongMemEval-S cases deterministically."""
+_LONGMEMEVAL_QUESTION_TYPES: tuple[str, ...] = (
+    "single-session-user",
+    "single-session-assistant",
+    "single-session-preference",
+    "multi-session",
+    "temporal-reasoning",
+    "knowledge-update",
+)
+
+
+def _resolve_longmemeval_dataset() -> "Path":
+    """Return the LongMemEval-S dataset path, preferring the cleaned file.
+
+    Priority (first existing wins):
+      1. `data/longmemeval_s_cleaned.json` — HF xiaowu0162/longmemeval-cleaned
+         2025-09 cleaned release; what post-merge runs use.
+      2. `eval/data/longmemeval/data/longmemeval_s.json` — original bundled
+         release; retained as a fallback for pre-cycle reproducibility.
+    """
+    cleaned = _REPO_ROOT / "data" / "longmemeval_s_cleaned.json"
+    if cleaned.is_file():
+        return cleaned
+    return _DATA_DIR / "longmemeval" / "data" / "longmemeval_s.json"
+
+
+def _load_longmemeval_cases(n: int, *, stratified: bool = False) -> list[object]:
+    """Load N LongMemEval-S cases deterministically.
+
+    When `stratified=False` (default): first-N questions in dataset order.
+    When `stratified=True`: bucket by `question_type`, take ceil(n/k) per
+    bucket (k = number of canonical question types = 6), deterministically
+    ordered by `question_id` within each bucket. With n=60 this yields 10
+    per type. Buckets short of their quota contribute everything they have;
+    remaining slots are never redistributed (keeps sampling balanced even
+    when one question type is underrepresented in a future dataset revision).
+    """
     from eval.longmemeval.adapter import iter_questions
 
-    questions_path = (
-        _DATA_DIR / "longmemeval" / "data" / "longmemeval_s.json"
-    )
-    cases: list[object] = []
-    for i, q in enumerate(iter_questions(questions_path)):
-        if i >= n:
-            break
-        cases.append(q)
-    return cases
+    questions_path = _resolve_longmemeval_dataset()
+
+    if not stratified:
+        cases: list[object] = []
+        for i, q in enumerate(iter_questions(questions_path)):
+            if i >= n:
+                break
+            cases.append(q)
+        return cases
+
+    # Stratified: full single pass over the dataset, bucket, then quota.
+    buckets: dict[str, list[object]] = {qt: [] for qt in _LONGMEMEVAL_QUESTION_TYPES}
+    unknown: list[object] = []
+    for q in iter_questions(questions_path):
+        qt = getattr(q, "question_type", "")
+        if qt in buckets:
+            buckets[qt].append(q)
+        else:
+            unknown.append(q)
+
+    import math
+
+    per_bucket = max(1, math.ceil(n / len(_LONGMEMEVAL_QUESTION_TYPES)))
+    sampled: list[object] = []
+    for qt in _LONGMEMEVAL_QUESTION_TYPES:
+        items = sorted(buckets[qt], key=lambda q: getattr(q, "question_id", ""))
+        sampled.extend(items[:per_bucket])
+    # Trim any overshoot from rounding (6 × 10 = 60; ceil(61/6)=11 → 66 → trim to 61).
+    return sampled[:n] if n else sampled
 
 
 def _load_acibench_cases(n: int) -> list[object]:
@@ -1912,7 +2022,13 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     # FIX 3: seed in the dir name so multi-seed re-runs land in distinct dirs
     # and `ls eval/smoke/results/` is a per-seed audit trail at a glance.
-    out_dir = _RESULTS_ROOT / "results" / f"{ts}_seed{cfg.seed}"
+    # P.1: operator can override the dir entirely via --output-dir so the
+    # post-merge execution cycle can carry phase labels in the path
+    # (e.g. eval/acibench/results/20260423_postmerge_hybrid_phase1_<UTC>_seed42/).
+    if cfg.output_dir is not None:
+        out_dir = Path(cfg.output_dir)
+    else:
+        out_dir = _RESULTS_ROOT / "results" / f"{ts}_seed{cfg.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
     # Sidecar config snapshot so the seed + matrix shape is recoverable
     # without re-parsing argv. Written before any case runs so a crash
@@ -1928,6 +2044,8 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
                 "n_cases": cfg.n_cases,
                 "budget_usd": cfg.budget_usd,
                 "hybrid": cfg.hybrid,
+                "stratified": cfg.stratified,
+                "output_dir_override": cfg.output_dir,
                 "started_at_utc": ts,
             },
             indent=2,
@@ -1955,10 +2073,10 @@ def _real_run(cfg: SmokeConfig) -> SmokeResult:
 
         result.lines.append(f"[smoke] benchmark={bench} ACTIVE_PACK={BENCHMARK_PACK[bench]}")
 
-        # Load first-N cases deterministically.
+        # Load first-N cases deterministically (stratified for LME when flagged).
         try:
             if bench == "longmemeval":
-                cases = _load_longmemeval_cases(cfg.n_cases)
+                cases = _load_longmemeval_cases(cfg.n_cases, stratified=cfg.stratified)
             else:
                 cases = _load_acibench_cases(cfg.n_cases)
         except Exception as exc:
