@@ -1,6 +1,6 @@
 """Pack-driven prompt-loading tests per 2026-04-21 refactor.
 
-Addresses audit finding #2 from commit `8f0d9db`: few-shot examples and
+Addresses audit finding #2 from commit `767d3e8`: few-shot examples and
 predicate families now come from the active `PredicatePack`, not hardcoded
 module constants. Switching packs (via `ACTIVE_PACK` env var) should swap
 both without code changes.

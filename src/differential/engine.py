@@ -113,7 +113,7 @@ def rank_branches(
     """
     # Empty LR table → empty ranking. Engine no-ops gracefully when the active
     # pack has no differentials (e.g. personal_assistant). Addresses audit finding
-    # #1 from commit 8f0d9db.
+    # #1 from commit 767d3e8.
     branches = lr_table.branches
     if not branches:
         return BranchRanking(scores=())

@@ -261,4 +261,4 @@ Any gap in 1–12 → priority is to close the gap, not add features.
 2. LongMemEval-S adapter strategy: feed sessions via substrate write API under `personal_assistant` pack, evaluate via the official LongMemEval evaluator.
 3. Custom vocabulary source for ASR — start with a public drug/anatomy list; expand only if WER on the demo case misses.
 4. Semantic supersession threshold — default 0.92, tune empirically on LongMemEval-S + ACI-Bench dialogue.
-5. wt-ui dispatch progress — transcript panel end-to-end on `feature/ui` scaffold (`8a51a2f`); next steps: claim-state panel, differential trees, SOAP panel per `CLAUDE.md §5.4`.
+5. wt-ui dispatch progress — transcript panel end-to-end on `feature/ui` scaffold (`b5529f7`); next steps: claim-state panel, differential trees, SOAP panel per `CLAUDE.md §5.4`.

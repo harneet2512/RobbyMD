@@ -9,7 +9,7 @@ Controlled by env var `ACTIVE_PACK` (default: `clinical_general`). Cached via
 `@lru_cache`; set the env var BEFORE importing modules that call `active_pack()`,
 or call `active_pack.cache_clear()` in tests that need to switch.
 
-Addresses audit finding #2 from commit `8f0d9db`: few-shot examples move from
+Addresses audit finding #2 from commit `767d3e8`: few-shot examples move from
 a hardcoded Python module constant into per-pack JSON, so loading a different
 pack swaps in its own examples.
 """

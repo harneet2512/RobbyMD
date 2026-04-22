@@ -9,15 +9,15 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 ## Rolling state (edit in place)
 
 - **Date**: 2026-04-21 (end-of-session handoff snapshot)
-- **Main commit**: `8572526` + one follow-up spec-hygiene commit (this handoff). `main` is ahead of all feature branches; 4 of 5 feature branches already merged.
+- **Main commit**: `a718301` + one follow-up spec-hygiene commit (this handoff). `main` is ahead of all feature branches; 4 of 5 feature branches already merged.
 - **Tests on main**: **155 passed, 0 failed, 0 xfail**. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green.
 - **Worktrees**:
   - `D:\hack_it` — `main` (operator's working copy; authoritative)
-  - `D:\wt-engine` — `feature/substrate` at `24f2aae` — **merged to main** via `40f8d9e`. Branch stale, safe to prune.
-  - `D:\wt-trees` — `feature/differential` at `aeae530` — **merged to main** via `a51e34f`. Branch stale, safe to prune.
-  - `D:\wt-extraction` — `feature/extraction` at `3eaf4ca` — **merged to main** via `892acd4`. Branch stale, safe to prune.
-  - `D:\wt-eval` — `feature/eval` at `304c73f` — **merged to main** via `4a5dedd`. Branch stale, safe to prune.
-  - `D:\wt-ui` — `feature/ui` at `8a51a2f` — **scaffold only, NOT merged to main**. Active parallel track; must not go dormant.
+  - `D:\wt-engine` — `feature/substrate` at `0057c5e` — **merged to main** via `a894501`. Branch stale, safe to prune.
+  - `D:\wt-trees` — `feature/differential` at `d0d706e` — **merged to main** via `211805e`. Branch stale, safe to prune.
+  - `D:\wt-extraction` — `feature/extraction` at `0af9d74` — **merged to main** via `de27df8`. Branch stale, safe to prune.
+  - `D:\wt-eval` — `feature/eval` at `b796b18` — **merged to main** via `e33e42e`. Branch stale, safe to prune.
+  - `D:\wt-ui` — `feature/ui` at `b5529f7` — **scaffold only, NOT merged to main**. Active parallel track; must not go dormant.
 - **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + ACI-Bench (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
 - **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (ACI-Bench). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
 - **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
@@ -25,7 +25,7 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
 - **Open decisions / next actions** (priority order):
   1. **Smoke run** — `./eval/smoke/prepare_datasets.sh && python eval/smoke/run_smoke.py --benchmark both --reader qwen2.5-14b --variant both --n 10 --budget-usd 50` (with Qwen tunnel active via `./eval/infra/deploy_qwen_gcp.sh`). Operator sign-off needed before live invocation.
-  2. **wt-ui dispatch** — `feature/ui` at `8a51a2f` sits on scaffold only. Transcript panel is end-to-end; claim-state / differential-trees / SOAP panels need real build work. Single highest-priority parallel track (demo video = entire judged product).
+  2. **wt-ui dispatch** — `feature/ui` at `b5529f7` sits on scaffold only. Transcript panel is end-to-end; claim-state / differential-trees / SOAP panels need real build work. Single highest-priority parallel track (demo video = entire judged product).
   3. **Whisper GPU measurement** — `src/extraction/asr/` is code-complete; `docs/asr_benchmark.md` carries TBM placeholders. Needs GCP L4 or A100 spot run on synthetic chest-pain clip + 5 rehearsed clips (abdominal, dyspnoea, headache, fatigue, one more) to populate WER / RTF / VRAM / diarisation numbers.
   4. **UMLS licence** — operator monitors CMU inbox; when approved, run `./scripts/install_umls.sh` and export `QUICKUMLS_PATH` → T0 MEDCON activates on next eval run.
   5. **Audit ADR fixes** (low priority, second-pack trigger): `src/differential/lr_table.py` + `src/extraction/claim_extractor/prompt.py` both now pack-aware (audit findings #1+#2 resolved). Remaining audit items in `docs/decisions/2026-04-21_lr-table-chest-pain-coupling-audit.md` are documentation-only.
@@ -63,13 +63,13 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 ### 2026-04-21 — scaffold
 - `git init -b main`; relocated `notes/*.md` → repo root; created directory tree per CLAUDE.md §3.
 - Wrote scaffold files: `.gitignore`, `pyproject.toml`, `README.md`, `SYNTHETIC_DATA.md`, `LICENSE` (Apache-2.0), `scripts/*.sh` stubs, compliance tests, content seeds, ADR README.
-- Committed scaffold `090c799` on `main`.
+- Committed scaffold `d6a44b1` on `main`.
 - Created 5 worktrees at `D:\wt-*` on `feature/*` branches.
 
 ### 2026-04-21 — UMLS investigation
 - Read UMLS REST API docs — confirmed the REST API cannot replace QuickUMLS for MEDCON (no span-detection endpoint; ~500k calls infeasible; would compute a different metric). Captured in `reasons.md`.
 - Read UMLS Knowledge Sources page — confirmed download target is `umls-2025AB-Level0.zip` (1.8 GB compressed, 10.3 GB uncompressed, released 2025-11-03). MRCONSO standalone rejected (missing MRSTY). Captured in `reasons.md`.
-- User's UMLS licence application submitted on CMU email (`hbali@andrew.cmu.edu`); awaiting approval.
+- User's UMLS licence application submitted (email redacted); awaiting approval.
 
 ### 2026-04-21 — plan approval
 - Plan file saved at `C:\Users\Lenovo\.claude-work\plans\noble-floating-knuth.md` (Plan Mode exit, user-approved).
@@ -135,32 +135,32 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 ### 2026-04-21 — Phase A resolution (user directive)
 - **A1** `docs/decisions/licensing_clarifications.md` — Q2 (CC-BY-4.0) status PENDING → **RESOLVED**. Self-resolved against Linux Foundation OpenMDW framework (July 2025) industry-standard reading. Paper trail anchored in `reasons.md` + `rules.md §1.2` + `tests/licensing/test_model_attributions.py` CI. Q1 (Claude API) stays PENDING; optional Discord post.
 - **A2** `pyproject.toml` — `requires-python = ">=3.11,<3.12"` → `">=3.11,<3.13"`; `Programming Language :: Python :: 3.12` classifier added. Import scan across all 4 feature branches clean: zero 3.12-incompatible stdlib uses. Unblocks Python-3.12 dev hosts.
-- Commit `d01c105` (chore: pin+adr: Q2 RESOLVED; Python 3.11-3.12 both supported).
+- Commit `fd6efb9` (chore: pin+adr: Q2 RESOLVED; Python 3.11-3.12 both supported).
 - Tests green (5 passed + 1 xfail).
 
 ### 2026-04-21 — Phase B integration (feature branches → main)
 All 4 feature branches merged in dependency order with `--no-ff` preserving branch history.
 
-- **B1** `feature/substrate` → main. Merge commit `a51e34f` era (initial substrate merge). Conflict: `src/__init__.py` (add/add). Resolved in follow-up `6b8b4d6`.
+- **B1** `feature/substrate` → main. Merge commit `211805e` era (initial substrate merge). Conflict: `src/__init__.py` (add/add). Resolved in follow-up `17b7a1f`.
   - Delivered: 8 substrate modules (~1,835 LOC), typed supersession edges with 7 clinical kinds, span-based provenance, event bus with 6 canonical event names, `on_new_turn` orchestrator, 68 unit tests.
   - Rolling state: **68 tests pass**, 1 xfail (determinism awaits B2).
-- **B2** `feature/differential` → main. Merge commit (part of `a51e34f`), `src/__init__.py` conflict resolved same commit.
+- **B2** `feature/differential` → main. Merge commit (part of `211805e`), `src/__init__.py` conflict resolved same commit.
   - Delivered: deterministic LR-weighted engine, counterfactual top-2 verifier (MockOpusClient + AnthropicOpusClient), populated `branches.json` (4 trees × 14 sub-trees), **`tests/property/test_determinism.py` xfail stub REPLACED with 3 real determinism tests (XFAIL → PASS)**.
   - Rolling state: **98 tests pass** including the 3 real determinism tests. Thesis live-tested.
-- **B3** `feature/extraction` → main. Merge commit `892acd4`. Conflict: `src/__init__.py` (add/add). Resolved in follow-up (same commit via `--no-edit`).
+- **B3** `feature/extraction` → main. Merge commit `de27df8`. Conflict: `src/__init__.py` (add/add). Resolved in follow-up (same commit via `--no-edit`).
   - Delivered: ASR pipeline (faster-whisper + WhisperX + pyannote community-1 + silero-vad + `initial_prompt` medical bias), synthetic chest-pain clip (pyttsx3), claim-extractor prompt draft with 6 few-shot examples, `docs/asr_benchmark.md` (numbers marked TBM — no GPU in sandbox).
   - Rolling state: **119 tests pass**.
 - **B4** `feature/eval` → main. Merge commit (post-B3 HEAD). Clean merge, no conflicts.
   - Delivered: DDXPlus/LongMemEval-S/ACI-Bench adapter scaffolds, `ConceptExtractor` 3-tier MEDCON Protocol (QuickUMLS/Scispacy/Null), `install_scispacy.sh` + `install_umls.sh`, pre-populated comparator tables per `research_brief.md §3`, ADR-delta for scispaCy Windows Python 3.12 scipy-build issue with 3 mitigations enumerated.
   - Rolling state: **140 tests pass** across substrate (68) + differential (21) + verifier (6) + extraction (26) + eval (21, factored into test_aci_bench_extractors + test_adapters).
-- **Phase B complete**. Main at `892acd4` (post-B4). All feature branches merged. `feature/ui` still at scaffold `090c799`.
+- **Phase B complete**. Main at `de27df8` (post-B4). All feature branches merged. `feature/ui` still at scaffold `d6a44b1`.
 - **Integration open questions** surfaced by merges:
   - Admission-handoff contract (speaker mapping upstream in extraction or downstream in admission).
   - Predicate-path collisions requested by wt-trees (palpation aggravating vs alleviating, Wells components, HEART/TIMI/Marburg scores) — normalisation pass in wt-engine's claim extractor or substrate canonicaliser.
   - 36 approximation rows in `lr_table.json`; wt-trees flagged 5 with highest ranking-sensitivity on the demo case.
 
 ### 2026-04-21 — Rolling state (edit in place)
-- **Main commit**: `892acd4` (Phase B4 merge).
+- **Main commit**: `de27df8` (Phase B4 merge).
 - **Tests on main**: 140 passed, 0 failed, 0 xfail.
 - **Phase progress**:
   - Phase A: DONE
@@ -191,21 +191,21 @@ Single sequenced commit per user directive 2026-04-21.
 - **Seeded `personal_assistant` pack**. `predicate_packs/personal_assistant/{README.md, predicates.json, few_shot_examples.json}` with 6 families (`user_fact`, `user_preference`, `user_event`, `user_relationship`, `user_goal`, `user_constraint`) and 6 hand-authored 2-turn examples (fresh work per `rules.md §1.1`; no LongMemEval content copied). Enables LongMemEval-S substrate variant in a future run without additional pack work.
 - **Built pack loader**. `src/substrate/predicate_packs.py` (~130 LOC): `@dataclass PredicatePack` + `@dataclass FewShotExample` + `load_pack(pack_dir)` + `active_pack()` (env-var `ACTIVE_PACK`; default `clinical_general`; `lru_cache` with `cache_clear()` for tests). Detects `differentials/` subdir to set `lr_table_path`.
 - **Migrated `clinical_general` to JSON**. `predicate_packs/clinical_general/{predicates.json, few_shot_examples.json}` — 20 families + sub-slots migrated from `Eng_doc.md §4.2` prose; 6 chest-pain few-shots migrated from the old `src/extraction/claim_extractor/prompt.py` module constant.
-- **Refactored `src/extraction/claim_extractor/prompt.py`**: `FEW_SHOT_EXAMPLES` and `PREDICATE_FAMILIES` now loaded from `active_pack()`, not hardcoded. Swapping packs swaps the prompt's closed vocabulary + examples automatically. **Addresses audit finding #2 from commit `8f0d9db`.**
-- **Refactored `src/differential/lr_table.py`**: removed module-level `BRANCHES` frozenset. `LRTable.branches` derived from loaded rows (empty frozenset → engine no-ops on empty LR table, required for `personal_assistant`). `PREDICATE_FAMILIES` module constant now resolved from `active_pack()`. `load_lr_table` accepts empty `entries` (returns `LRTable.empty()`) for non-clinical packs. Added `LRTable.empty()` classmethod. Branch-name validation now checks shape only (non-empty single token); semantic validation is per-pack author's responsibility. **Addresses audit finding #1 from commit `8f0d9db`.**
+- **Refactored `src/extraction/claim_extractor/prompt.py`**: `FEW_SHOT_EXAMPLES` and `PREDICATE_FAMILIES` now loaded from `active_pack()`, not hardcoded. Swapping packs swaps the prompt's closed vocabulary + examples automatically. **Addresses audit finding #2 from commit `767d3e8`.**
+- **Refactored `src/differential/lr_table.py`**: removed module-level `BRANCHES` frozenset. `LRTable.branches` derived from loaded rows (empty frozenset → engine no-ops on empty LR table, required for `personal_assistant`). `PREDICATE_FAMILIES` module constant now resolved from `active_pack()`. `load_lr_table` accepts empty `entries` (returns `LRTable.empty()`) for non-clinical packs. Added `LRTable.empty()` classmethod. Branch-name validation now checks shape only (non-empty single token); semantic validation is per-pack author's responsibility. **Addresses audit finding #1 from commit `767d3e8`.**
 - **Refactored `src/differential/engine.py`**: `rank_branches` uses `lr_table.branches` instead of module-level BRANCHES; empty-table fast-path returns `BranchRanking(scores=())`.
 - **5 paywalled LR citation swaps** in `predicate_packs/clinical_general/differentials/chest_pain/{lr_table.json, sources.md}`, all tagged `verified_by: "open_access_replacement_2026-04-21"` + `rationale_strength`: (a) `radiation_right_arm_or_shoulder` Panju 1998 JAMA → AAFP 2017 HDA (strong); (b) `history_gerd_or_hiatal_hernia` ACG 2022 → StatPearls GERD + PMC3959479 (moderate); (c) `dysphagia` ACG 2022 → Sandhu 2018 Scand J Gastroenterol (moderate, OR→LR caveat); (d) `duration_days_to_weeks` Ayloo 2013 → AAFP 2021 Costochondritis + StatPearls NBK532931 (moderate); (e) `wells_pe_high_probability` BMC Pulm Med 2025 (unverified) → Ceriani 2010 J Thromb Haemost meta-analysis — LR+ adjusted **5.59 → 5.6** to match the meta-analysis calculation exactly (strong). 6 new citation entries added to `sources.md`.
 - **Qwen2.5-14B-Instruct primary eval reader** (Apache-2.0, Alibaba, self-hosted via vLLM). Updated `eval/README.md` reader table: LongMemEval-S primary Qwen / secondary gpt-4o-mini; ACI-Bench primary Qwen / secondary gpt-4.1-mini. Opus 4.7 stays out of eval loops (per `Eng_doc.md §3.5` Tank-for-the-war principle). `MODEL_ATTRIBUTIONS.md` row added proactively (loaded from `eval/`, not `src/`, so CI licensing gate doesn't require it, but registry is the audit surface).
 - **Cloud infra (primary GCP, fallback Azure)**. Created `eval/infra/{README.md, deploy_qwen_gcp.sh, deploy_qwen_azure.sh}`. GCP L4 spot + vLLM INT8 fits 14B in 24 GB VRAM. `set -euo pipefail`, trap-teardown on Ctrl-C, bash-syntax-clean. Azure NVadsA10_v5 spot is sketch-only fallback (documented, untested). Host already authenticated for both.
 - **Smoke-run harness built (not executed)**. `eval/smoke/{run_smoke.py, reference_baselines.json, prepare_datasets.sh, __init__.py, README.md}`. CLI: `--benchmark {longmemeval|acibench|both}` × `--reader {qwen2.5-14b|gpt-4o-mini|gpt-4.1-mini|all}` × `--variant {baseline|substrate|both}` × `--n` × `--budget-usd` × `--dry-run`. Dry-run parses args, imports adapters, checks dataset presence, prints planned matrix; real-run path scaffolded (per-benchmark wiring + judge calls lands when user confirms first invocation). `reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 on LongMemEval-S, GPT-4 ICL 57.78 MEDCON on ACI-Bench.
-- **Python pin**: no-op. Already `>=3.11,<3.13` since commit `d01c105`.
+- **Python pin**: no-op. Already `>=3.11,<3.13` since commit `fd6efb9`.
 - **§3.5 naming stays**. No rename.
 - **New tests**: `tests/unit/differential/test_empty_lr_table.py` (empty LR → engine no-ops, 3 tests); `tests/unit/substrate/test_predicate_packs.py` (both packs load, schema invariants, sub-slot shapes, 7 tests); `tests/unit/extraction/test_claim_prompt_pack.py` (prompt loads from active pack, switching env var reloads pack, 5 tests); `tests/unit/eval/test_smoke_harness_dryrun.py` (dry-run CLI produces planned matrix and exits 0 on empty dataset dir, 3 tests). Removed `TestDDXPlusAdapter` class from `tests/unit/test_adapters.py`. Updated `test_claim_prompt.py::test_predicate_family_set_matches_eng_doc` → 14 → 20 (clinical_general expanded).
 - **Full test suite: 155 passed, 0 failed, 0 xfail.** Determinism property test still green through the refactor.
 - **Ambiguities surfaced**: (a) `bmc_pulm_2025` still referenced by `wells_pe_low_probability` row — user's directive only mentioned the `wells_pe_high_probability` swap; low-probability row untouched (not scope creep — strict directive compliance). (b) Module-level `PREDICATE_FAMILIES` in `lr_table.py` is set at import time from `active_pack()`; if `ACTIVE_PACK` env var is changed post-import, existing LR tables loaded against the new pack may fail validation against the now-stale module constant. Tests use `active_pack.cache_clear()` + `importlib.reload` pattern. Production callers should set `ACTIVE_PACK` BEFORE importing `src.differential.lr_table`. (c) Primary reader set to `Qwen2.5-14B-Instruct` across both benchmarks; demo-path Opus-4.7 calls unchanged. `eval/README.md` pack × benchmark table now reports both variants shippable this build.
 
-### 2026-04-21 — End-of-session handoff: spec hygiene after `8572526`
-Final cleanup pass. Commit `8572526` updated eval-facing docs but left "three benchmarks" / DDXPlus / MedQA references scattered across PRD / CLAUDE / rules / context / Eng_doc / SYNTHETIC_DATA / eval/_common.py / eval/aci_bench/LIMITATIONS. This commit propagates the 2026-04-21 benchmark drop to every live spec so a next-session reader sees one consistent story.
+### 2026-04-21 — End-of-session handoff: spec hygiene after `a718301`
+Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three benchmarks" / DDXPlus / MedQA references scattered across PRD / CLAUDE / rules / context / Eng_doc / SYNTHETIC_DATA / eval/_common.py / eval/aci_bench/LIMITATIONS. This commit propagates the 2026-04-21 benchmark drop to every live spec so a next-session reader sees one consistent story.
 
 - **PRD.md**: §3 scope table (DDXPlus cross-reference removed, pluggable-pack note added), §7 C2 (eval target → LongMemEval-S + ACI-Bench), §8 fully rewritten — DDXPlus 8.1 deleted, LongMemEval-S + ACI-Bench renumbered 8.1/8.2, new 8.3 "Smoke-first discipline", 8.4 slide with two charts + Qwen2.5-14B primary reader line — §10 DoD item 7, §11 open questions (smoke-first gate, pack strategy, ASR vocab, supersession threshold, wt-ui).
 - **CLAUDE.md**: §2 hard constraints (items 3 + 10 benchmark list), §3 repo map (removed `ddxplus/`, added `smoke/` + `infra/`), §5.5 wt-eval scope, §7 commands (`make eval ddxplus` → smoke dry-run), §13 scope-discipline examples.

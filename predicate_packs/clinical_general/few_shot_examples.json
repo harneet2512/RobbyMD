@@ -1,5 +1,5 @@
 {
-  "_note": "Migrated from src/extraction/claim_extractor/prompt.py FEW_SHOT_EXAMPLES (commit 8f0d9db) into per-pack JSON so a non-clinical pack (e.g. personal_assistant) can supply its own few-shots without code changes. Addresses audit finding #2.",
+  "_note": "Migrated from src/extraction/claim_extractor/prompt.py FEW_SHOT_EXAMPLES (commit 767d3e8) into per-pack JSON so a non-clinical pack (e.g. personal_assistant) can supply its own few-shots without code changes. Addresses audit finding #2.",
   "examples": [
     {
       "name": "multi_claim_utterance",

@@ -10,7 +10,7 @@ are loaded from the active `PredicatePack` via
 `src/substrate/predicate_packs.py::active_pack`. Swapping packs (e.g.
 `ACTIVE_PACK=personal_assistant` for LongMemEval-S) swaps the prompt's
 closed vocabulary and in-context examples automatically — no code change.
-Addresses audit finding #2 from commit `8f0d9db`.
+Addresses audit finding #2 from commit `767d3e8`.
 
 `Eng_doc.md §5.2` binds:
 - Input: current turn + 2 prior turns + current active claim set + predicate family.

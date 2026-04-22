@@ -8,7 +8,7 @@ numbers are rejected.
 `PredicatePack` (`src/substrate/predicate_packs.py::active_pack`), not a
 hardcoded module constant. This lets a non-clinical pack (e.g.
 `personal_assistant` for LongMemEval-S) use a different closed vocabulary
-without engine changes. Addresses audit finding #1 from commit `8f0d9db`.
+without engine changes. Addresses audit finding #1 from commit `767d3e8`.
 
 **No hardcoded `BRANCHES`**: branches are derived from the loaded LR table
 (`LRTable.branches`). Empty LR table → empty `branches` → differential engine

@@ -4,7 +4,7 @@
 carries no `lr_table_path`. The differential engine must no-op gracefully on
 an empty `LRTable` rather than crash.
 
-Addresses audit finding #1 from commit `8f0d9db` (hardcoded `BRANCHES`
+Addresses audit finding #1 from commit `767d3e8` (hardcoded `BRANCHES`
 frozenset replaced by per-table derived branches).
 """
 
