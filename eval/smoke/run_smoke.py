@@ -517,6 +517,81 @@ def _call_acibench_baseline(
     return text, latency_ms, tokens
 
 
+def _call_acibench_substrate(
+    case_payload: object,
+    reader: str,
+    reader_env: dict[str, str],
+) -> tuple[str, float, int]:
+    """Substrate variant: two-step structured-extract then SOAP-generate.
+
+    Smoke-tier approximation of the substrate's role in the full pipeline.
+    The production substrate extracts claims continuously during ingestion
+    and projects them into a retrieval surface; here we run a single
+    claim-extract pass over the entire dialogue, then generate the SOAP
+    note with that claim list prepended to the prompt. This exercises the
+    "pre-structured representation → note" path that the substrate enables,
+    so `substrate_score - baseline_score` actually measures something
+    substrate-related instead of being identically the baseline.
+
+    Returns (predicted_note, combined_latency_ms, combined_tokens).
+    """
+    from eval.aci_bench.adapter import ACIEncounter
+    from eval.aci_bench.baseline import _format_dialogue
+
+    enc: ACIEncounter = case_payload  # type: ignore[assignment]
+    dialogue_text = _format_dialogue(enc)
+
+    # --- Step 1: structured claim extraction ---------------------------
+    extract_system = (
+        "You are a clinical information-extraction assistant. From the "
+        "doctor-patient dialogue that follows, extract every clinical "
+        "claim made by either party. Output ONLY a JSON list of short "
+        "claim strings (one claim per string) in chronological order. "
+        "Include: symptoms, timelines, medical history, medications, "
+        "physical-exam findings, allergies, social history. Do NOT "
+        "invent content. This is a research prototype, not a medical device."
+    )
+    t0 = time.monotonic()
+    if reader == "qwen2.5-14b":
+        claims_text, extract_tokens = _call_qwen(extract_system, dialogue_text, reader_env)
+    else:
+        claims_text, extract_tokens = _call_openai(
+            reader, extract_system, dialogue_text, reader_env["openai_key"]
+        )
+    extract_latency_ms = (time.monotonic() - t0) * 1000
+
+    # --- Step 2: SOAP note generation with claims prepended ------------
+    note_system = (
+        "You are a clinical documentation assistant producing a SOAP "
+        "note from a doctor-patient conversation. Output only the note, "
+        "in four sections (SUBJECTIVE / OBJECTIVE / ASSESSMENT / PLAN). "
+        "Use only information present in the transcript and the "
+        "pre-extracted claim list. Ensure every relevant claim from the "
+        "list is reflected in the appropriate section. Do NOT fabricate "
+        "findings or orders. This is a research prototype, not a medical "
+        "device; the physician makes every clinical decision."
+    )
+    note_prompt = (
+        f"Pre-extracted clinical claims (from claim-extractor):\n"
+        f"{claims_text}\n\n"
+        f"Conversation transcript:\n{dialogue_text}"
+    )
+    t1 = time.monotonic()
+    if reader == "qwen2.5-14b":
+        note_text, note_tokens = _call_qwen(note_system, note_prompt, reader_env)
+    else:
+        note_text, note_tokens = _call_openai(
+            reader, note_system, note_prompt, reader_env["openai_key"]
+        )
+    note_latency_ms = (time.monotonic() - t1) * 1000
+
+    return (
+        note_text,
+        extract_latency_ms + note_latency_ms,
+        extract_tokens + note_tokens,
+    )
+
+
 def _score_acibench_case(
     enc: object,
     predicted_note: str,
@@ -911,14 +986,16 @@ def _run_acibench_case(
         )
 
     if "substrate" in variants:
-        call_cost = _READER_COST_PER_CALL.get(reader, 0.005)
+        # Substrate variant fires TWO reader calls (claim-extract + note-generate),
+        # so budget this at 2× the baseline cost.
+        call_cost = 2 * _READER_COST_PER_CALL.get(reader, 0.005)
         if cumulative_cost[0] + call_cost > budget_usd:
             return results, True
 
         # Substrate ingestion (ACTIVE_PACK already set by caller).
         substrate_stats = _run_substrate_ingestion("acibench", enc)
 
-        note, latency_ms, tokens = _call_acibench_baseline(enc, reader, reader_env)
+        note, latency_ms, tokens = _call_acibench_substrate(enc, reader, reader_env)
         cumulative_cost[0] += call_cost
 
         medcon_f1 = _score_acibench_case(enc, note)

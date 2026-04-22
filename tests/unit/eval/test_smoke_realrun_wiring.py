@@ -483,6 +483,9 @@ class TestStructuralValidity:
 
         monkeypatch.setattr(run_smoke, "_run_substrate_ingestion", _mock_ingestion)
         monkeypatch.setattr(run_smoke, "_call_acibench_baseline", lambda *_: ("note", 20.0, 100))
+        # Substrate branch now routes through _call_acibench_substrate (two-step
+        # claim-extract + note-generate); mock it separately.
+        monkeypatch.setattr(run_smoke, "_call_acibench_substrate", lambda *_: ("note", 40.0, 200))
         monkeypatch.setattr(run_smoke, "_score_acibench_case", lambda *_: 0.60)
 
         class _StubEnc:

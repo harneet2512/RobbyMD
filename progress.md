@@ -294,3 +294,27 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Honest reading**: the delta is noise. Baseline ~= substrate because the smoke-tier substrate variant intentionally uses a no-op extractor and feeds the same prompt as baseline (code comment at `eval/smoke/run_smoke.py:819`). What this run proved is the infrastructure end-to-end — Modal cold-start 1m56s, 20 Qwen reader calls at ~1.5s each, 20 Azure gpt-4.1-mini concept-extraction calls, 20 Azure gpt-4.1 judge calls (for ACI-Bench, MEDCON scoring is the metric; the judge path isn't invoked for ACI-Bench). The $0.02 total came out of an LLM-MEDCON budget of ~$0.001/note × 2 notes/case × 10 cases × 2 variants ≈ right on the predicted curve.
 - **Not yet proved**: substrate-variant advantage on ACI-Bench (needs real claim-bundle prompting in place of the no-op extractor) and LongMemEval-S anything (blocked by Qwen2.5-14B-AWQ's 8 K context on a 22 GiB L4 — would need an A100-40GB-class instance to bump `--max-model-len` to 32 K, still won't fit LongMemEval-S's native ~100 K).
 - **Modal app stopped** post-run; zero residual GPU bill. Dataset paths, adapter rewrites, and the Azure helper all covered by `tests/unit/eval/*`; full gate 237 passed, 2 skipped.
+
+### 2026-04-22 — Clean substrate A/B: real two-step substrate variant vs baseline (ACI-Bench × 10)
+
+- Replaced the smoke-tier "substrate variant = baseline" no-op with a real two-step reader flow on the substrate path: call Qwen once to extract structured clinical claims from the dialogue (JSON list), then call Qwen a second time to generate the SOAP note with that claim list prepended to the prompt. Implementation in `eval/smoke/run_smoke.py::_call_acibench_substrate`; `_run_acibench_case`'s substrate branch now routes through it and charges 2× the baseline cost to the budget tracker. Existing unit test mock updated accordingly; full gate 240 passed, 2 skipped.
+- Second live smoke: ACI-Bench × Qwen2.5-14B-AWQ × 10 cases, 2026-04-22T08:12:50Z, results at `eval/smoke/results/20260422T081250Z/results.json`:
+
+  |                          | baseline | substrate (2-step) |
+  | ------------------------ | -------- | ------------------ |
+  | Mean MEDCON-F1           | 0.470    | 0.400              |
+  | Stdev                    | 0.197    | 0.230              |
+  | Median latency           | ~15 s    | ~28 s              |
+  | Mean tokens/case         | ~1,700   | ~3,800             |
+  | Mean delta               | —        | **−0.070**         |
+  | Delta range              | —        | [−0.419, +0.235]   |
+  | Cases substrate > baseline | —      | 3                  |
+  | Ties                     | —        | 1                  |
+  | Cases substrate < baseline | —      | 6                  |
+  | Worst regression         | —        | D2N088: 0.419 → 0.000 |
+  | Best win                 | —        | D2N090: 0.390 → 0.625 (+0.235) |
+  | Total run cost           | —        | $0.03              |
+
+- **Honest finding**: the naive "pre-extract claims → prepend to note prompt" approximation of the substrate **underperforms baseline by 7 pp** on this 10-case slice. D2N088 collapsing to F1=0.000 suggests the note is being crowded out by a rehearsed claim list rather than producing a proper SOAP narrative. Three plausible causes — noisy claim extraction, over-constrained "reflect every claim" instruction, and Qwen2.5-14B-AWQ at 8K context not being strong enough to integrate structured pre-content without distraction. Worth probing further next session: drop the "reflect every claim" instruction, use a recall-pruned claim list, or move the claim list from prompt-prepend to a separate tool-call round.
+- **What the smoke does prove**: infra clean end-to-end, the substrate vs baseline comparison is now real (was artificially identical before), cost per 10-case pair is $0.03 including two extra Qwen calls per substrate case, and the scoring pipeline discriminates (stdev 0.23, range 0.4+ pp).
+- Modal app stopped post-run. Total additional spend this sub-session: ~$0.35 (Modal L4 active ~25 min × $0.80/hr) + $0.01 Azure.
