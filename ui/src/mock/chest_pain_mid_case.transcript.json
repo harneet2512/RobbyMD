@@ -1,0 +1,146 @@
+{
+  "_synthetic": "SYNTHETIC — no real patient data (rules.md §2.2). Hand-written transcript that pairs with tests/fixtures/chest_pain_mid_case.json: same session_id + turn_ids; adds turn text so the UI can render the transcript panel. Demo beat: 52-year-old reports exertional chest pain radiating to left arm with diaphoresis; prior CAD; smoker; no pleuritic component; not reproducible with palpation. Matches the case in PRD.md §9.",
+  "_source_fixture": "tests/fixtures/chest_pain_mid_case.json",
+  "session_id": "sess_chest_pain_mid_01",
+  "turns": [
+    {
+      "turn_id": "t01",
+      "speaker": "physician",
+      "text": "Thanks for coming in. What's been bothering you today?",
+      "ts_offset_ms": 0
+    },
+    {
+      "turn_id": "t02",
+      "speaker": "patient",
+      "text": "I've had this heavy pressure in my chest on and off for a couple of days.",
+      "ts_offset_ms": 4200
+    },
+    {
+      "turn_id": "t03",
+      "speaker": "patient",
+      "text": "It comes on when I walk up the stairs at home, and it eases when I sit down.",
+      "ts_offset_ms": 11500
+    },
+    {
+      "turn_id": "t04",
+      "speaker": "patient",
+      "text": "It sort of spreads down my left arm when it's at its worst.",
+      "ts_offset_ms": 19100
+    },
+    {
+      "turn_id": "t05",
+      "speaker": "patient",
+      "text": "I get sweaty too — a cold sweat — while it's happening.",
+      "ts_offset_ms": 25400
+    },
+    {
+      "turn_id": "t06",
+      "speaker": "physician",
+      "text": "Any prior heart history I should know about?",
+      "ts_offset_ms": 31000
+    },
+    {
+      "turn_id": "t07",
+      "speaker": "patient",
+      "text": "Yes — I had a stent placed about six years ago for a blocked artery.",
+      "ts_offset_ms": 34800
+    },
+    {
+      "turn_id": "t08",
+      "speaker": "patient",
+      "text": "I'm still smoking, about half a pack a day. I know, I know.",
+      "ts_offset_ms": 42300
+    },
+    {
+      "turn_id": "t09",
+      "speaker": "patient",
+      "text": "Taking a deep breath doesn't make it worse — it's not that kind of pain.",
+      "ts_offset_ms": 49900
+    },
+    {
+      "turn_id": "t10",
+      "speaker": "patient",
+      "text": "And pressing on my chest here doesn't do anything either.",
+      "ts_offset_ms": 57200
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "c01",
+      "subject": "patient",
+      "predicate": "aggravating_factor",
+      "value": "exertion",
+      "polarity": true,
+      "source_turn_id": "t03",
+      "confidence": 0.9,
+      "char_start": 18,
+      "char_end": 32
+    },
+    {
+      "claim_id": "c02",
+      "subject": "patient",
+      "predicate": "radiation",
+      "value": "left_arm",
+      "polarity": true,
+      "source_turn_id": "t04",
+      "confidence": 0.88,
+      "char_start": 27,
+      "char_end": 35
+    },
+    {
+      "claim_id": "c03",
+      "subject": "patient",
+      "predicate": "associated_symptom",
+      "value": "diaphoresis",
+      "polarity": true,
+      "source_turn_id": "t05",
+      "confidence": 0.82,
+      "char_start": 6,
+      "char_end": 12
+    },
+    {
+      "claim_id": "c04",
+      "subject": "patient",
+      "predicate": "medical_history",
+      "value": "coronary_artery_disease",
+      "polarity": true,
+      "source_turn_id": "t07",
+      "confidence": 0.95,
+      "char_start": 12,
+      "char_end": 67
+    },
+    {
+      "claim_id": "c05",
+      "subject": "patient",
+      "predicate": "social_history",
+      "value": "current_smoker",
+      "polarity": true,
+      "source_turn_id": "t08",
+      "confidence": 0.9,
+      "char_start": 6,
+      "char_end": 32
+    },
+    {
+      "claim_id": "c06",
+      "subject": "patient",
+      "predicate": "aggravating_factor",
+      "value": "inspiration",
+      "polarity": false,
+      "source_turn_id": "t09",
+      "confidence": 0.85,
+      "char_start": 0,
+      "char_end": 47
+    },
+    {
+      "claim_id": "c07",
+      "subject": "patient",
+      "predicate": "alleviating_factor",
+      "value": "palpation",
+      "polarity": false,
+      "source_turn_id": "t10",
+      "confidence": 0.8,
+      "char_start": 4,
+      "char_end": 48
+    }
+  ]
+}
