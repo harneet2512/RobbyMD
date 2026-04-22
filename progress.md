@@ -122,3 +122,40 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - WARN #1 CC-BY-4.0 pyannote → ADR drafted at `docs/decisions/2026-04-21_pyannote-ccby40-model-weights.md` (status: PROPOSED; awaiting human operator to patch `rules.md §1.2` or elect NeMo Sortformer swap).
 - Remaining WARNs (4 paywall-gated LR click-through verifications, cough approximation rationale, msk at exactly 15 rows) deferred to human review; non-blocking.
 - **Revised gate posture: PASS-WITH-WARNS** pending either the CC-BY-4.0 ADR acceptance (unblocking wt-extraction diariser) or explicit deferral of diariser until the ADR lands.
+
+### 2026-04-21 — Phase A resolution (user directive)
+- **A1** `docs/decisions/licensing_clarifications.md` — Q2 (CC-BY-4.0) status PENDING → **RESOLVED**. Self-resolved against Linux Foundation OpenMDW framework (July 2025) industry-standard reading. Paper trail anchored in `reasons.md` + `rules.md §1.2` + `tests/licensing/test_model_attributions.py` CI. Q1 (Claude API) stays PENDING; optional Discord post.
+- **A2** `pyproject.toml` — `requires-python = ">=3.11,<3.12"` → `">=3.11,<3.13"`; `Programming Language :: Python :: 3.12` classifier added. Import scan across all 4 feature branches clean: zero 3.12-incompatible stdlib uses. Unblocks Python-3.12 dev hosts.
+- Commit `d01c105` (chore: pin+adr: Q2 RESOLVED; Python 3.11-3.12 both supported).
+- Tests green (5 passed + 1 xfail).
+
+### 2026-04-21 — Phase B integration (feature branches → main)
+All 4 feature branches merged in dependency order with `--no-ff` preserving branch history.
+
+- **B1** `feature/substrate` → main. Merge commit `a51e34f` era (initial substrate merge). Conflict: `src/__init__.py` (add/add). Resolved in follow-up `6b8b4d6`.
+  - Delivered: 8 substrate modules (~1,835 LOC), typed supersession edges with 7 clinical kinds, span-based provenance, event bus with 6 canonical event names, `on_new_turn` orchestrator, 68 unit tests.
+  - Rolling state: **68 tests pass**, 1 xfail (determinism awaits B2).
+- **B2** `feature/differential` → main. Merge commit (part of `a51e34f`), `src/__init__.py` conflict resolved same commit.
+  - Delivered: deterministic LR-weighted engine, counterfactual top-2 verifier (MockOpusClient + AnthropicOpusClient), populated `branches.json` (4 trees × 14 sub-trees), **`tests/property/test_determinism.py` xfail stub REPLACED with 3 real determinism tests (XFAIL → PASS)**.
+  - Rolling state: **98 tests pass** including the 3 real determinism tests. Thesis live-tested.
+- **B3** `feature/extraction` → main. Merge commit `892acd4`. Conflict: `src/__init__.py` (add/add). Resolved in follow-up (same commit via `--no-edit`).
+  - Delivered: ASR pipeline (faster-whisper + WhisperX + pyannote community-1 + silero-vad + `initial_prompt` medical bias), synthetic chest-pain clip (pyttsx3), claim-extractor prompt draft with 6 few-shot examples, `docs/asr_benchmark.md` (numbers marked TBM — no GPU in sandbox).
+  - Rolling state: **119 tests pass**.
+- **B4** `feature/eval` → main. Merge commit (post-B3 HEAD). Clean merge, no conflicts.
+  - Delivered: DDXPlus/LongMemEval-S/ACI-Bench adapter scaffolds, `ConceptExtractor` 3-tier MEDCON Protocol (QuickUMLS/Scispacy/Null), `install_scispacy.sh` + `install_umls.sh`, pre-populated comparator tables per `research_brief.md §3`, ADR-delta for scispaCy Windows Python 3.12 scipy-build issue with 3 mitigations enumerated.
+  - Rolling state: **140 tests pass** across substrate (68) + differential (21) + verifier (6) + extraction (26) + eval (21, factored into test_aci_bench_extractors + test_adapters).
+- **Phase B complete**. Main at `892acd4` (post-B4). All feature branches merged. `feature/ui` still at scaffold `090c799`.
+- **Integration open questions** surfaced by merges:
+  - Admission-handoff contract (speaker mapping upstream in extraction or downstream in admission).
+  - Predicate-path collisions requested by wt-trees (palpation aggravating vs alleviating, Wells components, HEART/TIMI/Marburg scores) — normalisation pass in wt-engine's claim extractor or substrate canonicaliser.
+  - 36 approximation rows in `lr_table.json`; wt-trees flagged 5 with highest ranking-sensitivity on the demo case.
+
+### 2026-04-21 — Rolling state (edit in place)
+- **Main commit**: `892acd4` (Phase B4 merge).
+- **Tests on main**: 140 passed, 0 failed, 0 xfail.
+- **Phase progress**:
+  - Phase A: DONE
+  - Phase B: DONE (4 of 4 merges clean)
+  - Phase C: NOT STARTED — blocked on scope clarifications (see below).
+  - Phase D: dispatching wt-ui in parallel (unblocked).
+- **BMC Pulm Med click-through**: still awaiting human confirm (`wells_pe_high_probability` row, Wells LR+ 5.59 at `https://link.springer.com/article/10.1186/s12890-025-03637-6`).
