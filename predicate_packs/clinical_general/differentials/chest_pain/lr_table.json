@@ -456,10 +456,12 @@
       "predicate_path": "risk_factor=wells_pe_low",
       "lr_plus": null,
       "lr_minus": 0.34,
-      "source": "bmc_pulm_2025 Bayesian network meta-analysis (3-tier Wells)",
-      "source_url": "https://link.springer.com/article/10.1186/s12890-025-03637-6",
+      "source": "ceriani_2010_jth_wells_meta",
+      "source_url": "https://www.jthjournal.org/article/S1538-7836(22)12404-9/pdf",
       "approximation": false,
-      "notes": "BMC Pulm Med 2025: 3-tier Wells LR- 0.34 (95% CrI 0.25-0.45). AAFP 2013 lists LR+ 0.1 for low-probability (alternative encoding)."
+      "rationale_strength": "strong",
+      "verified_by": "open_access_replacement_2026-04-21",
+      "notes": "Ceriani 2010 J Thromb Haemost meta-analysis (31,215 patients, 29 studies): 3-tier Wells low-probability LR- 0.34. Open-access replacement for bmc_pulm_2025 (which was the last remaining bmc_pulm_2025 reference); same meta-analysis source already cited for wells_pe_high_probability row."
     },
     {
       "branch": "pulmonary",

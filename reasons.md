@@ -168,3 +168,12 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
   - Model Openness Framework (MOF): https://isitopen.ai/
 - **Superseded decision**: `rules.md §1.2` now permits OSI-approved licenses for code and open-data licenses (CC-BY-4.0, CC-BY-SA-4.0, CDLA-Permissive-2.0, ODbL) for model weights and datasets. `MODEL_ATTRIBUTIONS.md` enforces attribution. `tests/licensing/test_model_attributions.py` enforces that attribution in CI.
 - **Revisit trigger**: Hackathon Discord responds to the licensing question (pending, see `docs/decisions/licensing_clarifications.md` Q2) with a stricter interpretation. If so, swap diariser to NeMo Sortformer (Apache-2.0) and eat the latency re-benchmark cost.
+
+## 2026-04-22
+
+### LR citation swap: `wells_pe_low_probability` → ceriani_2010_jth (2026-04-22)
+
+- **Scope extension of the 2026-04-21 open-access-replacement pass**: the `wells_pe_high_probability` row was swapped to `ceriani_2010_jth_wells_meta` on 2026-04-21 (noted as ambiguity (a) in that session's log); the `wells_pe_low_probability` row still cited `bmc_pulm_2025`. This is the final citation swap to achieve open-access uniformity.
+- **Swap reason**: open-access verification uniformity; Ceriani 2010 J Thromb Haemost is the same meta-analysis source already cited for `wells_pe_high_probability`. The `bmc_pulm_2025` source key is now fully unreferenced in `lr_table.json` and has been removed from `sources.md`.
+- **LR value unchanged**: LR- 0.34 retained — same meta-analytic estimate, different attribution vehicle.
+- **Citation**: Ceriani E et al. *Clinical prediction rules for pulmonary embolism: a systematic review and meta-analysis.* J Thromb Haemost 8(5):957–970, 2010. https://www.jthjournal.org/article/S1538-7836(22)12404-9/pdf

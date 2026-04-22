@@ -17,6 +17,11 @@ no-ops gracefully — required for packs with no differentials.
 Load once, cache by `predicate_path` for O(1) lookup at engine-scoring time.
 """
 
+# ACTIVE_PACK env var must be set BEFORE importing this module. Module-level
+# PREDICATE_FAMILIES resolves from active_pack() at import time; changing
+# ACTIVE_PACK afterward requires active_pack.cache_clear() + importlib.reload.
+# See CLAUDE.md §3 and progress.md ambiguity (c) from 2026-04-21.
+
 from __future__ import annotations
 
 import json
