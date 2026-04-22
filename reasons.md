@@ -221,3 +221,52 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
   - Nabla public latency figures: https://nabla.com/blog/whisper/
   - Abridge latency blog (2023): https://www.abridge.com/blog/
 - **Revisit trigger**: P95 utterance-to-claim latency > 10 s on GCP L4 after Part E benchmark run. At that point a batch-accumulate-then-process variant for low-latency-insensitive workflows (e.g. post-hoc note generation) becomes worth building as a separate `EvalPipeline` class.
+
+---
+
+## 2026-04-22 — Stream A (LongMemEval retrieval + CoN + time-aware)
+
+### Embedder: `bge-small` (over `bge-m3`)
+- **Rejected**: using `BAAI/bge-small-en-v1.5` for per-claim retrieval embeddings.
+- **Reason**: `bge-m3` (MIT) is the current industry-standard retrieval encoder for long-horizon memory systems as of late 2025 (Zep, Mastra, Supermemory, and several LongMemEval leaderboard entries all use bge-m3). The only prior rationale for `bge-small` was local 6 GB VRAM on this host — Modal hosting (profile `glitch112213`) removes that constraint, so we take the stronger encoder.
+- **Citation**: Chen et al. 2024 (arXiv 2402.03216); LongMemEval ICLR 2025 leaderboard public submissions.
+
+### Embeddings storage: inline column on `claims`
+- **Rejected**: adding an `embedding BLOB` column directly on `claims`.
+- **Reason**: (1) re-embedding on model-version bump would force a full table rewrite; (2) installs that never use retrieval pay storage cost for nothing; (3) the sidecar table lets us add `embedding_model_version` and `embedded_at_unix` without touching the core claim row. Sidecar is `claim_embeddings(claim_id PK, embedding BLOB, embedding_model_version, embedded_at_unix)` with ON DELETE CASCADE.
+- **Citation**: internal design; mirrors the supersession_edges sidecar pattern already in `src/substrate/schema.py`.
+
+### top-k: 10 (over 20)
+- **Rejected**: returning top-10 retrieved claims to the reader.
+- **Reason**: Zep and several 2025 LongMemEval leaderboard entries use k=20. Lower k loses recall on multi-session questions where evidence is spread across 2–3 sessions. Cost of 20 vs 10 for gpt-4o-2024-08-06 is negligible on LongMemEval-S token counts.
+- **Citation**: Zep memory paper (arXiv 2501.13956); LongMemEval public leaderboard notes.
+
+### Reader: substrate-aware CoN (over paper-faithful CoN)
+- **Rejected**: a reader prompt that surfaces supersession chains and typed edges directly to the LLM.
+- **Reason**: adding a novel prompt on top of the new retrieval architecture mixes two independent variables — if substrate-CoN underperforms, we can't tell whether it's the retrieval head or the prompt. Paper-faithful CoN (Yu et al. arXiv 2311.09210) as the first-pass keeps the retrieval signal uncontaminated. Substrate-aware variant can follow once base numbers land.
+- **Citation**: Chain-of-Note, Yu et al. 2023 (arXiv 2311.09210); experimental-design principle (one variable at a time).
+
+### Time parser: `arrow` (over `dateparser`)
+- **Rejected**: using `arrow` for temporal anchor extraction from LongMemEval questions.
+- **Reason**: `arrow` is excellent for absolute timestamps but has limited relative-reference parsing ("last month", "two weeks ago"). `dateparser` (BSD-3-Clause) handles both absolute and relative natively with a `PREFER_DATES_FROM="past"` setting that fits LongMemEval's historical-transcript shape.
+- **Citation**: `dateparser` docs (https://dateparser.readthedocs.io); `arrow` docs (https://arrow.readthedocs.io/en/latest/#relative-dates).
+
+### Time window: strict boundaries (over soft ±7/±1)
+- **Rejected**: returning an exact-match window around the parsed anchor.
+- **Reason**: `dateparser` relative-reference output is approximate — "last week" resolves to a single timestamp but the user clearly means a multi-day span. Soft boundaries (±7 days for relative refs, ±1 day for explicit dates) absorb both the parser imprecision and the natural ambiguity of temporal language. Parse failure falls through to no filter — over-retrieval is safer than silent drop.
+- **Citation**: LongMemEval temporal-reasoning category description, ICLR 2025 §3.4.
+
+### Stratified sample seed: random / unseeded
+- **Rejected**: an unseeded or time-based seed for the 60-question stratified sample.
+- **Reason**: Stream A's smoke-002 MUST be reproducible against later runs — if the sample differs, we can't tell whether a metric change came from the retrieval improvement or from a different question mix. Seed 42 is logged so future smoke_003 can be sampled from a known state.
+- **Citation**: rules.md §6 (reproducibility); session decision 2026-04-22.
+
+### LongMemEval reader model: `gpt-4o-mini` or in-house Qwen (over `gpt-4o-2024-08-06`)
+- **Rejected**: using a cheaper model class for the LongMemEval smoke reader and judge.
+- **Reason**: the paper (Wu et al., ICLR 2025, arXiv 2410.10813) specifies `gpt-4o-2024-08-06` as both reader and judge. Every public leaderboard entry we want to compare against (Zep, Mastra, Supermemory, TiMem, EverMemOS, EmergenceMem) uses the same. Swapping the model class breaks apples-to-apples. Operator deploys gpt-4o on a spare Azure account; when that's unavailable the code falls back to gpt-4.1 with a structlog WARN so numbers are labelled accordingly (methodology deviation, not hidden).
+- **Citation**: LongMemEval paper §5.1 (arXiv 2410.10813); ICLR 2025 OpenReview thread.
+
+### LME concurrency: 10 (over 5)
+- **Rejected**: setting `LME_CONCURRENT_REQUESTS` default to 10.
+- **Reason**: Azure OpenAI TPM tiers for shared-subscription gpt-4o deployments throttle aggressively past 5 concurrent requests on the tiers we have access to; the halve-to-3 fallback is a documented response to endpoint backpressure. 5 is the operator's recommended ceiling in the Stream A plan.
+- **Citation**: operator decision 2026-04-22; Azure OpenAI TPM documentation.
