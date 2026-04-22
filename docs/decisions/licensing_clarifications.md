@@ -29,20 +29,27 @@ Claude Opus 4.7 via the Anthropic API is the hackathon's **named sponsored platf
 
 ## Q2 — CC-BY-4.0 for model weights (pyannote community-1)
 
-**Status**: PENDING — to be posted in #questions on Discord 2026-04-21.
+**Status**: **RESOLVED 2026-04-21** — self-resolved against industry-standard reading; not posted to Discord.
 
-**Question (copy-paste)**:
+### Resolution
+
+User directive 2026-04-21 elected to proceed without Discord confirmation. The hackathon rule says *"approved open source license"*; the industry consensus (Linux Foundation's OpenMDW framework July 2025, OSI FAQ explicitly treating model weights as data not software, Hugging Face licensing guidance, OSI's own website using CC-BY-4.0 for its content, the vast majority of open-weight ML releases including pyannote and biomedical models) applies OSI to CODE and open-data licenses (CC-BY-4.0, CC-BY-SA-4.0, CDLA-Permissive-2.0, ODbL) to model weights. This is the standard reading, not a workaround.
+
+**Binding outcome**:
+- `rules.md §1.2` stands as amended 2026-04-21 (OSI for code; OSI or open-data for model weights; explicit denylist of CC-BY-NC / CC-BY-ND / Gemma ToU / HAI-DEF / Llama Community).
+- `reasons.md` entry "Strict OSI-only licensing for model weights — rejected for industry-standard reading (2026-04-21)" documents the paper trail with citations (OpenMDW LF July 2025, OSI FAQ, OpenMDW-1.0, Model Openness Framework).
+- `tests/licensing/test_model_attributions.py` enforces CC-BY-4.0 attribution in CI — attribution is load-bearing and cannot silently drift.
+- `pyannote/speaker-diarization-community-1` (CC-BY-4.0) cleared for use.
+
+If challenged at a later judging stage, the answer is: *"We applied the Linux Foundation OpenMDW framework (July 2025) reading — OSI for code, open-data (CC-BY-4.0) for model weights with mandatory attribution in MODEL_ATTRIBUTIONS.md, enforced by CI. Full paper trail in reasons.md."*
+
+### Original question (kept for the submission paper trail)
 
 > For model weights specifically, is CC-BY-4.0 acceptable? The Linux Foundation's OpenMDW framework (July 2025) recommends CC-BY-4.0 for model weights, with OSI licenses reserved for code. We're following that industry-standard split but want to confirm the hackathon interprets the rule the same way. Specific case: pyannote speaker-diarization-community-1 under CC-BY-4.0 for speaker diarisation.
 
-**Working interpretation**:
-Amended `rules.md §1.2` permits CC-BY-4.0, CC-BY-SA-4.0, CDLA-Permissive-2.0, ODbL for model weights and datasets. OSI licenses remain required for code. Attribution is load-bearing and tracked in `MODEL_ATTRIBUTIONS.md`; `tests/licensing/test_model_attributions.py` enforces that every model weight referenced from `src/` has an entry.
+### Revisit trigger
 
-The rationale (Linux Foundation OpenMDW framework, OSI FAQ treating weights as data, Model Openness Framework, widespread CC-BY practice in open-weight ML) is recorded in `reasons.md` under the entry "Strict OSI-only licensing for model weights — rejected for industry-standard reading (2026-04-21)".
-
-**Decision on reply**:
-- If the moderator confirms → we're done; close this entry.
-- If the moderator requires strict OSI-only for weights too → swap `pyannote/speaker-diarization-community-1` → **NVIDIA NeMo Sortformer** (Apache-2.0). Cost: same-day latency re-benchmark on a 24 GB GPU; potentially ~1 day of wt-extraction delay. `research/asr_stack.md` documents the fallback path.
+If a judge at Stage 1 or Stage 2 challenges the CC-BY-4.0 reading with a stricter interpretation **before** final submission (2026-04-26 20:00 EST), **swap** `pyannote/speaker-diarization-community-1` → **NVIDIA NeMo Sortformer** (Apache-2.0). Cost: same-day latency re-benchmark on a 24 GB GPU; ~1 day of wt-extraction delay. `research/asr_stack.md` §Alt-1 documents the fallback path.
 
 ---
 
