@@ -1,0 +1,46 @@
+=== SCRIPT: dyspnea (shortness of breath) ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Hello, Mr. Smith. What's going on today?
+PT: I've been short of breath. It came on pretty suddenly.
+DR: When did it start?
+PT: This morning, maybe around eight. I was just sitting at my desk.
+DR: Any chest pain with it?
+PT: A little. It's sharp, and it's worse when I take a deep breath.
+DR: Any cough, fever, or leg swelling?
+PT: No cough, no fever. But my right calf has been sore for a few days.
+DR: Have you traveled recently or been immobile for long periods?
+PT: I flew back from Europe last week. It was a long flight, maybe nine hours.
+DR: You said it came on this morning — was it really sudden, or did it build up?
+PT: Actually, now that I think about it, I noticed it a bit yesterday evening too. It just got much worse this morning.
+DR: Got it. Any history of asthma, heart problems, or clots?
+PT: No asthma. My father had a DVT, I think.
+DR: Medications?
+PT: I take lisinopril for blood pressure, and I'm on a daily aspirin.
+DR: Any smoking history?
+PT: I quit about ten years ago. Smoked for twenty years before that.
+DR: I want to check your oxygen saturation and listen to your lungs.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: lisinopril, aspirin, apixaban, enoxaparin, albuterol, furosemide
+- anatomy / physiology: pulmonary artery, calf, deep vein, pleura, alveoli, bronchi
+- decision rules or syndromes: Wells score, PERC rule, pulmonary embolism, CHF exacerbation, asthma, community-acquired pneumonia, DVT
+- dose/route modifiers: oral, subcutaneous, 81 mg, 10 mg daily
+
+=== SUPERSESSION MOMENTS ===
+- Line 11 (patient): "Actually, now that I think about it, I noticed it a bit yesterday evening too. It just got much worse this morning." — updates earlier onset claim of "this morning around 8" to "yesterday evening, worsening this morning".
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- onset: "yesterday evening, worsening this morning" (superseding earlier "this morning around 8")
+- character: sharp (chest pain)
+- aggravating_factor: deep inspiration
+- associated_symptom: pleuritic chest pain
+- associated_symptom: right calf pain
+- associated_symptom: negated:cough
+- associated_symptom: negated:fever
+- risk_factor: recent long-haul flight (~9 hours)
+- family_history: DVT (father)
+- medication: lisinopril
+- medication: aspirin
+- social_history: former smoker (20 pack-year history, quit ~10 years ago)
+- medical_history: negated:asthma

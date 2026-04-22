@@ -464,23 +464,18 @@ cross-linked from this spec:
 - Hardware profile: GPU model, CUDA version, driver, CTranslate2 version,
   faster-whisper version, WhisperX version.
 
-### 8.2 3–5 additional synthetic clips beyond the chest-pain demo
+### 8.2 Additional synthetic clips beyond the chest-pain demo
 
-Current: one 45-s scripted chest-pain dialogue
-(`eval/fixtures/asr/chest_pain_demo.wav`). One clip is fine for happy-path
-validation but insufficient for any generalisation claim. Requested
-additions:
-
-- Abdominal pain (maps to `predicate_packs/clinical_general/differentials/abdominal_pain/` stub).
-- Dyspnoea (maps to `.../dyspnoea/` stub).
-- Headache (maps to `.../headache/` stub).
-- Fatigue (not currently stubbed; reveals whether the engine falls back
-  gracefully to a non-seeded branch).
-- One "ambient hospital noise" clip (same chest-pain transcript, overlaid
-  with public-domain hospital ambience) to exercise the noise-robustness
-  claim under §3.
-
-All clips must be declared in `SYNTHETIC_DATA.md` before commit.
+Closed 2026-04-22. Five text scripts landed under `eval/synthetic_clips/`
+covering: abdominal pain, dyspnea, headache, fatigue + weight loss, and
+dizziness + syncope. Each script contains a two-speaker dialogue, a
+biasing-vocabulary block, an explicit supersession moment, and the expected
+claim-extraction targets keyed to the `clinical_general` predicate families.
+Scripts are text-only (no TTS rendered); TTS rendering + `SYNTHETIC_DATA.md`
+declaration remain open for whenever the generalisation-claim measurement
+run is scheduled. One "ambient hospital noise" clip (same chest-pain
+transcript overlaid with public-domain ward ambience) also remains open for
+the noise-robustness claim under §3.
 
 ### 8.3 Demo video script confirmation — WisprFlow one-liner framing
 

@@ -1,0 +1,43 @@
+=== SCRIPT: abdominal pain ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Good afternoon, Ms. Smith. Tell me what brought you in today.
+PT: I've had this pain in my belly since last night. It's getting worse.
+DR: Where exactly is the pain? Can you point to it?
+PT: It started around my belly button, but now it's more on the lower right side.
+DR: On a scale of one to ten, how bad is it right now?
+PT: Maybe a seven. It's sharp, and it hurts more when I move or cough.
+DR: Any nausea, vomiting, or fever?
+PT: I threw up once this morning. I feel warm but I didn't check my temperature.
+DR: You said it started last night — what time exactly?
+PT: Actually, thinking back, it was more like yesterday afternoon, around three. Not last night.
+DR: Understood. Any change in appetite or bowel movements?
+PT: I haven't wanted to eat anything. No diarrhea.
+DR: Any medications you take regularly?
+PT: Just ibuprofen for headaches, and a multivitamin. Nothing prescription.
+DR: Any prior surgeries?
+PT: No, never.
+DR: I'm going to examine your abdomen now. I'll press gently; tell me where it hurts most.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: ibuprofen, acetaminophen, ceftriaxone, metronidazole
+- anatomy / physiology: periumbilical, right lower quadrant, McBurney's point, appendix, peritoneum, iliac fossa
+- decision rules or syndromes: Alvarado score, appendicitis, cholecystitis, diverticulitis, bowel obstruction, Rovsing sign, psoas sign
+- dose/route modifiers: oral, IV, 400 mg, 1 g
+
+=== SUPERSESSION MOMENTS ===
+- Line 11 (patient): "Actually, thinking back, it was more like yesterday afternoon, around three. Not last night." — updates earlier onset claim of "last night" to "yesterday afternoon around 3 pm".
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- location: periumbilical → right lower quadrant (migration)
+- onset: "yesterday afternoon around 3 pm" (superseding earlier "last night")
+- character: sharp
+- severity: 7/10
+- aggravating_factor: movement, cough
+- associated_symptom: vomiting (one episode)
+- associated_symptom: subjective fever
+- associated_symptom: anorexia
+- associated_symptom: negated:diarrhea
+- medication: ibuprofen
+- medication: multivitamin
+- medical_history: negated:prior_surgery

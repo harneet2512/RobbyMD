@@ -1,0 +1,49 @@
+=== SCRIPT: headache ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Hi, Ms. Smith. What brings you in today?
+PT: I've got a really bad headache. I've never had one like this.
+DR: When did it start?
+PT: About two hours ago. It hit me all at once, like something exploded in my head.
+DR: Where is the pain?
+PT: All over, but mostly the back of my head and my neck feels stiff.
+DR: On a scale of one to ten?
+PT: A ten. It's the worst headache of my life.
+DR: Any nausea, vomiting, or vision changes?
+PT: I feel sick to my stomach, and bright light really bothers me.
+DR: Any weakness, numbness, or trouble speaking?
+PT: No, nothing like that.
+DR: You said this started two hours ago — was it sudden or gradual?
+PT: Actually, it's been closer to an hour. I was trying to wait it out before coming in.
+DR: Okay. Any history of migraines?
+PT: I get headaches sometimes, but they're never like this. This is different.
+DR: Any medications?
+PT: I took two acetaminophen about thirty minutes ago. No relief. I'm also on sumatriptan for my usual migraines, but I haven't taken it today.
+DR: Any family history of aneurysm or stroke?
+PT: My aunt had a brain bleed in her fifties.
+DR: I'm going to examine your neck and do a neurologic exam now.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: acetaminophen, sumatriptan, ibuprofen, prochlorperazine, nimodipine
+- anatomy / physiology: occipital, meninges, subarachnoid space, cerebral artery, cranial nerves
+- decision rules or syndromes: Ottawa SAH rule, thunderclap headache, subarachnoid hemorrhage, migraine, tension headache, cluster headache, meningitis
+- dose/route modifiers: oral, 500 mg, 50 mg
+
+=== SUPERSESSION MOMENTS ===
+- Line 11 (patient): "Actually, it's been closer to an hour. I was trying to wait it out before coming in." — updates earlier onset claim of "about two hours ago" to "about one hour ago".
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- onset: "about 1 hour ago" (superseding earlier "about 2 hours ago")
+- character: thunderclap, sudden-onset
+- severity: 10/10 (worst headache of life)
+- location: diffuse with occipital predominance
+- associated_symptom: neck stiffness
+- associated_symptom: nausea
+- associated_symptom: photophobia
+- associated_symptom: negated:focal_weakness
+- associated_symptom: negated:numbness
+- associated_symptom: negated:dysarthria
+- medication: acetaminophen (500 mg, 30 min prior, no relief)
+- medication: sumatriptan (home med, not taken today)
+- family_history: intracranial hemorrhage (aunt)
+- medical_history: prior non-severe headaches

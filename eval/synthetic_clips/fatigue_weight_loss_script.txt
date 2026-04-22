@@ -1,0 +1,47 @@
+=== SCRIPT: fatigue and unintentional weight loss ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Good morning, Mr. Smith. What brings you in?
+PT: I've been really tired for months now. And I think I'm losing weight without trying.
+DR: How much weight, and over what period?
+PT: Maybe fifteen pounds over the last three months. My clothes are loose.
+DR: Any change in appetite?
+PT: Actually, my appetite is okay — sometimes I feel hungrier than usual, but the weight keeps coming off.
+DR: Any night sweats or fevers?
+PT: I wake up damp sometimes, yeah. Not every night.
+DR: How's your mood been? Sleep?
+PT: Sleep is okay. Mood, I guess I've been down, but I think it's because I feel so tired all the time.
+DR: You said fifteen pounds — are you sure about that number?
+PT: Let me think. It might be closer to twenty. I was 185, and I weighed myself this morning at 165.
+DR: Any bowel changes, blood in stool, or urinary changes?
+PT: I go to the bathroom more than I used to. I'm thirsty all the time.
+DR: Any lumps, or a history of cancer in the family?
+PT: No lumps I've noticed. My mother had breast cancer at sixty.
+DR: Any medications?
+PT: I take metformin for pre-diabetes, and levothyroxine for my thyroid.
+DR: I'd like to get some labs — a CBC, TSH, metabolic panel, and hemoglobin A1c.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: metformin, levothyroxine, methimazole, ferrous sulfate, sertraline
+- anatomy / physiology: thyroid gland, bone marrow, lymph nodes, pancreas
+- decision rules or syndromes: hyperthyroidism, malignancy, depression, iron-deficiency anemia, new-onset diabetes, B-symptoms
+- dose/route modifiers: oral, 500 mg twice daily, 75 mcg daily
+
+=== SUPERSESSION MOMENTS ===
+- Line 11 (patient): "Let me think. It might be closer to twenty. I was 185, and I weighed myself this morning at 165." — updates earlier weight-loss claim of "fifteen pounds" to "approximately twenty pounds" with specific values.
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- duration: ~3 months
+- associated_symptom: unintentional weight loss ~20 lb (superseding earlier ~15 lb)
+- associated_symptom: fatigue
+- associated_symptom: increased appetite
+- associated_symptom: night sweats (intermittent)
+- associated_symptom: polyuria
+- associated_symptom: polydipsia
+- associated_symptom: low mood
+- review_of_systems: negated:palpable_lumps
+- family_history: breast cancer (mother, age 60)
+- medication: metformin
+- medication: levothyroxine
+- medical_history: pre-diabetes
+- medical_history: hypothyroidism (implied by levothyroxine)

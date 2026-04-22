@@ -1,0 +1,48 @@
+=== SCRIPT: dizziness and syncope ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Hello, Ms. Smith. Tell me what happened.
+PT: I passed out this morning. I was standing in the kitchen and the next thing I knew I was on the floor.
+DR: Any warning before you passed out?
+PT: I felt lightheaded, a bit sweaty, and my vision went gray around the edges.
+DR: How long were you out?
+PT: My husband said maybe ten seconds. I came to quickly.
+DR: Any chest pain, palpitations, or shortness of breath before it happened?
+PT: No chest pain. My heart felt like it was racing for a second, but it was quick.
+DR: Did you bite your tongue or lose bladder control?
+PT: No, nothing like that.
+DR: You said your heart was racing — was that before or after you felt lightheaded?
+PT: Actually, thinking about it, the racing came first. Then the lightheaded feeling, then I went down.
+DR: Okay, that's important. Any similar episodes before?
+PT: I've felt dizzy when I stand up quickly, but I've never passed out before.
+DR: Any recent illness, fluid loss, or changes in medication?
+PT: I had a stomach bug two days ago, some diarrhea. I haven't been drinking much water.
+DR: What medications do you take?
+PT: I'm on metoprolol and hydrochlorothiazide for blood pressure. And a baby aspirin.
+DR: I'd like to check orthostatic vitals and get an EKG.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: metoprolol, hydrochlorothiazide, aspirin, midodrine, fludrocortisone
+- anatomy / physiology: carotid sinus, vagus nerve, semicircular canals, sinoatrial node
+- decision rules or syndromes: vasovagal syncope, orthostatic hypotension, arrhythmia, BPPV, Dix-Hallpike maneuver, San Francisco Syncope Rule
+- dose/route modifiers: oral, 25 mg daily, 81 mg
+
+=== SUPERSESSION MOMENTS ===
+- Line 11 (patient): "Actually, thinking about it, the racing came first. Then the lightheaded feeling, then I went down." — reorders the prodrome, updating earlier implication that lightheadedness preceded palpitations; establishes palpitations as the first symptom.
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- onset: this morning
+- associated_symptom: loss of consciousness (~10 s)
+- associated_symptom: prodromal lightheadedness
+- associated_symptom: diaphoresis
+- associated_symptom: tunnel vision / graying
+- associated_symptom: palpitations (preceding prodrome, per supersession)
+- associated_symptom: negated:chest_pain
+- associated_symptom: negated:tongue_biting
+- associated_symptom: negated:incontinence
+- medical_history: prior positional dizziness without syncope
+- risk_factor: recent gastroenteritis with diarrhea (volume depletion)
+- risk_factor: reduced oral intake
+- medication: metoprolol
+- medication: hydrochlorothiazide
+- medication: aspirin
