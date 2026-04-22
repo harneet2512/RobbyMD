@@ -32,13 +32,12 @@ During a patient interview the physician simultaneously: tracks evolving patient
 
 | Dimension | Demo scope |
 |---|---|
-| Chief complaint | Chest pain |
+| Chief complaint | Chest pain (seeded + rehearsed); any other complaint also loadable via `clinical_general` pack per `Eng_doc.md §4.2` |
 | Differential branches | Cardiac, Pulmonary, Musculoskeletal, GI |
-| Pathology universe | Cross-referenced against DDXPlus's 49 pathologies for eval alignment |
 | Conversations | One scripted standardised patient case with one clean supersession moment |
 | Users | Physician only. No patient-facing mode |
 | Deployment | Local, single workstation. Anthropic API for Opus 4.7 |
-| Data | 100% synthetic or from public benchmarks (DDXPlus/LongMemEval/ACI-Bench) |
+| Data | 100% synthetic or from public benchmarks (LongMemEval-S / ACI-Bench) |
 | Sessions | Single-session. No cross-visit longitudinal memory |
 | Language | English |
 
@@ -139,7 +138,7 @@ Transcribes clinical English with medical terminology accuracy, speaker diarisat
 **Engine**: Opus 4.7 (sponsored API) with structured-output prompting and few-shot clinical examples.
 **Input**: current turn + 2 prior turns + current active claim set + closed predicate family.
 **Output**: zero or more claims, validated against the schema, each with `source_turn_id` and `confidence`.
-**Target**: evaluated indirectly via DDXPlus end-to-end (see §8).
+**Target**: evaluated indirectly via LongMemEval-S (`personal_assistant` pack) and ACI-Bench (`clinical_general` pack) end-to-end (see §8).
 
 ### C3 — Claim lifecycle management
 
@@ -173,58 +172,51 @@ Every physician tap (confirm / dismiss / flag / tap-node / accept-question) is r
 
 ## 8. Evaluation — published benchmarks only
 
-Three benchmarks, each targeting a specific layer. No homemade "substrate ablation" bar chart. Every number on the demo slide traces to a published benchmark with prior-art comparison available.
+**Two** benchmarks (dropped DDXPlus + MedQA 2026-04-21 — see `reasons.md`). Each targets a specific substrate surface. No homemade "substrate ablation" bar chart. Every number on the demo slide traces to a published benchmark with prior-art comparison available. Reader + judge pins in `eval/README.md`; model-usage policy in `Eng_doc.md §3.5`.
 
-### 8.1 DDXPlus (differential reasoning)
-
-**Source**: Fansi Tchango et al., *DDXPlus: A New Dataset For Automatic Medical Diagnosis*, NeurIPS 2022. 1.3M synthetic patients, 49 pathologies, differential labels.
-
-**Our setup**: stratified subset (following H-DDx 2025 methodology — 730 cases suffices). Our system receives patient case as a sequence of turns (converting DDXPlus's `EVIDENCES` list into a natural-dialogue form) and must produce a ranked differential at the end.
-
-**Variants**:
-- Baseline: Opus 4.7 prompted directly with the full case.
-- Our system: substrate + deterministic differential engine + verifier.
-
-**Metrics**: Top-5 pathology accuracy + HDF1 (ICD-10 hierarchical F1), matching the H-DDx 2025 reporting protocol. Top-1 and Top-3 are computed internally for our own tracking but not reported against H-DDx prior art — H-DDx's Table 2 publishes Top-5 + HDF1 only (22 LLMs). LLM judge pinned to `gpt-4o-2024-08-06` for Top-5 semantic-equivalence; HDF1 is deterministic via ICD-10 retrieval+rerank.
-
-**Published prior art**: H-DDx evaluates 22 LLMs on DDXPlus. We report our numbers alongside theirs where matched.
-
-### 8.2 LongMemEval-S (memory substrate)
+### 8.1 LongMemEval-S (memory substrate)
 
 **Source**: Wu et al., *LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory*, ICLR 2025.
 
-**Our setup**: LongMemEval-S (the short variant, ~115K tokens context depth). Substrate ingests the session history as conversational turns. System answers the 500 questions using substrate-backed retrieval instead of long context.
+**Our setup**: LongMemEval-S (the short variant, ~115K tokens context depth). Substrate ingests the session history as conversational turns under the `personal_assistant` pack (seeded `predicate_packs/personal_assistant/`). System answers the 500 questions using substrate-backed retrieval instead of long context.
 
 **Variants**:
-- Baseline: Opus 4.7 with full conversation history in context (no substrate).
-- Our system: Opus 4.7 with substrate providing retrieved active claims.
+- Baseline: reader direct with full conversation history in context (no substrate).
+- Our system: reader + substrate providing retrieved active claims.
+
+**Readers**: primary `Qwen2.5-14B-Instruct` (self-hosted); secondary `gpt-4o-mini` (matches Mem0 / Mastra OM / EverMemOS leaderboard). Judge pinned `gpt-4o-2024-08-06`.
 
 **Metrics**: per-category accuracy — information extraction, multi-session reasoning, temporal reasoning, knowledge update, abstention.
 
-**Published prior art**: TiMem 76.88%, EverMemOS 83.0%, Zep/Graphiti 71.2%, MemOS. We report alongside.
+**Published prior art**: TiMem 76.88%, EverMemOS 83.0%, Zep/Graphiti 71.2%, Mastra OM 94.87%. We report alongside.
 
-**Why this is the single most defended eval**: it is literally the benchmark where long-context LLMs drop 30–60% on the hard categories, which is the exact failure mode our substrate claims to fix. Numbers on knowledge-update and temporal reasoning are the cleanest possible defence of the architecture.
+**Why this matters**: LongMemEval-S is the benchmark where long-context LLMs drop 30–60% on the hard categories (knowledge-update, temporal reasoning, multi-session reasoning) — the exact failure mode our substrate claims to fix.
 
-### 8.3 ACI-Bench (conversation → clinical note)
+### 8.2 ACI-Bench (conversation → clinical note)
 
 **Source**: Yim et al., *ACI-BENCH: a Novel Ambient Clinical Intelligence Dataset for Benchmarking Automatic Visit Note Generation*, Nature Scientific Data 2023. MEDIQA-CHAT 2023 / MEDIQA-SUM 2023 shared-task dataset.
 
-**Our setup**: full ACI-Bench test splits — `aci` (66 test encounters across test1/test2/test3) and `virtscribe` (24 test encounters). Our pipeline ingests the provided dialogue (gold and ASR versions), produces a SOAP note, compared to the gold note. No slicing.
+**Our setup**: full ACI-Bench test splits — `aci` (66 test encounters across test1/test2/test3) and `virtscribe` (24 test encounters). Pipeline loads `clinical_general` pack; ingests the provided dialogue (gold and ASR versions); produces a SOAP note; compared to the gold note. No slicing.
 
 **Variants**:
-- Baseline: Opus 4.7, dialogue → note directly, no substrate.
+- Baseline: reader direct, dialogue → note, no substrate.
 - Our system: dialogue → claims → note via substrate.
+
+**Readers**: primary `Qwen2.5-14B-Instruct`; secondary `gpt-4.1-mini` (modern GPT-4-class; WangLab 2023 GPT-4 ICL comparator). No LLM judge (ROUGE/BERTScore/BLEURT deterministic; MEDCON via 3-tier fallback — `docs/decisions/2026-04-21_medcon-tiered-fallback.md`).
 
 **Metrics**: standard MEDIQA-CHAT — ROUGE-1 / ROUGE-2 / ROUGE-L, BERTScore, MEDCON (clinical-concept F1).
 
-**Published prior art**: MEDIQA-CHAT 2023 leaderboard + subsequent papers (Med42-v2, etc.).
+**Published prior art**: MEDIQA-CHAT 2023 leaderboard (WangLab GPT-4 ICL first place) + subsequent papers.
+
+### 8.3 Smoke-first discipline
+
+Before any full run, `eval/smoke/run_smoke.py` runs a deterministic first-10-case sanity pass with a hard `--budget-usd` cap. Verdict ✅ PASS / ⚠ ANOMALY / ❌ FAIL vs `eval/smoke/reference_baselines.json`. Smoke harness built this session; real run held until operator sign-off.
 
 ### 8.4 Eval results slide (end of demo video)
 
-One clean slide, three mini-charts:
-- DDXPlus: our Top-5 + HDF1 vs Opus-4.7 baseline and H-DDx 2025 Table 2 comparators (Claude-Sonnet-4, Gemini-2.5-Flash, GPT-4o, MedGemma-27B, MediPhi, etc.).
-- LongMemEval-S: our per-category accuracy vs published substrates (TiMem, EverMemOS).
-- ACI-Bench: our MEDIQA-CHAT scores vs Opus-4.7 baseline and published 2023 leaderboard.
+One clean slide, two mini-charts:
+- LongMemEval-S: our per-category accuracy vs published substrates (TiMem, EverMemOS, Mastra OM).
+- ACI-Bench: our MEDIQA-CHAT scores (ROUGE + BERTScore + MEDCON) vs WangLab 2023 GPT-4 ICL + published 2023 leaderboard.
 
 Ten seconds on screen. Numbers, not bars for bars' sake.
 
@@ -252,7 +244,7 @@ Submittable when:
 4. Differential trees re-rank within 200 ms of a claim-state change.
 5. Verifier strip produces a non-trivial next-best question at the correct moment.
 6. SOAP note generates with every sentence traceable to source claims.
-7. DDXPlus, LongMemEval-S, and ACI-Bench runs completed with numbers captured.
+7. LongMemEval-S and ACI-Bench runs completed with numbers captured (DDXPlus + MedQA dropped 2026-04-21).
 8. 3-minute demo video recorded and edited.
 9. 100–200 word written summary drafted with mandatory framing from `context.md` §7.3.
 10. All disclaimers in code, UI, README, video. `rules.md` §9 compliance checklist green.
@@ -265,8 +257,8 @@ Any gap in 1–12 → priority is to close the gap, not add features.
 
 ## 11. Open questions (resolve during build)
 
-1. Exact size of DDXPlus subset for time-constrained eval (730 per H-DDx or smaller).
-2. LongMemEval-S adapter strategy: feed sessions via substrate write API, evaluate via the official LongMemEval evaluator.
-3. ACI-Bench: use `aci` subset only, or also `virtscribe` for comparison.
-4. Custom vocabulary source for ASR — start with a public drug/anatomy list; expand only if WER on the demo case misses.
-5. Semantic supersession threshold — default 0.92, tune empirically against DDXPlus's explicit evidence chains.
+1. First smoke-run verdict on `eval/smoke/run_smoke.py` (LongMemEval-S + ACI-Bench × baseline + substrate × 10 cases, Qwen2.5-14B reader, $50 budget cap) — gate before any full run.
+2. LongMemEval-S adapter strategy: feed sessions via substrate write API under `personal_assistant` pack, evaluate via the official LongMemEval evaluator.
+3. Custom vocabulary source for ASR — start with a public drug/anatomy list; expand only if WER on the demo case misses.
+4. Semantic supersession threshold — default 0.92, tune empirically on LongMemEval-S + ACI-Bench dialogue.
+5. wt-ui dispatch progress — transcript panel end-to-end on `feature/ui` scaffold (`8a51a2f`); next steps: claim-state panel, differential trees, SOAP panel per `CLAUDE.md §5.4`.

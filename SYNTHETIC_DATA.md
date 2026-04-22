@@ -8,7 +8,6 @@ Every dataset, audio file, transcript, vignette, and labelled case used by this 
 
 | Dataset | Authors | Venue | License | Use | Local path |
 |---|---|---|---|---|---|
-| **DDXPlus** | Fansi Tchango et al. | NeurIPS 2022 | CC-BY 4.0 | Differential-diagnosis benchmark, 730-case H-DDx stratified subset | `eval/ddxplus/data/` (downloaded by `scripts/setup.sh`; not committed) |
 | **LongMemEval-S** | Wu et al. | ICLR 2025 | MIT | Memory-substrate benchmark, all 500 questions; GitHub commit SHA pinned in `eval/longmemeval/README.md` | `eval/longmemeval/data/` (not committed) |
 | **ACI-Bench (aci + virtscribe)** | Yim et al. | Nature Sci Data 2023 | CC BY 4.0 | Conversation → note benchmark, full test splits | `eval/aci_bench/data/` (not committed) |
 

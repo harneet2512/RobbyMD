@@ -48,7 +48,7 @@ Every dataset, audio file, transcript, vignette, and labelled case is declared i
 Allowed sources:
 - Our own synthetic generation (with declared generation prompt).
 - Actor-recorded role-play against a scripted case (with scripts checked in and attestation that no PHI appears).
-- Published benchmark datasets with redistribution license: **DDXPlus** (synthetic), **LongMemEval-S** (synthetic), **ACI-Bench** (research-cleared role-play).
+- Published benchmark datasets with redistribution license: **LongMemEval-S** (MIT, synthetic), **ACI-Bench** (CC BY 4.0, research-cleared role-play). DDXPlus + MedQA dropped 2026-04-21 — see `reasons.md`.
 
 ### 2.3 No third-party clinical APIs implying BAA
 No Infermedica, no Isabel, no Nuance, no clinical-workflow API that returns patient-identifiable fields or implies a Business Associate Agreement. Anthropic API (Opus 4.7) is covered by Anthropic's standard terms for hackathon use.
@@ -88,7 +88,7 @@ Verbatim:
 > **Research prototype. Not a medical device.** This software is a research demonstration. It does not diagnose, treat, or recommend treatment, and is not intended for use in patient care. All patients, conversations, and data shown are synthetic or from published research benchmarks. Clinical decisions are made by the physician. This system supports the physician's reasoning by tracking claims and differential hypotheses in real time; it does not direct clinical judgement.
 
 ### 3.8 No diagnostic accuracy claims
-Eval numbers are measurements of system behaviour on a specific published benchmark with documented limitations. We do not claim "diagnoses chest pain with X% accuracy." We report measured performance on DDXPlus / LongMemEval / ACI-Bench with named comparators and methodology.
+Eval numbers are measurements of system behaviour on a specific published benchmark with documented limitations. We do not claim "diagnoses chest pain with X% accuracy." We report measured performance on LongMemEval-S / ACI-Bench with named comparators and methodology.
 
 ### 3.9 State AI-in-healthcare laws
 HCP-in-the-loop posture consistent with Colorado SB24-205, Texas HB 1709 (TRAIGA), California SB 1120. No feature takes a coverage/diagnostic/treatment action without HCP review.
@@ -135,10 +135,10 @@ Opus 4.7 is used only where rule-based would be worse: claim extraction, superse
 ### 6.1 No homemade metrics
 No custom "substrate ablation" charts. No invented bar graphs. Every number on the demo results slide traces to a published benchmark defined by external authors.
 
-### 6.2 The three benchmarks
-- **DDXPlus** (NeurIPS 2022) — differential reasoning. Top-1/3/5 pathology accuracy.
-- **LongMemEval-S** (EMNLP 2024) — memory substrate. Per-category accuracy via official evaluator.
-- **ACI-Bench** (Nature Scientific Data 2023) — conversation → note. MEDIQA-CHAT metrics (ROUGE, BERTScore, MEDCON).
+### 6.2 The two benchmarks (revised 2026-04-21)
+- **LongMemEval-S** (ICLR 2025) — memory substrate. Per-category accuracy via official evaluator. Loads `personal_assistant` pack.
+- **ACI-Bench** (Nature Scientific Data 2023) — conversation → note. MEDIQA-CHAT metrics (ROUGE, BERTScore, MEDCON via 3-tier fallback). Loads `clinical_general` pack.
+- **Dropped**: DDXPlus (substrate-benchmark misalignment) and MedQA (tests reader medical knowledge, not substrate) — see `reasons.md` entries.
 
 ### 6.3 Methodology honesty
 Eval reports include: dataset subset used, sample size, evaluator (LLM judge vs automatic), comparator baselines, and a `LIMITATIONS.md`. No cherry-picking. If a variant loses a metric, report it.
@@ -157,7 +157,7 @@ Do not paste content from UpToDate, AMBOSS, DynaMed, ClinicalKey, or any paywall
 Primary references: 2021 AHA/ACC Chest Pain Guideline (open), HEART score publications, TIMI risk score, Wells criteria, PERC rule, published LR studies.
 
 ### 7.3 Benchmark data respect
-DDXPlus, LongMemEval, ACI-Bench are used per their published licenses. Citations in the eval README for each.
+LongMemEval-S and ACI-Bench are used per their published licenses (MIT and CC BY 4.0 respectively). Citations in `eval/README.md` and each benchmark's per-directory README.
 
 ### 7.4 No attribution hallucination
 If a number, study, or guideline cannot be confirmed against a real source, it is not in the repo.
@@ -222,7 +222,7 @@ This file is versioned. Edits via PR titled `rules: <change>` with rationale and
 - [ ] Demo video shows no patient-facing view
 - [ ] No proprietary clinical content (UpToDate / AMBOSS / etc.) in the repo
 - [ ] No real patient names, DOBs, MRNs, SSNs, addresses anywhere in code, data, or video
-- [ ] Eval slide reports only DDXPlus / LongMemEval-S / ACI-Bench numbers with methodology
+- [ ] Eval slide reports only LongMemEval-S / ACI-Bench numbers with methodology
 - [ ] No homemade / invented metrics on the eval slide
 - [ ] Written submission summary opens with non-diagnostic framing
 - [ ] README intro includes the full disclaimer

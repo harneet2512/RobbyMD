@@ -8,24 +8,33 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-21
-- **Phase**: Research — Researcher A + B complete; Validator complete → **gate FAIL (8 attribution blockers)**; no worktree agents running until blockers patched.
-- **Main commit**: `090c799` (scaffold: initial repo layout, compliance tests, research docs)
-- **Worktrees** (all idle at `090c799`):
-  - `D:\hack_it` — main (human operator)
-  - `D:\wt-engine` — `feature/substrate` (idle)
-  - `D:\wt-trees` — `feature/differential` (idle)
-  - `D:\wt-extraction` — `feature/extraction` (idle)
-  - `D:\wt-ui` — `feature/ui` (deferred until engine+extraction+eval publish API shapes)
-  - `D:\wt-eval` — `feature/eval` (idle)
-- **UMLS licence**: application submitted (CMU email); approval pending, up to 3 business days. Not on critical path (see `docs/decisions/2026-04-21_medcon-tiered-fallback.md`).
-- **MEDCON tier active**: T1 (scispaCy) by default; T0 (QuickUMLS) upgrade-ready on licence approval.
-- **Benchmarks**: DDXPlus (H-DDx 730-case Top-5 + HDF1), LongMemEval-S (all 500 questions, per-category), ACI-Bench (`aci` + `virtscribe`, 90 test encounters). **No slicing of published benchmarks** per memory rule `feedback_full_benchmarks.md`.
+- **Date**: 2026-04-21 (end-of-session handoff snapshot)
+- **Main commit**: `8572526` + one follow-up spec-hygiene commit (this handoff). `main` is ahead of all feature branches; 4 of 5 feature branches already merged.
+- **Tests on main**: **155 passed, 0 failed, 0 xfail**. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green.
+- **Worktrees**:
+  - `D:\hack_it` — `main` (operator's working copy; authoritative)
+  - `D:\wt-engine` — `feature/substrate` at `24f2aae` — **merged to main** via `40f8d9e`. Branch stale, safe to prune.
+  - `D:\wt-trees` — `feature/differential` at `aeae530` — **merged to main** via `a51e34f`. Branch stale, safe to prune.
+  - `D:\wt-extraction` — `feature/extraction` at `3eaf4ca` — **merged to main** via `892acd4`. Branch stale, safe to prune.
+  - `D:\wt-eval` — `feature/eval` at `304c73f` — **merged to main** via `4a5dedd`. Branch stale, safe to prune.
+  - `D:\wt-ui` — `feature/ui` at `8a51a2f` — **scaffold only, NOT merged to main**. Active parallel track; must not go dormant.
+- **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + ACI-Bench (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
+- **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (ACI-Bench). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
+- **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
+- **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); GPT-4 ICL 57.78 MEDCON (ACI-Bench). Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
+- **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
+- **Open decisions / next actions** (priority order):
+  1. **Smoke run** — `./eval/smoke/prepare_datasets.sh && python eval/smoke/run_smoke.py --benchmark both --reader qwen2.5-14b --variant both --n 10 --budget-usd 50` (with Qwen tunnel active via `./eval/infra/deploy_qwen_gcp.sh`). Operator sign-off needed before live invocation.
+  2. **wt-ui dispatch** — `feature/ui` at `8a51a2f` sits on scaffold only. Transcript panel is end-to-end; claim-state / differential-trees / SOAP panels need real build work. Single highest-priority parallel track (demo video = entire judged product).
+  3. **Whisper GPU measurement** — `src/extraction/asr/` is code-complete; `docs/asr_benchmark.md` carries TBM placeholders. Needs GCP L4 or A100 spot run on synthetic chest-pain clip + 5 rehearsed clips (abdominal, dyspnoea, headache, fatigue, one more) to populate WER / RTF / VRAM / diarisation numbers.
+  4. **UMLS licence** — operator monitors CMU inbox; when approved, run `./scripts/install_umls.sh` and export `QUICKUMLS_PATH` → T0 MEDCON activates on next eval run.
+  5. **Audit ADR fixes** (low priority, second-pack trigger): `src/differential/lr_table.py` + `src/extraction/claim_extractor/prompt.py` both now pack-aware (audit findings #1+#2 resolved). Remaining audit items in `docs/decisions/2026-04-21_lr-table-chest-pain-coupling-audit.md` are documentation-only.
+  6. **BMC Pulm Med click-through** — **obsolete** after the Ceriani 2010 swap; `wells_pe_high_probability` row now cites Ceriani 2010 J Thromb Haemost (verified). No human verification pending.
 - **Invariant tests** (must stay green every commit):
-  - `tests/licensing/test_open_source.py` — OSI allowlist, green (no deps beyond OSI)
+  - `tests/licensing/test_open_source.py` — OSI allowlist, green
+  - `tests/licensing/test_model_attributions.py` — model-weight attribution registry, green
   - `tests/privacy/test_no_phi.py` — PHI sentinel, green
-  - `tests/property/test_determinism.py` — xfail (awaiting differential engine)
-- **Next decision**: Researcher B patches the 7 clinical-citation blockers (sources.md + lr_table.json), Researcher A patches the 1 ASR-citation blocker (asr_stack.md), then re-submit for targeted re-validation (Check 1 + Check 2 only). After that, user approves worktree dispatch.
+  - `tests/property/test_determinism.py` — **3 real PASSes** (differential engine determinism + order-invariance + empty-table no-op)
 
 ---
 
@@ -194,3 +203,18 @@ Single sequenced commit per user directive 2026-04-21.
 - **New tests**: `tests/unit/differential/test_empty_lr_table.py` (empty LR → engine no-ops, 3 tests); `tests/unit/substrate/test_predicate_packs.py` (both packs load, schema invariants, sub-slot shapes, 7 tests); `tests/unit/extraction/test_claim_prompt_pack.py` (prompt loads from active pack, switching env var reloads pack, 5 tests); `tests/unit/eval/test_smoke_harness_dryrun.py` (dry-run CLI produces planned matrix and exits 0 on empty dataset dir, 3 tests). Removed `TestDDXPlusAdapter` class from `tests/unit/test_adapters.py`. Updated `test_claim_prompt.py::test_predicate_family_set_matches_eng_doc` → 14 → 20 (clinical_general expanded).
 - **Full test suite: 155 passed, 0 failed, 0 xfail.** Determinism property test still green through the refactor.
 - **Ambiguities surfaced**: (a) `bmc_pulm_2025` still referenced by `wells_pe_low_probability` row — user's directive only mentioned the `wells_pe_high_probability` swap; low-probability row untouched (not scope creep — strict directive compliance). (b) Module-level `PREDICATE_FAMILIES` in `lr_table.py` is set at import time from `active_pack()`; if `ACTIVE_PACK` env var is changed post-import, existing LR tables loaded against the new pack may fail validation against the now-stale module constant. Tests use `active_pack.cache_clear()` + `importlib.reload` pattern. Production callers should set `ACTIVE_PACK` BEFORE importing `src.differential.lr_table`. (c) Primary reader set to `Qwen2.5-14B-Instruct` across both benchmarks; demo-path Opus-4.7 calls unchanged. `eval/README.md` pack × benchmark table now reports both variants shippable this build.
+
+### 2026-04-21 — End-of-session handoff: spec hygiene after `8572526`
+Final cleanup pass. Commit `8572526` updated eval-facing docs but left "three benchmarks" / DDXPlus / MedQA references scattered across PRD / CLAUDE / rules / context / Eng_doc / SYNTHETIC_DATA / eval/_common.py / eval/aci_bench/LIMITATIONS. This commit propagates the 2026-04-21 benchmark drop to every live spec so a next-session reader sees one consistent story.
+
+- **PRD.md**: §3 scope table (DDXPlus cross-reference removed, pluggable-pack note added), §7 C2 (eval target → LongMemEval-S + ACI-Bench), §8 fully rewritten — DDXPlus 8.1 deleted, LongMemEval-S + ACI-Bench renumbered 8.1/8.2, new 8.3 "Smoke-first discipline", 8.4 slide with two charts + Qwen2.5-14B primary reader line — §10 DoD item 7, §11 open questions (smoke-first gate, pack strategy, ASR vocab, supersession threshold, wt-ui).
+- **CLAUDE.md**: §2 hard constraints (items 3 + 10 benchmark list), §3 repo map (removed `ddxplus/`, added `smoke/` + `infra/`), §5.5 wt-eval scope, §7 commands (`make eval ddxplus` → smoke dry-run), §13 scope-discipline examples.
+- **rules.md**: §2.2 allowed sources, §3.8 eval-claim framing, §6.2 benchmarks (three → two with the "dropped" note), §7.3 benchmark-data respect, §11 compliance checklist.
+- **context.md**: §3 rights clause, §5 scope (4-branch vocabulary is per-pack data now, not hardcoded), §7.2 HIPAA data-source list, §9 vision table, §10 build ordering (B1/B2/B3 = LongMemEval-S / ACI-Bench / smoke).
+- **Eng_doc.md**: §5.1 admission target (DDXPlus-derived dialogue → LongMemEval-S / ACI-Bench dialogue), §10 DDXPlus subsection deleted, §10 renumbered (10.2→10.1, 10.3→10.2, 10.4→10.3), §10.3 explicit drop-note, §12 risks row replaced with smoke-first wording, §13 open questions.
+- **SYNTHETIC_DATA.md**: DDXPlus row removed from dataset table.
+- **eval/_common.py**: `EvalCase.case_id` docstring no longer references DDXPlus `patient_id`.
+- **eval/aci_bench/LIMITATIONS.md**: MedEinst T2 fallback pivoted from "30-case DDXPlus trap subset" to "30-case MedEinst trap-pair subset" with explicit DDXPlus-drop note.
+- **progress.md**: rolling-state block fully replaced with end-of-session snapshot — main commit, tests, worktrees with merge status, primary eval reader, next actions in priority order (smoke run → wt-ui dispatch → Whisper GPU → UMLS → audit ADR → BMC click-through obsolete), invariant-test matrix.
+- Intentional audit-trail mentions preserved in: `reasons.md` (DDXPlus + MedQA drop entries), `progress.md` history log, `docs/research_brief.md` + `research/*.md`, `docs/decisions/*`, `eval/README.md` "Why two, not four", `PRD.md §8` drop-note, `Eng_doc.md §10.3` drop-note, `eval/__init__.py` docstring, `tests/unit/test_adapters.py` migration note, `eval/aci_bench/LIMITATIONS.md` pivot-note.
+- Full test suite: **155 passed, 0 failed, 0 xfail**. Clean working tree after commit.

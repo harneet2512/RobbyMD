@@ -76,10 +76,12 @@ WangLab 2023 MEDIQA-CHAT Task B (57.78).
 2. **Supplementary clinical-rigor proxies** kick in:
    - **Section-level ROUGE** — per-SOAP-section (S/O/A/P) ROUGE to catch
      content loss in a specific section even if whole-note ROUGE is stable.
-   - **MedEinst Bias Trap Rate** on a 30-case DDXPlus trap subset
+   - **MedEinst Bias Trap Rate** on a 30-case MedEinst trap-pair subset
      ([arXiv 2601.06636](https://arxiv.org/abs/2601.06636)) — measures
      discriminative-evidence sensitivity. Not a MEDCON replacement; a
-     different angle on clinical correctness.
+     different angle on clinical correctness. (Originally planned on a
+     DDXPlus trap subset; DDXPlus dropped 2026-04-21, so trap cases come
+     directly from MedEinst's published pair set.)
 3. **Honest framing**: T2 is the "UMLS didn't land AND scispaCy install
    failed" path. The demo slide documents that MEDCON was omitted; it does
    not pretend we have a MEDCON number.

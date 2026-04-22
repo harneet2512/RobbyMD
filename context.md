@@ -44,7 +44,7 @@ One-line thesis: **in messy workflows the final output is only one layer; undern
   - BioMistral-7B (Apache 2.0) — optional offline fallback for clinical reasoning
   - **Not using**: MedASR or MedGemma (Gemma terms, not OSI-approved), Deepgram or any commercial ASR API.
 - **Claude Opus 4.7 is the hackathon's named sponsored API.** The event is literally *Built with Opus 4.7*. Every team uses it. If a judge raises the open-source rule about Opus 4.7, the answer is: it's the event's named tool, not a third-party proprietary component we're shipping. Same category as using GitHub or Vercel.
-- **No data without rights**: all clinical data is synthetic or from peer-reviewed public benchmark datasets (DDXPlus, LongMemEval, ACI-Bench — all with redistribution licenses).
+- **No data without rights**: all clinical data is synthetic or from peer-reviewed public benchmark datasets (LongMemEval-S MIT, ACI-Bench CC BY 4.0 — both with redistribution licenses). DDXPlus + MedQA dropped 2026-04-21 (see `reasons.md`).
 
 ## 4. Prior thinking we are carrying (ideas, not code)
 
@@ -62,10 +62,10 @@ These are *ideas*. The code that implements them in this repo is written fresh d
 ## 5. Scope of the demo build
 
 - **One chief complaint**: chest pain.
-- **Four parallel differential branches**: Cardiac, Pulmonary, Musculoskeletal, GI. Branch design cross-referenced against DDXPlus's 49-pathology schema so evals line up.
+- **Four parallel differential branches**: Cardiac, Pulmonary, Musculoskeletal, GI. Branch vocabulary is data, not code — per-pack via `predicate_packs/clinical_general/differentials/chest_pain/branches.json`; alternative complaints register without engine changes per `Eng_doc.md §4.2`.
 - **One scripted standardised patient case** with one clean supersession moment.
 - **One screen**, four panels (transcript, claim state, differential trees, SOAP note) + auxiliary strip ("Why this changed / Next best question").
-- **Three published-benchmark eval runs** — see §6.
+- **Two published-benchmark eval runs** (LongMemEval-S + ACI-Bench) — see §6.
 
 Beyond-demo vision (multi-complaint, multi-specialty, EHR/FHIR, multi-session longitudinal memory, full substrate including 7-signal retrieval and NLI verification) lives in `README.md`, not the build.
 
@@ -107,7 +107,7 @@ Positioned as **Non-Device CDS** under Section 520(o)(1)(E) of the FD&C Act, per
 
 ### 7.2 HIPAA: zero PHI
 
-- Synthetic or public benchmark data only. DDXPlus = synthetic, ACI-Bench = research-cleared role-play, LongMemEval = synthetic chat.
+- Synthetic or public benchmark data only. ACI-Bench = research-cleared role-play, LongMemEval-S = synthetic chat. No real patient conversations or EHR data.
 - No real patient data, de-identified or otherwise.
 - No third-party clinical APIs implying BAA requirements.
 - `SYNTHETIC_DATA.md` declares provenance of every dataset. A static-analysis test (`tests/privacy/test_no_phi.py`) scans for real-looking identifiers.
@@ -135,7 +135,7 @@ The difference between "showing what's alive" and "showing why it's alive, why s
 | Deterministic projection + LR-based tree update | ✅ | ✅ + Bayesian-network refinement |
 | Counterfactual verifier + next-best-question strip | ✅ | ✅ + full hypothesis-driven question pipeline |
 | SOAP note with per-sentence provenance | ✅ | ✅ |
-| DDXPlus + LongMemEval-S + ACI-Bench runs | ✅ | ✅ + MedQA, DDXPlus-Full, full ACI-Bench test splits |
+| LongMemEval-S + ACI-Bench runs | ✅ | ✅ + clinical-focused differential benchmarks as new packs ship (e.g. DDXPlus once a respiratory-pathologies pack is seeded — see `reasons.md` DDXPlus drop entry) |
 | Full substrate (7-signal retrieval, ACT-R, MMR, NLI, async worker, scope inference) | ❌ | ✅ |
 | Multi-complaint, multi-specialty | ❌ | ✅ |
 | EHR / FHIR integration | ❌ | ✅ |
@@ -168,9 +168,9 @@ Integration:
   I3. End-to-end test passes
 
 Evals (parallel, can start once E2 and N1 exist):
-  B1. DDXPlus harness + run
-  B2. LongMemEval-S harness + run
-  B3. ACI-Bench harness + run
+  B1. LongMemEval-S harness + run (loads personal_assistant pack)
+  B2. ACI-Bench harness + run (loads clinical_general pack)
+  B3. Smoke harness dry-run → real first-10-case pass (eval/smoke/)
 
 Submission pre-reqs (all must be green):
   S1. Compliance checklist (rules.md §9) green

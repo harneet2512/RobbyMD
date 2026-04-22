@@ -69,8 +69,8 @@ class EvalCase:
     """Generic envelope for one benchmark case.
 
     `payload` is benchmark-specific (see per-benchmark adapter for shape).
-    `case_id` is the benchmark's own ID (DDXPlus `patient_id`, LongMemEval
-    `question_id`, ACI-Bench `encounter_id`).
+    `case_id` is the benchmark's own ID (LongMemEval `question_id`,
+    ACI-Bench `encounter_id`).
     """
 
     case_id: str

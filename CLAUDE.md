@@ -24,14 +24,14 @@ Copies of the load-bearing invariants from `rules.md`:
 
 1. **Every line of code in this repo is written during the hackathon window.** No copying from any pre-existing codebase. Prior thinking (ideas, vocabulary, `GT_V2_THEORY.md` notes) is allowed; code is not.
 2. **All models and dependencies must be OSI-approved open source.** Allowlist: MIT, Apache-2.0, BSD, MPL, ISC, LGPL. Not allowed: Gemma Terms, HAI-DEF, any commercial API except Opus 4.7 (the hackathon's named sponsored tool). Enforced by `tests/licensing/test_open_source.py`.
-3. **No real patient data.** All clinical data is synthetic or from public benchmarks (DDXPlus / LongMemEval / ACI-Bench). Every dataset declared in `SYNTHETIC_DATA.md`.
+3. **No real patient data.** All clinical data is synthetic or from public benchmarks (LongMemEval-S / ACI-Bench). Every dataset declared in `SYNTHETIC_DATA.md`.
 4. **Every claim and every note sentence has provenance** back to a conversation turn. Emitting a sentence without a provenance chain is a hard failure.
 5. **The physician makes every clinical decision.** No auto-diagnose, auto-treat, auto-action. "Next best question" is a suggestion with rationale, never a directive.
 6. **Deterministic differential update engine.** Same inputs → identical outputs, always. Property test enforces.
 7. **Disclaimer everywhere**: app header, README, demo video bumper + outro, written summary first three sentences.
 8. **No ECG, no imaging, no IVD signals, no continuous-physiologic-stream processing.** Keeps us classified as Non-Device CDS under FDA 2026 guidance.
 9. **No patient-facing UI.** HCP-facing only.
-10. **Only published benchmarks for evals.** DDXPlus, LongMemEval-S, ACI-Bench. No homemade "substrate ablation" charts.
+10. **Only published benchmarks for evals.** LongMemEval-S, ACI-Bench. No homemade "substrate ablation" charts. (DDXPlus + MedQA dropped 2026-04-21 — see `reasons.md`.)
 
 Any task appearing to conflict with the above → stop and surface the conflict.
 
@@ -74,9 +74,11 @@ Any task appearing to conflict with the above → stop and surface the conflict.
 │           └── headache/           stub
 │
 ├── eval/
-│   ├── ddxplus/                DDXPlus adapter + runner
-│   ├── longmemeval/            LongMemEval-S adapter + runner
-│   ├── aci_bench/              ACI-Bench adapter + runner (MEDIQA-CHAT metrics)
+│   ├── README.md               per-benchmark reader + judge table
+│   ├── longmemeval/            LongMemEval-S adapter + runner (personal_assistant pack)
+│   ├── aci_bench/              ACI-Bench adapter + runner (clinical_general pack, MEDIQA-CHAT metrics)
+│   ├── smoke/                  smoke-run harness (built, not yet run)
+│   ├── infra/                  deploy_qwen_gcp.sh + deploy_qwen_azure.sh
 │   └── reports/
 │
 ├── tests/
@@ -189,9 +191,9 @@ Per-worktree agent rules:
 
 **Scope**: three published-benchmark harnesses. Each has an adapter that ingests the benchmark's format and emits turns into the substrate's write API; each has a variant-baseline + variant-full; each reports metrics per the benchmark's own evaluator.
 
-- `eval/ddxplus/` — DDXPlus (NeurIPS 2022). Top-5 accuracy + HDF1 (ICD-10 hierarchical F1) per H-DDx 2025 methodology on the 730-case stratified subset. See `Eng_doc.md` §10.1.
-- `eval/longmemeval/` — LongMemEval-S (ICLR 2025). Per-category accuracy using the official evaluator. Run all 500 questions — no slicing. See `Eng_doc.md` §10.2.
-- `eval/aci_bench/` — ACI-Bench (Nature Scientific Data 2023). MEDIQA-CHAT metrics (ROUGE-1/2/L, BERTScore, MEDCON). Full `aci` + `virtscribe` test splits — no slicing. **Blocker**: MEDCON needs UMLS licence + QuickUMLS (https://uts.nlm.nih.gov/uts/signup-login, 1–3 business-day NIH approval). See `Eng_doc.md` §10.3.
+- `eval/longmemeval/` — LongMemEval-S (ICLR 2025). Per-category accuracy using the official evaluator. Run all 500 questions — no slicing. Loads `personal_assistant` pack. See `Eng_doc.md` §10.1.
+- `eval/aci_bench/` — ACI-Bench (Nature Scientific Data 2023). MEDIQA-CHAT metrics (ROUGE-1/2/L, BERTScore, MEDCON). Full `aci` + `virtscribe` test splits — no slicing. Loads `clinical_general` pack. **MEDCON 3-tier fallback**: T0 QuickUMLS / T1 scispaCy / T2 null+ROUGE. See `Eng_doc.md` §10.2 and `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
+- `eval/smoke/` — smoke-run harness (`eval/smoke/run_smoke.py`). Deterministic first-10-case sanity pass before any full run. Built 2026-04-21; not yet executed.
 
 **Reads first**: `Eng_doc.md` §10. `PRD.md` §8.
 
@@ -233,7 +235,7 @@ pytest                                            # all
 
 # Evals
 make eval                                         # all three benchmarks
-make eval ddxplus
+python eval/smoke/run_smoke.py --dry-run --benchmark both --reader qwen2.5-14b --variant both --n 10
 make eval longmemeval
 make eval aci_bench
 ```
@@ -302,7 +304,7 @@ Confident fabrication is the biggest failure mode. "I don't know, here's the bes
 - If you're about to add a second model stack, stop.
 - If you're about to add a second UI screen, stop.
 - If you're about to process data other than synthetic text and audio, stop.
-- If you're about to invent a benchmark or metric, stop — use DDXPlus / LongMemEval / ACI-Bench.
+- If you're about to invent a benchmark or metric, stop — use LongMemEval-S / ACI-Bench.
 - If you've been stuck >2 hours on one problem, stop and escalate or cut.
 
 Ship the smallest thing that demonstrates the thesis. Everything else is README material.
