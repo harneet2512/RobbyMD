@@ -195,6 +195,17 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
   - Arora et al. (Jogi, Aggarwal et al.), arXiv 2502.11572: https://arxiv.org/abs/2502.11572
 - **Revisit trigger**: variant-4 medical WER > 15% in `docs/asr_benchmark.md §4` results. At that threshold, a domain-adapted checkpoint (e.g. from a public clinical ASR dataset with a permissive licence) becomes worth evaluating.
 
+### Critical-path code held on disk untracked — rejected (2026-04-22)
+
+- **Context**: parallel-execution-synthetic-rain plan, Stream C.
+- **What was considered**: keeping `src/extraction/claim_extractor/extractor.py` (LLM-backed `ExtractorFn` factory), `src/note/generator.py` (substrate-backed SOAP generator), `predicate_packs/clinical_general/soap_mapping.json`, and the smoke harness mods on disk untracked while iterating in dev. Lower friction; no commit overhead during exploration.
+- **Why it lost**: (a) Stream A (LongMemEval substrate arm) and Stream B (ACI-Bench hybrid arm) both depend on a real claim-extraction layer being present on `main`. With the extractor uncommitted, branching off `main` for parallel work would re-discover the same on-disk-only state, breaking the worktree isolation guarantee. (b) `docs/decisions/` discipline says "if it's not on `main`, it doesn't exist" — uncommitted load-bearing code is invisible to repo-readers and to CI. (c) The on-disk extractor was already exercised by `tests/unit/extraction/test_llm_extractor.py` (also untracked); pytest discovered it fine but the licensing / model-attribution gates didn't.
+- **What we did instead**: committed the entire critical path as `2d90abd` with explicit `eval/smoke/results/` gitignore (timestamped run output, not source) and left the seven stray root-level `*.md` audit files plus `research/frontier_labs_2026-04-22.md` untracked per the markdown-discipline rule (only `reasons.md` ships as markdown in git).
+- **Citations**:
+  - Plan file: `C:\Users\Lenovo\.claude-work\plans\parallel-execution-synthetic-rain.md` Decision 3.
+  - Commit: `2d90abd` — `critical path: LLM-backed extractor + substrate-backed SOAP generator with provenance validation + smoke harness wiring`.
+- **Revisit trigger**: never. Critical-path code lands on `main` immediately upon green test gate, period.
+
 ### Batch-only ASR pipeline — rejected for streaming-capable architecture (2026-04-22)
 
 - **Context**: ASR hardening dispatch Track 3 Parts A-D, F, G.

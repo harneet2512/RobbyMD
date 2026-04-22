@@ -8,28 +8,32 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-21 (end-of-session handoff snapshot)
-- **Main commit**: `a718301` + one follow-up spec-hygiene commit (this handoff). `main` is ahead of all feature branches; 4 of 5 feature branches already merged.
-- **Tests on main**: **155 passed, 0 failed, 0 xfail**. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green.
+- **Date**: 2026-04-22 (Stream C critical-path landing)
+- **Main commit**: `2d90abd` — `critical path: LLM-backed extractor + substrate-backed SOAP generator with provenance validation + smoke harness wiring`. 14 files changed, +2138/-114 LOC. Pushed to origin/main.
+- **Tests on main**: **286 passed, 2 skipped, 0 failed, 0 xfail**. Determinism property test (3 real PASSes) stays green. Compliance tests (licensing, privacy, model-attribution) all green. Critical-path test count: 19 new in `tests/unit/extraction/test_llm_extractor.py` + suite in `tests/unit/note/`.
+- **Streams dispatched** (parallel-execution-synthetic-rain plan, 2026-04-22):
+  - Stream C (critical-path landing): **DONE** — commit `2d90abd`.
+  - Stream A (LongMemEval retrieval + CoN + time-aware): **dispatching** to `../wt-lme-retrieval` on `feature/lme-retrieval`.
+  - Stream B (ACI-Bench hybrid mode, smoke-first): **dispatching** to `../wt-aci-hybrid` on `feature/aci-hybrid`.
+  - Stream D (ASR engineering spec): **dispatching** to `../wt-asr-spec` on `feature/asr-spec`.
 - **Worktrees**:
-  - `D:\hack_it` — `main` (operator's working copy; authoritative)
-  - `D:\wt-engine` — `feature/substrate` at `0057c5e` — **merged to main** via `a894501`. Branch stale, safe to prune.
-  - `D:\wt-trees` — `feature/differential` at `d0d706e` — **merged to main** via `211805e`. Branch stale, safe to prune.
-  - `D:\wt-extraction` — `feature/extraction` at `0af9d74` — **merged to main** via `de27df8`. Branch stale, safe to prune.
-  - `D:\wt-eval` — `feature/eval` at `b796b18` — **merged to main** via `e33e42e`. Branch stale, safe to prune.
-  - `D:\wt-ui` — `feature/ui` at `b5529f7` — **scaffold only, NOT merged to main**. Active parallel track; must not go dormant.
+  - `D:\hack_it` — `main` (operator's working copy; authoritative).
+  - `D:\wt-engine`, `D:\wt-trees`, `D:\wt-extraction`, `D:\wt-eval` — original feature branches, all merged to main; safe to prune.
+  - `D:\wt-ui` — `feature/ui` at `06a8f4e` — **merged via Track A** (full panel set verified end-to-end 2026-04-22).
+  - `D:\wt-lme-retrieval` — `feature/lme-retrieval` (NEW; Stream A, dispatching).
+  - `D:\wt-aci-hybrid` — `feature/aci-hybrid` (NEW; Stream B, dispatching).
+  - `D:\wt-asr-spec` — `feature/asr-spec` (NEW; Stream D, dispatching).
 - **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + ACI-Bench (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
 - **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (ACI-Bench). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
 - **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
 - **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); GPT-4 ICL 57.78 MEDCON (ACI-Bench). Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
 - **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
 - **Open decisions / next actions** (priority order):
-  1. **Smoke run** — `./eval/smoke/prepare_datasets.sh && python eval/smoke/run_smoke.py --benchmark both --reader qwen2.5-14b --variant both --n 10 --budget-usd 50` (with Qwen tunnel active via `./eval/infra/deploy_qwen_gcp.sh`). Operator sign-off needed before live invocation.
-  2. **wt-ui dispatch** — `feature/ui` at `b5529f7` sits on scaffold only. Transcript panel is end-to-end; claim-state / differential-trees / SOAP panels need real build work. Single highest-priority parallel track (demo video = entire judged product).
-  3. **Whisper GPU measurement** — `src/extraction/asr/` is code-complete; `docs/asr_benchmark.md` carries TBM placeholders. Needs GCP L4 or A100 spot run on synthetic chest-pain clip + 5 rehearsed clips (abdominal, dyspnoea, headache, fatigue, one more) to populate WER / RTF / VRAM / diarisation numbers.
-  4. **UMLS licence** — operator monitors CMU inbox; when approved, run `./scripts/install_umls.sh` and export `QUICKUMLS_PATH` → T0 MEDCON activates on next eval run.
-  5. **Audit ADR fixes** (low priority, second-pack trigger): `src/differential/lr_table.py` + `src/extraction/claim_extractor/prompt.py` both now pack-aware (audit findings #1+#2 resolved). Remaining audit items in `docs/decisions/2026-04-21_lr-table-chest-pain-coupling-audit.md` are documentation-only.
-  6. **BMC Pulm Med click-through** — **obsolete** after the Ceriani 2010 swap; `wells_pe_high_probability` row now cites Ceriani 2010 J Thromb Haemost (verified). No human verification pending.
+  1. **Stream A smoke** — LongMemEval n=60 stratified (10 per question_type × 6 types) baseline + substrate. Blocked on `gpt-4o-2024-08-06` deployment landing on a spare Azure account (`gt-swebench-aoai-3` proposed); fallback codepath uses `gpt-4.1` with documented methodology deviation.
+  2. **Stream B Phase 1** — ACI-Bench hybrid n=10 against same 10 cases as the −0.070 baseline run (`20260422T081250Z`). Decision rule: at parity (within ±0.03 of baseline) escalate to Phase 2 (n=40 stratified); below parity stop and diagnose per-encounter.
+  3. **Stream D spec** — `docs/asr_engineering_spec.md` (the one markdown exception); `bypass_cleanup_for_text_input` flag + dormancy regression test; trim `docs/asr_benchmark.md` §4 TBM rows to single-line pointer.
+  4. **PID 9290** — independent ACI-Bench smoke (`gpt-4.1-mini`, n=10) running since 13:37 in a separate process; left untouched per hands-off rule. Results land in own timestamped dir.
+  5. **UMLS licence** — operator monitors CMU inbox (background; non-blocking).
 - **Invariant tests** (must stay green every commit):
   - `tests/licensing/test_open_source.py` — OSI allowlist, green
   - `tests/licensing/test_model_attributions.py` — model-weight attribution registry, green
@@ -294,6 +298,14 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Honest reading**: the delta is noise. Baseline ~= substrate because the smoke-tier substrate variant intentionally uses a no-op extractor and feeds the same prompt as baseline (code comment at `eval/smoke/run_smoke.py:819`). What this run proved is the infrastructure end-to-end — Modal cold-start 1m56s, 20 Qwen reader calls at ~1.5s each, 20 Azure gpt-4.1-mini concept-extraction calls, 20 Azure gpt-4.1 judge calls (for ACI-Bench, MEDCON scoring is the metric; the judge path isn't invoked for ACI-Bench). The $0.02 total came out of an LLM-MEDCON budget of ~$0.001/note × 2 notes/case × 10 cases × 2 variants ≈ right on the predicted curve.
 - **Not yet proved**: substrate-variant advantage on ACI-Bench (needs real claim-bundle prompting in place of the no-op extractor) and LongMemEval-S anything (blocked by Qwen2.5-14B-AWQ's 8 K context on a 22 GiB L4 — would need an A100-40GB-class instance to bump `--max-model-len` to 32 K, still won't fit LongMemEval-S's native ~100 K).
 - **Modal app stopped** post-run; zero residual GPU bill. Dataset paths, adapter rewrites, and the Azure helper all covered by `tests/unit/eval/*`; full gate 237 passed, 2 skipped.
+
+### 2026-04-22 — Stream C: critical-path landing on main (commit `2d90abd`)
+
+- Plan file: `C:\Users\Lenovo\.claude-work\plans\parallel-execution-synthetic-rain.md`. Four streams (C blocker; A/B/D parallel after). Operator-locked decisions: PID 9290 left running (start independent flow); LongMemEval reader/judge target a fresh `gpt-4o-2024-08-06` deployment on a spare Azure account with `gpt-4.1` fallback codepath; bge-m3 hosted on Modal under `glitch112213` profile; Stream B is smoke-first (n=10 hybrid before any larger run).
+- **Files committed** (14 changed, +2138/-114): `src/extraction/claim_extractor/extractor.py` (LLM-backed `ExtractorFn`, json_object mode, 30 s per-call timeout, predicate-allow-list defence-in-depth), `src/note/__init__.py` + `src/note/generator.py` (substrate-backed SOAP generator), `predicate_packs/clinical_general/soap_mapping.json` (predicate→{S,O,A,P}), `tests/unit/extraction/test_llm_extractor.py` + `tests/unit/note/test_generator.py` (19 new + suite), modified `eval/_openai_client.py` / `eval/infra/modal_qwen.py` / `eval/smoke/run_smoke.py` / `src/substrate/claims.py` / `tests/unit/eval/test_smoke_*.py`, `.gitignore` (added `eval/smoke/results/`).
+- **Files left untracked** per markdown-discipline rule: 7 stray root-level `*.md` (`architecture_*`, `*_deep_research.md`, `evaluation_results.md`, `research_report.md`, `structured_intermediates_literature_survey.md`), `research/frontier_labs_2026-04-22.md`, `.claude/`.
+- **Test gate**: 286 passed, 2 skipped (clean). Compliance tests all green.
+- **Push**: `git push origin main` succeeded (`9dc8efe..2d90abd`). Streams A/B/D unblocked; dispatching to fresh worktrees.
 
 ### 2026-04-22 — Clean substrate A/B: real two-step substrate variant vs baseline (ACI-Bench × 10)
 
