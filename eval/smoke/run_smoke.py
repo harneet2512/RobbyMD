@@ -544,6 +544,84 @@ def _call_longmemeval_substrate(
     return text, ingest_latency_ms + latency_ms, tokens, stats
 
 
+def _call_longmemeval_substrate_retrieval_con(
+    case_payload: object,
+    reader_env: dict[str, str],
+    top_k: int = 20,
+) -> tuple[str, float, int, SubstrateStats, dict[str, Any]]:
+    """Stream A substrate variant: extract → retrieve(top-k + time-aware) → CoN.
+
+    Wires the three Stream A pieces together:
+    - `src.extraction.claim_extractor.extractor.make_llm_extractor` for claims.
+    - `src.substrate.retrieval.retrieve_relevant_claims` with bge-m3 + time
+      window from `eval.longmemeval.time_expansion.extract_time_window`.
+    - `eval.longmemeval.reader_con.answer_with_con` for the two-call CoN reader.
+
+    Returns `(answer, latency_ms, tokens_used, substrate_stats, provenance)`.
+
+    Reader purpose is `longmemeval_reader` (gpt-4o-2024-08-06 paper-faithful,
+    gpt-4.1 under the documented Stream A fallback).
+
+    NOTE: unit tests pass a mocked extractor/embedder; the smoke path resolves
+    live clients from env. This function is NOT called during the current
+    smoke — operator runs after Modal + Azure land.
+    """
+    from eval.longmemeval.adapter import LongMemEvalQuestion
+    from eval.longmemeval.reader_con import answer_with_con
+    from eval.longmemeval.time_expansion import extract_time_window
+    from src.extraction.claim_extractor.extractor import make_llm_extractor
+    from src.substrate.retrieval import (
+        EmbeddingClient,
+        backfill_embeddings,
+        retrieve_relevant_claims,
+    )
+
+    q: LongMemEvalQuestion = case_payload  # type: ignore[assignment]
+    extractor = make_llm_extractor()
+
+    t_ingest = time.monotonic()
+    stats, conn = _ingest_with_real_extractor("longmemeval", q, extractor)
+    ingest_latency_ms = (time.monotonic() - t_ingest) * 1000
+
+    # Embed every new claim into the sidecar. bge-m3 client falls back to
+    # local sentence-transformers if MODAL_BGE_M3_URL is unset.
+    embed_client = EmbeddingClient()
+    backfill_embeddings(conn, q.question_id, client=embed_client)
+
+    # Time-aware window from the question text (None on parse failure).
+    window = extract_time_window(q.question, getattr(q, "question_type", None))
+
+    ranked = retrieve_relevant_claims(
+        conn,
+        session_id=q.question_id,
+        question=q.question,
+        k=top_k,
+        time_window=window,
+        client=embed_client,
+    )
+    stats.top_k_retrieved = len(ranked)
+    if ranked:
+        sims = [r.similarity_score for r in ranked]
+        stats.top_k_sim_mean = sum(sims) / len(sims)
+        stats.top_k_sim_min = min(sims)
+    conn.close()
+
+    # CoN reader — uses longmemeval_reader purpose with gpt-4.1 fallback.
+    answer, provenance = answer_with_con(q.question, ranked)
+    total_latency_ms = ingest_latency_ms + provenance.get("total_latency_ms", 0.0)
+    # `answer_with_con` does not return token count; estimate as len(answer)/4.
+    tokens_estimate = max(1, len(answer) // 4)
+    provenance["time_window_used"] = (
+        {
+            "start": window.start.isoformat() if window and window.start else None,
+            "end": window.end.isoformat() if window and window.end else None,
+        }
+        if window
+        else None
+    )
+    return answer, total_latency_ms, tokens_estimate, stats, provenance
+
+
 def _top_k_by_embedding(
     query: str,
     candidates: list[str],
