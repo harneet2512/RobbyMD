@@ -233,6 +233,20 @@ CREATE TABLE IF NOT EXISTS note_sentences (
 );
 CREATE INDEX IF NOT EXISTS idx_note_session_section
     ON note_sentences(session_id, section, ordinal);
+
+-- Sidecar table for per-claim retrieval embeddings (Stream A, feature/lme-retrieval).
+-- Kept separate from `claims` so we can re-embed without rewriting the main table
+-- and so installations that never use retrieval pay no storage cost beyond the
+-- empty table. FK with ON DELETE CASCADE keeps the sidecar in step with any
+-- claim-level deletions (e.g. per-case :memory: DBs are discarded wholesale).
+CREATE TABLE IF NOT EXISTS claim_embeddings (
+    claim_id                TEXT PRIMARY KEY REFERENCES claims(claim_id) ON DELETE CASCADE,
+    embedding               BLOB NOT NULL,
+    embedding_model_version TEXT NOT NULL,
+    embedded_at_unix        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_claim_embeddings_model
+    ON claim_embeddings(embedding_model_version);
 """
 
 
