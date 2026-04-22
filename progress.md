@@ -159,3 +159,10 @@ All 4 feature branches merged in dependency order with `--no-ff` preserving bran
   - Phase C: NOT STARTED — blocked on scope clarifications (see below).
   - Phase D: dispatching wt-ui in parallel (unblocked).
 - **BMC Pulm Med click-through**: still awaiting human confirm (`wells_pe_high_probability` row, Wells LR+ 5.59 at `https://link.springer.com/article/10.1186/s12890-025-03637-6`).
+
+### 2026-04-22 — wt-ui Track A: full panel set verified end-to-end
+
+- All 4 panels + aux strip already implemented (`TranscriptPanel`, `ClaimStatePanel`, `DifferentialTreesPanel`, `SoapNotePanel`, `AuxStrip`). MockServer + fixture + event routing + Zustand store all wired.
+- Added `src/api/__tests__/mockReplay.integration.test.ts` — 6 new tests that replay the full 18-turn `chest_pain_demo.json` fixture through `MockServer → routeEvent → session store` with fake timers, then assert every panel's data is present: 18 turns, 15 claims, 1 supersession edge (c02 → c02b patient correction), final cardiac posterior ≈ 0.84 with posteriors summing to 1.0, 3 SOAP sentences with valid provenance, verifier why/gap/next-question all populated, turn insertion order preserved.
+- **Test totals**: 31 passed (25 → 31; +6 integration). Vitest + jsdom clean. TypeScript strict clean.
+- **Demo recording path**: open two terminals — `npm run dev` (Vite) and `npm run mock-server` (Node WS) — and record against localhost. Data end-to-end verified by tests without browser.
