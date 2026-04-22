@@ -61,11 +61,17 @@ Any task appearing to conflict with the above → stop and surface the conflict.
 │
 ├── ui/                         React + TS + Tailwind + shadcn + ReactFlow + Zustand
 │
-├── content/
-│   └── differentials/chest_pain/
-│       ├── branches.json
-│       ├── lr_table.json
-│       └── sources.md
+├── predicate_packs/
+│   └── clinical_general/           pluggable pack per Eng_doc.md §4.2
+│       ├── README.md
+│       └── differentials/
+│           ├── chest_pain/         seeded + rehearsed demo case
+│           │   ├── branches.json
+│           │   ├── lr_table.json
+│           │   └── sources.md
+│           ├── abdominal_pain/     stub — schema-ready
+│           ├── dyspnoea/           stub
+│           └── headache/           stub
 │
 ├── eval/
 │   ├── ddxplus/                DDXPlus adapter + runner
@@ -151,7 +157,7 @@ Per-worktree agent rules:
 
 ### 5.3 wt-trees — Clinical content + differential engine + verifier
 
-**Owns**: `content/differentials/chest_pain/`, `src/differential/`, `src/verifier/`.
+**Owns**: `predicate_packs/clinical_general/differentials/chest_pain/`, `src/differential/`, `src/verifier/`.
 
 **Scope**:
 - 4 branches (Cardiac, Pulmonary, MSK, GI) as tree structures in `branches.json`.
@@ -287,7 +293,7 @@ Confident fabrication is the biggest failure mode. "I don't know, here's the bes
 - [ ] `./scripts/run_demo.sh --case chest_pain_01` runs without crash
 - [ ] Disclaimer visible: UI header, README, demo bumper
 - [ ] New datasets declared in `SYNTHETIC_DATA.md`
-- [ ] Any new LR has a citation in `content/differentials/chest_pain/sources.md`
+- [ ] Any new LR has a citation in `predicate_packs/clinical_general/differentials/chest_pain/sources.md`
 
 ---
 

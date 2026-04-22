@@ -102,6 +102,39 @@ All model choices must satisfy the hackathon's open-source rule. OSI-approved li
 - No bio-NER (scispaCy, GLiNER-Bio) — over-scoped for chest-pain-only.
 - No symptom-checker APIs (Infermedica, Isabel) — we are the reasoning substrate, not a wrapper.
 
+### 3.5 Model-usage policy
+
+Opus 4.7 is a capable sponsored tool. It is not a scarce resource to ration, but it IS costly and it **muddies benchmark comparisons** when used everywhere. Reserve Opus 4.7 for calls whose output a judge sees or that visibly shape the demo. For eval loops and bulk extraction, match the published SOTA reader for apples-to-apples comparability.
+
+**Demo-path (Opus 4.7 required)** — every call below produces output a judge sees in the demo video:
+
+| Call site | Frequency | Rationale |
+|---|---|---|
+| Live claim extraction during the scripted visit | ~30–60 calls / 5-min conversation | Drives the live transcript → claim-panel fill |
+| Counterfactual verifier's next-best-question phrasing | ≤5 calls / visit (top-2 ranking changes) | The aux-strip question viewers see on screen |
+| SOAP note composition (demo run only) | 1 call / end-of-encounter | The provenance-validated note in the video |
+
+Supersession Pass 2 semantic identity uses `e5-small-v2` only (no LLM — pure cosine over embeddings).
+
+**Eval loops and infrastructure (Opus 4.7 NOT USED; match published SOTA reader)**:
+
+| Call site | Model | Rationale |
+|---|---|---|
+| DDXPlus adapter turn synthesis (`EVIDENCES` → dialogue) | `gpt-4.1-mini` | Bulk off-demo-path transform; no judge-facing output |
+| DDXPlus reader (baseline + substrate variant) | `gpt-4o` | Matches [H-DDx 2025 Table 2](https://arxiv.org/abs/2510.03700) comparator set |
+| LongMemEval-S reader (baseline + substrate variant) | `gpt-5-mini` | Matches [Mastra OM's 94.87% driver](https://mastra.ai/research/observational-memory) |
+| ACI-Bench reader (baseline + substrate variant) | `gpt-4.1-mini` | Modern cost-sensitive GPT-4-class; [WangLab 2023 GPT-4 ICL](https://arxiv.org/abs/2305.02220) is the ROUGE/BERTScore comparator |
+| MedQA reader (baseline + substrate variant) | `gpt-4.1-mini` | Modern cost-sensitive MedQA comparator; pin resolved in `eval/medqa/README.md` when harness ships |
+| SOAP note generation on the ACI-Bench eval path | **match reader model (NOT Opus 4.7)** — `gpt-4.1-mini` | Apples-to-apples with WangLab 2023 GPT-4. Demo-path SOAP note uses Opus 4.7; eval-path SOAP note uses the benchmark's reader model. |
+| LLM judge — DDXPlus Top-5 semantic equivalence | `gpt-4o-2024-08-06` (pinned) | Reproducibility; pinned release cannot drift |
+| LLM judge — LongMemEval-S accuracy | `gpt-4o-2024-08-06` (pinned) | Per LongMemEval paper mandate |
+| Offline bulk reprocessing | `gpt-4.1-mini` | Non-demo path, cost-sensitive |
+| Infrastructure loops (retry wrappers, validators) | N/A (deterministic code) | No LLM |
+
+**The rule**: if a call is on the demo-video playback path and shapes what a judge sees → Opus 4.7. Otherwise → the cheapest model that preserves apples-to-apples comparison with the benchmark's published SOTA reader.
+
+**Why the rule exists**: using Opus 4.7 as the eval reader when the published SOTA used `gpt-4.1-mini` conflates "our substrate vs their substrate" with "Opus 4.7 vs gpt-4.1-mini" and kills the comparison. Benchmark comparability is the eval slide's entire value. See `reasons.md` → "Tank for the war, not the gun fight" for the full rationale.
+
 ---
 
 ## 4. Data model
@@ -162,16 +195,60 @@ CREATE TABLE note_sentences (
 );
 ```
 
-### 4.2 Predicate families (chest pain, closed set)
+### 4.2 Predicate families (pluggable domain packs)
+
+Predicate families are declared in **domain packs** that register with the extractor at startup. Each pack defines:
+
+- A unique `pack_id` (e.g., `clinical_general`, `personal_assistant`, `coding_agent`).
+- A closed vocabulary of predicate families for that domain.
+- Optional sub-slot schemas for predicates with structured values.
+- Optional LR tables keyed to differential branches (clinical packs only).
+
+The engine does not know about clinical medicine. Predicate families are data, not code. Packs register via `src/substrate/predicate_packs.py::register_pack(pack)` (module lands with the second pack); the extractor loads the active pack's families at admission time. Claims whose predicate is outside the active pack's closed vocabulary are rejected.
+
+**Seeded packs this build**: exactly one — `clinical_general` (covers any chief complaint). Additional packs (personal_assistant for LongMemEval-S, coding_agent, legal, etc.) register via the same API with zero engine changes.
+
+**`clinical_general` predicate set** — closed vocabulary covering chest pain, abdominal pain, dyspnoea, headache, fatigue, and any other chief complaint:
 
 ```
-onset               character           severity            location
-radiation           aggravating_factor  alleviating_factor  associated_symptom
-duration            medical_history     medication          family_history
-social_history      risk_factor
+onset                  character                severity
+location               radiation                aggravating_factor
+alleviating_factor     associated_symptom       duration
+medical_history        medication               allergy
+family_history         social_history           risk_factor
+vital_sign             lab_value                imaging_finding
+physical_exam_finding  review_of_systems
 ```
 
-Any predicate outside this set is rejected by the extractor. Extending requires a PR with cited clinical rationale.
+**Structured-value sub-slots** (applicable predicates carry these; the extractor emits partial schemas when information is incomplete):
+
+| Predicate | Sub-slots |
+|---|---|
+| `medication` | `name, dose, route, frequency, indication, start_date` |
+| `vital_sign` | `kind ∈ {BP, HR, RR, SpO2, Temp}, value, unit, measured_at` |
+| `lab_value` | `name, value, unit, reference_range, specimen_type, collected_at` |
+| `imaging_finding` | `modality ∈ {X-ray, CT, MRI, US}, body_part, finding_text, reported_at` |
+| `physical_exam_finding` | `body_part, finding, elicitation_method` |
+| `allergy` | `agent, reaction, severity, verified_by` |
+
+**Pack-registration schema** (sketch; full module lands with the second pack):
+
+```python
+@dataclass
+class PredicatePack:
+    pack_id: str                                   # e.g. "clinical_general"
+    predicate_families: frozenset[str]             # closed vocabulary
+    sub_slots: dict[str, frozenset[str]]           # predicate → sub-slot names
+    lr_table_path: Path | None = None              # clinical packs only
+    description: str = ""
+
+def register_pack(pack: PredicatePack) -> None: ...
+def active_pack() -> PredicatePack: ...
+```
+
+**Future packs** (schema-ready, not seeded this build): `personal_assistant` (predicate families like `fact_about_user, preference, scheduled_event, knowledge_update` for LongMemEval-S substrate variant), `coding_agent`, `legal`. Adding a pack requires no engine changes — just the pack declaration + its LR table (if clinical).
+
+Any predicate outside the active pack's closed set is rejected by the extractor.
 
 ### 4.3 Projections
 
@@ -182,7 +259,7 @@ Four branch-projections (Cardiac / Pulmonary / MSK / GI). Each is a deterministi
 
 Recompute ≤50 ms per projection on any claim-state change.
 
-### 4.4 LR table (`content/differentials/chest_pain/lr_table.json`)
+### 4.4 LR table (`predicate_packs/clinical_general/differentials/chest_pain/lr_table.json`)
 
 ```json
 {
@@ -418,7 +495,7 @@ Static scan of `pyproject.toml` / `package.json` / model download list. Every de
 | ACI-Bench `aci` subset is small (40 test cases) | Low | Good — faster iteration; if we want more, add `virtscribe` |
 | Closed model dependency (Gemma-licensed) sneaks in | Disqualifying | `test_open_source.py` enforces; review all new deps in CI |
 | Reviewer asks about open-source rule wrt Opus 4.7 | Low | Event is *Built with Opus 4.7* — it's the sponsored tool, same as AWS/Vercel/GitHub |
-| Confidential-fabrication risk (invented LR values) | High | Every LR has a source; `content/differentials/chest_pain/sources.md` is reviewed before merge |
+| Confidential-fabrication risk (invented LR values) | High | Every LR has a source; `predicate_packs/clinical_general/differentials/chest_pain/sources.md` is reviewed before merge |
 | MEDCON / UMLS licence delayed or denied | Demo-blocking for ACI-Bench eval | Apply on Day 1; if delayed past Day 4, fall back to ROUGE + BERTScore only and document the gap honestly on the slide |
 
 ---

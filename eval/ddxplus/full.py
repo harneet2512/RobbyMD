@@ -35,7 +35,7 @@ class FullRunner:
         #   from differential import DifferentialEngine
         #   store = ClaimStore(session_id=case.patient_id)
         #   store.write_turns(turns)
-        #   engine = DifferentialEngine(lr_table_path=Path("content/differentials/chest_pain/lr_table.json"))
+        #   engine = DifferentialEngine(lr_table_path=Path("predicate_packs/clinical_general/differentials/chest_pain/lr_table.json"))
         #   ranking = engine.rank(store.active_claims(session_id=case.patient_id))
         #   top5 = [b.pathology for b in ranking[:5]]
         stub = SubstrateStub(session_id=case.patient_id)

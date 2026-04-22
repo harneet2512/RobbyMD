@@ -4,7 +4,7 @@ Per [`Eng_doc.md §5.4`](../../Eng_doc.md) and [`rules.md §5.1`](../../rules.md
 
 The engine consumes an iterable of `ActiveClaim` objects (structurally compatible
 with whatever wt-engine's substrate emits) and the validated LR table in
-[`content/differentials/chest_pain/lr_table.json`](../../content/differentials/chest_pain/lr_table.json).
+[`predicate_packs/clinical_general/differentials/chest_pain/lr_table.json`](../../predicate_packs/clinical_general/differentials/chest_pain/lr_table.json).
 It emits a `BranchRanking`: four branches (Cardiac, Pulmonary, MSK, GI) each
 carrying a log-score, a softmax posterior, and a deterministic audit trail of
 every LR multiplication applied.

@@ -107,7 +107,7 @@ A SOAP-note sentence without non-empty `source_claim_ids` is rejected by the pos
 `reason ∈ {patient_correction, physician_confirm, semantic_replace}`. No nulls.
 
 ### 4.4 Every LR in the table has a citation
-Every row in `content/differentials/chest_pain/lr_table.json` has a `source` field pointing to a peer-reviewed or guideline citation. Approximations carry `"approximation": true`. Invented numbers are not allowed.
+Every row in `predicate_packs/clinical_general/differentials/chest_pain/lr_table.json` has a `source` field pointing to a peer-reviewed or guideline citation. Approximations carry `"approximation": true`. Invented numbers are not allowed.
 
 ### 4.5 UI provenance is clickable
 Transcript, claim, and note panels are bi-directionally linked. Click any note sentence → highlight source claim + source turn.
@@ -215,8 +215,8 @@ This file is versioned. Edits via PR titled `rules: <change>` with rationale and
 - [ ] `tests/e2e/test_demo_case.py` passes
 - [ ] `SYNTHETIC_DATA.md` declares every dataset
 - [ ] Disclaimer in: app header, README, video opening, video closing, written summary first three sentences
-- [ ] Every LR in `content/differentials/chest_pain/lr_table.json` has a `source`
-- [ ] `content/differentials/chest_pain/sources.md` lists every citation with URL/DOI
+- [ ] Every LR in `predicate_packs/clinical_general/differentials/chest_pain/lr_table.json` has a `source`
+- [ ] `predicate_packs/clinical_general/differentials/chest_pain/sources.md` lists every citation with URL/DOI
 - [ ] Demo video processes no ECG/imaging/IVD data
 - [ ] Demo video does not frame the product as time-critical / emergency
 - [ ] Demo video shows no patient-facing view

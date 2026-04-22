@@ -71,17 +71,22 @@ Beyond-demo vision (multi-complaint, multi-specialty, EHR/FHIR, multi-session lo
 
 ## 6. Evals — published benchmarks only
 
-Homemade metrics are vanity numbers. Published benchmarks carry prior-art comparisons and judges recognise them. We run **three** benchmarks, each targeting a specific layer of our architecture.
+Homemade metrics are vanity numbers. Published benchmarks carry prior-art comparisons and judges recognise them. We run **four** benchmarks — each tests the same engine with a different `PredicatePack` loaded, demonstrating the substrate's domain-agnosticism under the hood without making that claim in the video. Per memory rule `feedback_full_benchmarks.md` — no slicing; each benchmark runs on the authors' canonical full split.
 
-| Benchmark | Source | Layer tested | Primary metric |
-|---|---|---|---|
-| **DDXPlus** | Fansi Tchango et al., NeurIPS 2022. 1.3M synthetic patients, 49 pathologies, differential labels. Widely used for 2025–26 LLM diagnostic evaluation (H-DDx benchmarks 22 LLMs on this). | Differential reasoning engine + verifier | Top-5 pathology accuracy + HDF1 (ICD-10 hierarchical F1) on the 730-case stratified test subset per the H-DDx 2025 methodology (matches H-DDx Table 2's 22-LLM comparator). Top-1/Top-3 computed internally only. |
-| **LongMemEval-S** | Wu et al., ICLR 2025. 500 questions across 5 memory abilities. Published baselines: TiMem 76.88%, EverMemOS 83.0%, Zep/Graphiti 71.2%, MemOS, RMM. | Memory substrate (claim lifecycle + supersession + projection) | Per-category accuracy, especially knowledge-update, temporal reasoning, multi-session reasoning — the categories where long-context LLMs drop 30–60%. |
-| **ACI-Bench** | Yim et al., Nature Scientific Data 2023. MEDIQA-CHAT / MEDIQA-SUM 2023 shared-task dataset. 207 doctor-patient dialogues + gold notes. | End-to-end conversation → clinical note | Standard MEDIQA-CHAT metrics: ROUGE-1/2/L, BERTScore, MEDCON (clinical-concept F1). |
+| Benchmark | Source | Predicate pack loaded | Layer tested | Primary metric |
+|---|---|---|---|---|
+| **DDXPlus** | Fansi Tchango et al., NeurIPS 2022. 1.3M synthetic patients, 49 pathologies. | `clinical_general` (core) + respiratory-pathologies extension | Differential reasoning engine + verifier | Top-5 pathology accuracy + HDF1 (ICD-10 hierarchical F1) on the 730-case stratified subset per [H-DDx 2025 (arXiv 2510.03700)](https://arxiv.org/abs/2510.03700) Table 2's 22-LLM comparator. |
+| **LongMemEval-S** | Wu et al., ICLR 2025. 500 questions across 5 memory abilities. Published baselines: TiMem 76.88%, EverMemOS 83.0%, Zep/Graphiti 71.2%, Mastra OM 94.87%. | `personal_assistant` (future pack; schema-only this build — LongMemEval-S substrate variant deferred until the pack ships; baseline-only this week) | Memory substrate (claim lifecycle + supersession + projection) | Per-category accuracy, emphasis on knowledge-update / temporal reasoning / multi-session reasoning — the categories where long-context LLMs drop 30–60 pp. |
+| **ACI-Bench** | Yim et al., Nature Sci Data 2023. MEDIQA-CHAT / MEDIQA-SUM 2023 shared-task dataset. 207 doctor-patient dialogues + gold notes. | `clinical_general` | End-to-end conversation → clinical note | MEDIQA-CHAT: ROUGE-1/2/L, BERTScore, MEDCON (3-tier fallback per `docs/decisions/2026-04-21_medcon-tiered-fallback.md`). |
+| **MedQA** | Jin et al., Applied Sciences 2021. USMLE-style multi-choice medical licensing questions. | `clinical_general` (MCQ mode — question stem → structured claims → answer selection) | Clinical question answering over structured claim state | Accuracy on the 1,273-question USMLE test split per published benchmark convention. |
+
+**Engineering framing** (spec-level documentation, NOT marketing): each benchmark loads its appropriate pack and runs through the same substrate primitives — claim extraction, supersession, projection. The engine has no benchmark-specific branches; different packs + different LR tables + different reader outputs yield different results. This is how the substrate's domain-agnostic design is tested under the hood. **This framing lives here in the spec and in `README.md`'s Architecture section for repo-readers. It does not appear in the 3-minute demo video or the written submission summary — those stay single-story clinical per `PRD.md §2, §9` and §8.3 below.**
+
+**Reader and judge models** per benchmark: see `Eng_doc.md §3.6` for the full model-usage policy. **TL;DR — Opus 4.7 is NOT used as the eval reader**; we match each benchmark's published SOTA reader so numbers are apples-to-apples.
 
 **No homemade "substrate ablation" metrics. No custom bar charts of our own invention.** Every number on the demo slide traces to a published benchmark with prior-art comparison available.
 
-Full eval spec in `Eng_doc.md` §10.
+Full eval spec in `Eng_doc.md` §10. Per-benchmark reader + judge table in `eval/README.md`.
 
 ## 7. Regulatory posture
 

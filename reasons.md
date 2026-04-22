@@ -106,6 +106,35 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Reason**: Validator 2026-04-21 surfaced that three `lr_table.json` rows (`pain_reproducible_with_palpation`, `younger_age_lt_40`, `no_exertional_pattern`) cite "bosner_2010_marburg" but their `source_url` points to [PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/), which is Haasenritter et al. 2015 *BJGP* — an MHS-adjacent paper but not the 2010 CMAJ derivation. Either the URL must be changed to the correct Bösner 2010 CMAJ DOI (`10.1503/cmaj.100212`) or a new `haasenritter_2015_bjgp` source-key added to `sources.md`. Same failure mode as the Cremonini DOI swap: cite-looks-plausible, never WebFetched.
 - **Citation**: [Haasenritter 2015 BJGP at PMC4617269](https://pmc.ncbi.nlm.nih.gov/articles/PMC4617269/); [Bösner 2010 CMAJ DOI](https://doi.org/10.1503/cmaj.100212); `rules.md §7.4`; `research/validation_report.md` blocker #3.
 
+### Tank for the war, not the gun fight — Opus 4.7 scoped to demo-path only (2026-04-21)
+
+- **Context**: Principle 1 of the 2026-04-21 user directive. Opus 4.7 is a capable sponsored tool, but it IS costly and using it everywhere muddies benchmark comparisons.
+- **What was considered but rejected**: using Opus 4.7 as the reader for every benchmark (DDXPlus, LongMemEval-S, ACI-Bench, MedQA). Easier to implement (one client, one code path), more impressive-sounding ("we use Opus 4.7 everywhere").
+- **Why it lost**: using Opus 4.7 as the eval reader when the published SOTA used `gpt-4.1-mini` or `gpt-5-mini` **kills the apples-to-apples comparison**. A Mastra OM leaderboard row of 94.87% is driven by `gpt-5-mini`; if our substrate variant runs Opus 4.7 as reader and scores e.g. 89%, no one can tell whether we lost because our substrate underperformed or because `gpt-5-mini` beats Opus 4.7 on multi-choice QA. Benchmark comparability IS the eval slide's entire value; without it, the numbers are marketing not measurement.
+- **What we did instead**: `Eng_doc.md §3.5` locks the model-usage policy. Opus 4.7 for demo-path calls only (live claim extraction, verifier's next-best-question phrasing, SOAP note composition). For eval loops: match each benchmark's published SOTA reader. For bulk extraction and infrastructure: the cheapest model that preserves the comparison. `eval/README.md` enumerates per-benchmark reader + judge models with citations to the paper/leaderboard that set the precedent. `tests/licensing/test_model_attributions.py` is the OSI gate; benchmark-reader-pin gate is enforced socially by the table in `eval/README.md`.
+- **Citations**:
+  - User directive 2026-04-21 (Principle 1 verbatim).
+  - `Eng_doc.md §3.5` — model-usage policy table.
+  - `eval/README.md` — per-benchmark reader + judge pins.
+  - [H-DDx 2025 Table 2 (arXiv 2510.03700)](https://arxiv.org/abs/2510.03700) — DDXPlus reader precedent (GPT-4o).
+  - [Mastra Observational Memory 94.87%](https://mastra.ai/research/observational-memory) — LongMemEval-S reader precedent (gpt-5-mini).
+  - [WangLab MEDIQA-CHAT 2023 GPT-4 ICL (arXiv 2305.02220)](https://arxiv.org/abs/2305.02220) — ACI-Bench reader precedent.
+- **Revisit trigger**: a benchmark publishes new SOTA where Opus 4.7 IS the published reader — then use Opus 4.7 for apples-to-apples. Or a demo-path call site shifts to eval-path (unlikely; the demo video is structurally separate from the eval slide).
+
+### Scope widened under the hood; demo narrative stays clinical (2026-04-21)
+
+- **Context**: Principles 2 + 3 of the 2026-04-21 user directive. (2) The substrate must work on any chief complaint — abdominal pain, dyspnoea, headache, whatever a judge throws at it. (3) The 3-minute demo video tells one story: live clinical reasoning for the exam room.
+- **What was considered but rejected**: (a) hardcode chest-pain assumptions throughout the engine (faster to ship; breaks the moment a judge opens the app and says "right upper quadrant pain" — exactly the Stage 2 repo-reader failure mode we want to avoid); (b) market the substrate as a general-purpose memory layer in the demo video (dilutes the clinical pitch; a 3-minute viewer leaves with no clear product memory; judges watching the video don't remember a tool they couldn't place).
+- **What we did instead**: engine is domain-agnostic by construction — predicate families are data in pluggable `PredicatePack`s (`Eng_doc.md §4.2`), LR-table schema accepts multiple complaint branches, `clinical_general` is the one pack seeded this build. The file tree (`predicate_packs/clinical_general/differentials/{chest_pain,abdominal_pain,dyspnoea,headache}/`) makes the generality visible to any repo-reading judge without a word of marketing. The demo video still opens with clinical framing (`PRD.md §2, §9`; `context.md §8.3`). Both audiences (30-sec video-watcher and repo-reading Anthropic engineer) get the right signal.
+- **Citations**:
+  - User directive 2026-04-21 (Principles 1 / 2 / 3).
+  - `Eng_doc.md §4.2` — pluggable predicate packs (amended).
+  - `context.md §9` — scope for demo vs README vision.
+  - `README.md` — two-part structure (clinical product top, architecture bottom).
+  - `predicate_packs/clinical_general/README.md` — shipped pack spec.
+  - `docs/decisions/2026-04-21_lr-table-chest-pain-coupling-audit.md` — remaining hardcodings found; next-turn fixes.
+- **Revisit trigger**: demo narrative drift (PR proposes adding "general memory layer" framing to the video script or written summary) or engine-generality drift (PR hardcodes a new chest-pain assumption in substrate or differential code paths).
+
 ### Strict OSI-only licensing for model weights — rejected for industry-standard reading (2026-04-21)
 
 - **Context**: License policy for model weights.

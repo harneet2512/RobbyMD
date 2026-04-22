@@ -8,7 +8,14 @@ from pathlib import Path
 from src.differential.types import ActiveClaim
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-LR_TABLE_PATH = _REPO_ROOT / "content" / "differentials" / "chest_pain" / "lr_table.json"
+LR_TABLE_PATH = (
+    _REPO_ROOT
+    / "predicate_packs"
+    / "clinical_general"
+    / "differentials"
+    / "chest_pain"
+    / "lr_table.json"
+)
 MID_CASE_PATH = _REPO_ROOT / "tests" / "fixtures" / "chest_pain_mid_case.json"
 
 
