@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/store/session";
 import { claimIdsForTurn, turnIdForSentence } from "@/lib/provenance";
@@ -39,11 +39,26 @@ export function TranscriptPanel() {
   const selectTurn = useSession((s) => s.selectTurn);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Auto-scroll pauses while the user is reading above; resumes at bottom.
+  // userScrolledUp tracks whether the user has manually scrolled away from
+  // the bottom so we don't fight them mid-read.
+  const userScrolledUp = useRef(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // "at bottom" = within 40px of scrollHeight — accounts for rounding.
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    userScrolledUp.current = !atBottom;
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    // Resume auto-scroll only if user is at the bottom.
+    if (!userScrolledUp.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [turnOrder.length]);
 
   // Compute the highlighted turn set for any active selection axis.
@@ -97,7 +112,7 @@ export function TranscriptPanel() {
         </span>
       </div>
 
-      <div ref={scrollRef} className="scroll-y flex-1 px-4 py-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="scroll-y flex-1 px-4 py-3">
         {turnOrder.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-fg-subtle">
             <span className="animate-pulse-soft">waiting for dialogue…</span>

@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
@@ -16,5 +17,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+  },
+  test: {
+    // Vitest config — CLAUDE.md §5.4 uses Vitest, not Playwright/visual.
+    environment: "jsdom",
+    globals: true,
+    setupFiles: [],
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
 });
