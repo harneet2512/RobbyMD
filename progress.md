@@ -255,3 +255,10 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **Part F — Tests**: 7 new test files, ~27 new tests added. All existing 155 tests preserved; test count expected ≥ 182.
 - **Part G — Docs + reasons.md**: `README.md` Architecture section updated with ASR-layer paragraph. Two new entries appended to `reasons.md`: (a) fine-tuning rejected for layered mitigation (cite Koenecke FAccT 2024, Arora 2502.11572, Nabla blog); (b) batch-only rejected for streaming-capable architecture (cite WhisperX INTERSPEECH 2023, Nabla/Abridge latency targets).
 - **Parts E + H skipped**: GPU benchmark run and main merge are operator-gated separately.
+
+### 2026-04-22 — wt-ui Track A: full panel set verified end-to-end
+
+- All 4 panels + aux strip already implemented (`TranscriptPanel`, `ClaimStatePanel`, `DifferentialTreesPanel`, `SoapNotePanel`, `AuxStrip`). MockServer + fixture + event routing + Zustand store all wired.
+- Added `src/api/__tests__/mockReplay.integration.test.ts` — 6 new tests that replay the full 18-turn `chest_pain_demo.json` fixture through `MockServer → routeEvent → session store` with fake timers, then assert every panel's data is present: 18 turns, 15 claims, 1 supersession edge (c02 → c02b patient correction), final cardiac posterior ≈ 0.84 with posteriors summing to 1.0, 3 SOAP sentences with valid provenance, verifier why/gap/next-question all populated, turn insertion order preserved.
+- **Test totals**: 31 passed (25 → 31; +6 integration). Vitest + jsdom clean. TypeScript strict clean.
+- **Demo recording path**: open two terminals — `npm run dev` (Vite) and `npm run mock-server` (Node WS) — and record against localhost. Data end-to-end verified by tests without browser.

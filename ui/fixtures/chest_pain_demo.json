@@ -1,0 +1,606 @@
+{
+  "_synthetic": "SYNTHETIC — no real patient data (rules.md §2.2). 18-turn scripted chest-pain encounter with one patient correction (supersession demo moment). Elicits HEART-score-relevant features. All identifiers fictional.",
+  "_generated": "hand-authored 2026-04-22; no PHI; no proprietary clinical content",
+  "case_id": "chest_pain_01",
+  "events": [
+    {
+      "t_ms": 0,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t01",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Good afternoon. What brings you in today?",
+        "ts": 1000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 3500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t02",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "I have this pressure in my chest. It started about three days ago.",
+        "ts": 4500000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 4200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c01",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "character",
+        "value": "pressure",
+        "value_normalised": "pressure",
+        "confidence": 0.92,
+        "source_turn_id": "t02",
+        "status": "active",
+        "created_ts": 4200000000,
+        "char_start": 12,
+        "char_end": 20
+      }
+    },
+    {
+      "t_ms": 4800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c02",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "onset",
+        "value": "three_days_ago",
+        "value_normalised": "three_days_ago",
+        "confidence": 0.89,
+        "source_turn_id": "t02",
+        "status": "active",
+        "created_ts": 4800000000,
+        "char_start": 40,
+        "char_end": 60
+      }
+    },
+    {
+      "t_ms": 7000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t03",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "When did it start exactly — I want to make sure I have the timeline right.",
+        "ts": 8000000000,
+        "asr_confidence": 0.98
+      }
+    },
+    {
+      "t_ms": 10500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t04",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Actually, thinking about it — it was yesterday morning, not three days ago. I got mixed up.",
+        "ts": 11500000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 11200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c02b",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "onset",
+        "value": "yesterday_morning",
+        "value_normalised": "yesterday_morning",
+        "confidence": 0.95,
+        "source_turn_id": "t04",
+        "status": "active",
+        "created_ts": 11200000000,
+        "char_start": 20,
+        "char_end": 45
+      }
+    },
+    {
+      "t_ms": 11800,
+      "type": "supersede",
+      "edge": {
+        "edge_id": "edge_c02_c02b",
+        "old_claim_id": "c02",
+        "new_claim_id": "c02b",
+        "edge_type": "patient_correction",
+        "identity_score": 0.97,
+        "created_ts": 11800000000
+      }
+    },
+    {
+      "t_ms": 14000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t05",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Does the pain radiate anywhere — down an arm, into the jaw or back?",
+        "ts": 15000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 17500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t06",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes — it goes down my left arm, and I feel it in my jaw when it is at its worst.",
+        "ts": 18500000000,
+        "asr_confidence": 0.92
+      }
+    },
+    {
+      "t_ms": 18200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c03",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "radiation",
+        "value": "left_arm",
+        "value_normalised": "left_arm",
+        "confidence": 0.91,
+        "source_turn_id": "t06",
+        "status": "active",
+        "created_ts": 18200000000,
+        "char_start": 6,
+        "char_end": 19
+      }
+    },
+    {
+      "t_ms": 18800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c04",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "radiation",
+        "value": "jaw",
+        "value_normalised": "jaw",
+        "confidence": 0.85,
+        "source_turn_id": "t06",
+        "status": "active",
+        "created_ts": 18800000000,
+        "char_start": 50,
+        "char_end": 57
+      }
+    },
+    {
+      "t_ms": 20000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac",   "log_score": 3.1,  "posterior": 0.52, "applied": []},
+          {"branch": "pulmonary", "log_score": 0.8,  "posterior": 0.21, "applied": []},
+          {"branch": "msk",       "log_score": -0.4, "posterior": 0.15, "applied": []},
+          {"branch": "gi",        "log_score": -0.9, "posterior": 0.12, "applied": []}
+        ]
+      }
+    },
+    {
+      "t_ms": 21000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t07",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Does physical exertion bring it on?",
+        "ts": 22000000000,
+        "asr_confidence": 0.98
+      }
+    },
+    {
+      "t_ms": 24500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t08",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes — it came on when I was walking up the stairs. It eases when I rest.",
+        "ts": 25500000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 25200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c05",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "aggravating_factor",
+        "value": "exertion",
+        "value_normalised": "exertion",
+        "confidence": 0.93,
+        "source_turn_id": "t08",
+        "status": "active",
+        "created_ts": 25200000000,
+        "char_start": 10,
+        "char_end": 48
+      }
+    },
+    {
+      "t_ms": 25800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c06",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "alleviating_factor",
+        "value": "rest",
+        "value_normalised": "rest",
+        "confidence": 0.88,
+        "source_turn_id": "t08",
+        "status": "active",
+        "created_ts": 25800000000,
+        "char_start": 55,
+        "char_end": 71
+      }
+    },
+    {
+      "t_ms": 27000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac",   "log_score": 5.2,  "posterior": 0.67, "applied": []},
+          {"branch": "pulmonary", "log_score": 0.3,  "posterior": 0.15, "applied": []},
+          {"branch": "msk",       "log_score": -1.1, "posterior": 0.11, "applied": []},
+          {"branch": "gi",        "log_score": -1.5, "posterior": 0.07, "applied": []}
+        ]
+      }
+    },
+    {
+      "t_ms": 28000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t09",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Any sweating, nausea, or shortness of breath with the chest pain?",
+        "ts": 29000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 31500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t10",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes, I get a cold sweat. And I have been a bit short of breath too.",
+        "ts": 32500000000,
+        "asr_confidence": 0.91
+      }
+    },
+    {
+      "t_ms": 32200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c07",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "associated_symptom",
+        "value": "diaphoresis",
+        "value_normalised": "diaphoresis",
+        "confidence": 0.88,
+        "source_turn_id": "t10",
+        "status": "active",
+        "created_ts": 32200000000,
+        "char_start": 8,
+        "char_end": 23
+      }
+    },
+    {
+      "t_ms": 32900,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c08",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "associated_symptom",
+        "value": "dyspnoea",
+        "value_normalised": "dyspnoea",
+        "confidence": 0.82,
+        "source_turn_id": "t10",
+        "status": "active",
+        "created_ts": 32900000000,
+        "char_start": 42,
+        "char_end": 64
+      }
+    },
+    {
+      "t_ms": 35000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t11",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Any history of heart problems or high blood pressure?",
+        "ts": 36000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 38500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t12",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes — I had a stent placed about six years ago. And I have high blood pressure, on lisinopril.",
+        "ts": 39500000000,
+        "asr_confidence": 0.92
+      }
+    },
+    {
+      "t_ms": 39200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c09",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medical_history",
+        "value": "coronary_artery_disease_stent",
+        "value_normalised": "coronary_artery_disease",
+        "confidence": 0.95,
+        "source_turn_id": "t12",
+        "status": "active",
+        "created_ts": 39200000000,
+        "char_start": 10,
+        "char_end": 47
+      }
+    },
+    {
+      "t_ms": 39800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c10",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medical_history",
+        "value": "hypertension",
+        "value_normalised": "hypertension",
+        "confidence": 0.91,
+        "source_turn_id": "t12",
+        "status": "active",
+        "created_ts": 39800000000,
+        "char_start": 55,
+        "char_end": 75
+      }
+    },
+    {
+      "t_ms": 40100,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c11",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medication",
+        "value": "lisinopril",
+        "value_normalised": "lisinopril",
+        "confidence": 0.94,
+        "source_turn_id": "t12",
+        "status": "active",
+        "created_ts": 40100000000,
+        "char_start": 83,
+        "char_end": 93
+      }
+    },
+    {
+      "t_ms": 42000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac",   "log_score": 7.8,  "posterior": 0.79, "applied": []},
+          {"branch": "pulmonary", "log_score": 0.1,  "posterior": 0.10, "applied": []},
+          {"branch": "msk",       "log_score": -1.8, "posterior": 0.07, "applied": []},
+          {"branch": "gi",        "log_score": -2.1, "posterior": 0.04, "applied": []}
+        ]
+      }
+    },
+    {
+      "t_ms": 43000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s01",
+        "session_id": "sess_chest_pain_01",
+        "section": "S",
+        "ordinal": 1,
+        "text": "Patient reports pressure-type chest pain since yesterday morning, with radiation to the left arm and jaw.",
+        "source_claim_ids": ["c01", "c02b", "c03", "c04"]
+      }
+    },
+    {
+      "t_ms": 45000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t13",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Do you currently smoke?",
+        "ts": 46000000000,
+        "asr_confidence": 0.99
+      }
+    },
+    {
+      "t_ms": 48500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t14",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes, half a pack a day. About 30 pack-years all told.",
+        "ts": 49500000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 49200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c12",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "social_history",
+        "value": "current_smoker_30_pack_years",
+        "value_normalised": "current_smoker",
+        "confidence": 0.92,
+        "source_turn_id": "t14",
+        "status": "active",
+        "created_ts": 49200000000,
+        "char_start": 4,
+        "char_end": 52
+      }
+    },
+    {
+      "t_ms": 52000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t15",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Does taking a deep breath make the pain worse?",
+        "ts": 53000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 55500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t16",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "No, breathing does not affect it at all.",
+        "ts": 56500000000,
+        "asr_confidence": 0.95
+      }
+    },
+    {
+      "t_ms": 56200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c13",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "aggravating_factor",
+        "value": "inspiration_negative",
+        "value_normalised": "inspiration_negative",
+        "confidence": 0.87,
+        "source_turn_id": "t16",
+        "status": "active",
+        "created_ts": 56200000000,
+        "char_start": 0,
+        "char_end": 39
+      }
+    },
+    {
+      "t_ms": 59000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t17",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "I am going to press on your chest here. Does that reproduce the discomfort?",
+        "ts": 60000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 62500,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t18",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "No, pressing on it does not do anything. It is not that kind of pain.",
+        "ts": 63500000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 63200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c14",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "alleviating_factor",
+        "value": "palpation_not_reproducible",
+        "value_normalised": "palpation_not_reproducible",
+        "confidence": 0.83,
+        "source_turn_id": "t18",
+        "status": "active",
+        "created_ts": 63200000000,
+        "char_start": 0,
+        "char_end": 40
+      }
+    },
+    {
+      "t_ms": 65000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac",   "log_score": 9.1,  "posterior": 0.84, "applied": []},
+          {"branch": "pulmonary", "log_score": 0.0,  "posterior": 0.09, "applied": []},
+          {"branch": "msk",       "log_score": -2.5, "posterior": 0.05, "applied": []},
+          {"branch": "gi",        "log_score": -2.8, "posterior": 0.02, "applied": []}
+        ]
+      }
+    },
+    {
+      "t_ms": 66000,
+      "type": "verifier",
+      "verifier": {
+        "why_moved": [
+          "Cardiac up: exertional trigger, left-arm and jaw radiation, diaphoresis (HEART score high).",
+          "Pulmonary stable: no pleuritic component, no recent immobility elicited."
+        ],
+        "missing_or_contradicting": [
+          "Wells PE criteria not elicited yet (leg swelling, recent travel, immobilisation).",
+          "Risk stratification incomplete without troponin — text substrate only."
+        ],
+        "next_best_question": "Any recent long travel, leg swelling, or prolonged immobility?",
+        "next_question_rationale": "Separates PE from cardiac at top-2 — highest expected information gain on current differential.",
+        "source_feature": "wells_pe_immobilisation"
+      }
+    },
+    {
+      "t_ms": 68000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s02",
+        "session_id": "sess_chest_pain_01",
+        "section": "S",
+        "ordinal": 2,
+        "text": "Pain is exertional, relieved by rest, non-pleuritic, not reproducible with palpation; associated diaphoresis and dyspnoea.",
+        "source_claim_ids": ["c05", "c06", "c13", "c14", "c07", "c08"]
+      }
+    },
+    {
+      "t_ms": 70000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s03",
+        "session_id": "sess_chest_pain_01",
+        "section": "S",
+        "ordinal": 3,
+        "text": "PMH: prior coronary stent (6 years ago), hypertension on lisinopril, active smoker (~30 pack-years).",
+        "source_claim_ids": ["c09", "c10", "c11", "c12"]
+      }
+    }
+  ]
+}

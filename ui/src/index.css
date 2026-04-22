@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design system — clinical-instrument aesthetic.
+ *
+ * Direction: editorial + industrial. Single dark field, near-monochrome
+ * with four restrained branch accents (cardiac red, pulmonary cyan,
+ * MSK amber, GI violet). Not a SaaS dashboard.
+ *
+ * Everything the UI states visually (status of a claim, branch score,
+ * provenance highlight) flows from these CSS variables so the design
+ * stays coherent as panels grow.
+ */
+
+@layer base {
+  :root {
+    --bg: 220 18% 8%;
+    --surface: 220 14% 11%;
+    --surface-2: 220 14% 14%;
+    --border: 220 10% 22%;
+    --border-strong: 220 10% 32%;
+    --fg: 210 20% 96%;
+    --fg-muted: 215 12% 70%;
+    --fg-subtle: 218 10% 52%;
+
+    --status-active: 210 20% 96%;
+    --status-superseded: 218 10% 48%;
+    --status-confirmed: 142 55% 62%;
+    --status-dismissed: 0 55% 62%;
+
+    /* Four branch hues — selected for WCAG-AA-on-dark + colour-blind
+     * separation (not a red/green pair). See PRD §6.3. */
+    --branch-cardiac: 356 72% 64%;
+    --branch-pulmonary: 192 70% 58%;
+    --branch-msk: 34 85% 62%;
+    --branch-gi: 276 55% 68%;
+
+    --accent: 48 95% 62%; /* provenance-highlight yellow — rules.md §4.5 */
+    --accent-soft: 48 95% 62%;
+
+    --disclaimer-bg: 220 14% 11%;
+    --disclaimer-fg: 210 20% 96%;
+    --disclaimer-border: 356 72% 64%;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    font-variant-ligatures: common-ligatures;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(
+        ellipse at 12% -10%,
+        hsl(356 72% 64% / 0.05) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        ellipse at 105% 120%,
+        hsl(192 70% 58% / 0.04) 0%,
+        transparent 50%
+      );
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.35);
+    color: hsl(var(--fg));
+  }
+}
+
+@layer components {
+  .panel {
+    @apply relative flex flex-col overflow-hidden rounded border border-border bg-surface shadow-panel;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between gap-3 border-b border-border px-4 py-2.5;
+  }
+
+  .panel-eyebrow {
+    @apply text-2xs font-medium uppercase tracking-eyebrow text-fg-subtle;
+  }
+
+  .panel-title {
+    @apply font-display text-[0.95rem] italic text-fg;
+  }
+
+  .scroll-y {
+    @apply overflow-y-auto;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
+  }
+
+  .scroll-y::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scroll-y::-webkit-scrollbar-thumb {
+    background: hsl(var(--border-strong));
+    border-radius: 4px;
+  }
+  .scroll-y::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Provenance highlight — the hero interaction. rules.md §4.5 + PRD §6.1 */
+  .prov-highlight {
+    @apply bg-accent/15 ring-1 ring-accent/50;
+    box-shadow: inset 3px 0 0 hsl(var(--accent));
+  }
+
+  .prov-dim {
+    @apply opacity-40;
+  }
+}
