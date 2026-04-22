@@ -1,5 +1,11 @@
 # asr_benchmark.md — ASR latency + medical-term WER
 
+> **For the full engineering spec see `docs/asr_engineering_spec.md`.**
+> That document is the canonical reference for success criteria, the
+> 5-check hallucination-guard coverage, the latency budget, and the
+> text-input dormancy guarantee. This file is a thin methodology +
+> reproduction pointer for the measurement run itself.
+
 **Scope**: CLAUDE.md §5.2 deliverable for `wt-extraction`. Measured real-time
 factor (RTF) and medical-term WER for three ASR variants on one synthetic
 chest-pain dialogue clip (see `src/extraction/asr/synth_audio.py`).
@@ -121,13 +127,8 @@ the commit SHA, and the hardware profile.
 
 ## 4. Results
 
-| Variant | RTF | Overall WER | Medical-term WER | End-of-utterance latency (s) | Hardware | Commit | Date |
-|---|---:|---:|---:|---:|---|---|---|
-| A `large_v3_baseline` | TBM | TBM | TBM | TBM | — | — | — |
-| B `large_v3_biased` | TBM | TBM | TBM | TBM | — | — | — |
-| C `distil_large_v3_fallback` | TBM | TBM | TBM | TBM | — | — | — |
-
-**`TBM` = to be measured.** Runner on the target hardware fills these in.
+Measurement pending — GPU run scheduled; see `docs/asr_engineering_spec.md` §2
+(success criterion A) and §4 (latency budget) for the measurement plan.
 
 ### Expected directional outcomes (hypothesis, NOT measurement)
 
