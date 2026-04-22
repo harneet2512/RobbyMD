@@ -26,6 +26,10 @@ TBD — link will be added when cut.
 
 TBD — diagram and walkthrough coming.
 
+### ASR layer
+
+Audio enters through an 8-stage pipeline: (1) ffmpeg loudnorm normalisation to 16 kHz mono PCM; (2) boundary-silence trimming to eliminate a documented Whisper hallucination trigger (Koenecke, ACM FAccT 2024); (3) faster-whisper large-v3 transcription with 6 hardened decoder parameters (temperature=0, beam_size=5, condition_on_previous_text=False, plus compression-ratio / logprob / no-speech thresholds); (4) WhisperX word-level alignment; (5) pyannote speaker diarisation; (6) speaker-role-aware LLM cleanup (FreeFlow-pattern, doctor vs patient system prompts, gpt-4o-mini for demo / qwen2.5-7b-local for evals — never Opus 4.7, which is reserved for claim extraction); (7) deterministic 5-check hallucination guard (repeated n-gram loop, OOV medical term, extreme compression ratio, low-confidence span, invented medication); (8) Levenshtein word correction against the active pack's medical vocabulary. Each stage is instrumented with a ring-buffer telemetry decorator. Full per-segment provenance — `original_text` alongside `cleaned_text` — flows to the substrate's `on_new_turn` handler, satisfying rules.md §4 (every claim traces to a conversation turn).
+
 ## Quickstart
 
 TBD.

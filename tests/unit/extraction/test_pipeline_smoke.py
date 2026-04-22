@@ -61,8 +61,14 @@ class _FakeTranscriber:
         initial_prompt: str | None,
         beam_size: int,
         vad_filter: bool,
+        condition_on_previous_text: bool = False,
+        temperature: float = 0.0,
+        compression_ratio_threshold: float = 2.4,
+        logprob_threshold: float = -1.0,
+        no_speech_threshold: float = 0.6,
     ) -> list[dict[str, Any]]:
-        del wav_path, vad_filter
+        del wav_path, vad_filter, condition_on_previous_text, temperature
+        del compression_ratio_threshold, logprob_threshold, no_speech_threshold
         self.last_prompt = initial_prompt
         self.last_beam = beam_size
         return self.canned
@@ -120,8 +126,10 @@ def test_pipeline_emits_turns_in_order() -> None:
     pipe, _, _, _ = _make_pipeline()
     turns = list(pipe.transcribe(Path("fake.wav")))
     assert len(turns) == 2
-    assert turns[0].speaker == "SPEAKER_00"
-    assert turns[1].speaker == "SPEAKER_01"
+    # speaker field in Turn now holds the role ("doctor"/"patient") derived from
+    # SPEAKER_00 / SPEAKER_01 labels by _guess_speaker_role — not the raw label.
+    assert turns[0].speaker == "doctor"    # SPEAKER_00 → doctor
+    assert turns[1].speaker == "patient"   # SPEAKER_01 → patient
     assert turns[0].t_start == 0.0
     assert turns[1].t_end == 5.0
     assert "metoprolol" in turns[1].text

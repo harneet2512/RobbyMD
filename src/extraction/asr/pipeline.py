@@ -1,7 +1,24 @@
-"""ASR pipeline — VAD → Whisper → WhisperX alignment → pyannote diarisation.
+"""ASR pipeline — preprocess → VAD → Whisper → WhisperX → diarise → cleanup → guard → correct.
 
-Wired per `research/asr_stack.md` §2.1. Emits `Turn` dataclasses the substrate's
-`src/substrate/admission.py` consumes (wt-engine owns that interface).
+Wired per `research/asr_stack.md` §2.1 and ASR hardening spec (Parts A-C).
+Emits `CleanedDiarisedTurn` dataclasses the substrate's `src/substrate/admission.py`
+consumes (wt-engine owns that interface).
+
+Pipeline order (per Part C spec, order matters):
+  audio
+    → preprocess.normalize_audio        (16 kHz mono PCM, loudnorm)
+    → preprocess.trim_silence           (strip boundary dead-air / hallucination trigger)
+    → faster-whisper.transcribe         (6 hardened decoder params + initial_prompt)
+    → whisperx align
+    → pyannote diarise
+    → TranscriptCleaner.clean           (per segment, cheap LLM)
+    → hallucination_guard.check         (per segment, 5 deterministic checks)
+    → word_correction.correct_medical_tokens  (per segment, Levenshtein)
+    → list[CleanedDiarisedTurn]
+
+Downstream (on_new_turn):
+  cleaned_text    → claim extractor (demo-path Opus 4.7, untouched)
+  original_text   → provenance payload  (rules.md §4)
 
 Model stack (all declared in MODEL_ATTRIBUTIONS.md):
 - silero-vad v5 (MIT) — voice activity gate.
@@ -16,11 +33,14 @@ lightweight unit tests) can import this module without pulling a GPU stack.
 Tests that exercise the model graph are gated on a `HF_TOKEN` + GPU and
 marked `@pytest.mark.slow`.
 
-Contract with downstream:
-- One `Turn` per diarised utterance, in timestamp order.
-- `t_start`, `t_end` are seconds from the audio clip's t=0.
-- `asr_confidence` is faster-whisper's `avg_logprob`, mapped to [0, 1]
-  via `exp(logprob)` (Whisper's published convention).
+Decoder parameters (A.1 hardening, explicit values prevent faster-whisper
+default drift across versions):
+- condition_on_previous_text=False  → prevents error cascades between segments
+- temperature=0.0                   → deterministic decoding
+- beam_size=5                       → matches PipelineConfig default
+- compression_ratio_threshold=2.4   → recommended by faster-whisper docs
+- logprob_threshold=-1.0            → suppress very-low-confidence hypotheses
+- no_speech_threshold=0.6           → suppress silent-frame hallucinations
 
 Per CLAUDE.md §8: structlog JSON, session_id / claim_id on every line.
 """
@@ -36,6 +56,14 @@ from typing import Any, Protocol, cast
 
 import structlog
 
+from src.extraction.asr import hallucination_guard, word_correction
+from src.extraction.asr.hallucination_guard import HallucinationReport
+from src.extraction.asr.transcript_cleanup import (
+    CleanedSegment,
+    CleanupUnavailable,
+    DiarisedSegment,
+    TranscriptCleaner,
+)
 from src.extraction.asr.vocab import build_initial_prompt
 
 logger = structlog.get_logger(__name__)
@@ -50,11 +78,14 @@ PYANNOTE_DIARIZER = "pyannote/speaker-diarization-community-1"
 
 @dataclass(frozen=True, slots=True)
 class Turn:
-    """One diarised utterance emitted to the substrate.
+    """One diarised utterance emitted to the substrate (legacy; pre-cleanup).
 
     Mirrors the `turns` table schema in Eng_doc.md §4.1 modulo substrate-assigned
     ids (`turn_id`, `session_id`). Those are stamped by wt-engine's admission
     filter, not here — we're upstream of the write API.
+
+    Retained for compatibility with existing tests. New code should prefer
+    `CleanedDiarisedTurn` which carries provenance and guard results.
     """
 
     speaker: str  # diariser label, e.g. "SPEAKER_00"; substrate maps to patient/physician
@@ -65,10 +96,32 @@ class Turn:
 
 
 @dataclass(frozen=True, slots=True)
+class CleanedDiarisedTurn:
+    """One processed utterance after the full 8-stage pipeline.
+
+    This is the type the substrate's `on_new_turn` handler receives.
+    `original_text` is ALWAYS preserved for provenance (rules.md §4).
+    `cleaned_text` is what the claim extractor (Opus 4.7 on demo path) sees.
+    """
+
+    speaker_role: str               # "doctor", "patient", or "unknown"
+    cleaned_text: str               # post-cleanup + post-correction text
+    original_text: str              # raw ASR output (provenance anchor)
+    t_start: float
+    t_end: float
+    word_confidences: tuple[float, ...]
+    corrections_applied: tuple[Any, ...]   # CleanupCorrection + word_correction.Correction
+    hallucination_report: HallucinationReport
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineConfig:
     """Runtime knobs for the ASR pipeline.
 
     Defaults match `Eng_doc.md` §3.1 targets (RTF <= 0.7 on 16-24 GB GPU).
+
+    Decoder parameters (A.1 hardening) are explicit here so they are visible
+    to tests and cannot drift with faster-whisper version changes.
     """
 
     whisper_model_id: str = WHISPER_LARGE_V3
@@ -79,11 +132,22 @@ class PipelineConfig:
     beam_size: int = 5
     vad_filter: bool = False  # silero handles this upstream
     use_initial_prompt: bool = True
+    # A.1 hardened decoder params — explicit values prevent version-drift surprises.
+    condition_on_previous_text: bool = False   # prevents error cascades between segments
+    temperature: float = 0.0                   # deterministic decoding
+    compression_ratio_threshold: float = 2.4   # suppress repetitive-loop segments
+    logprob_threshold: float = -1.0            # suppress very-low-confidence hypotheses
+    no_speech_threshold: float = 0.6           # suppress silent-frame hallucinations
     # Fallback switch thresholds (research/asr_stack.md §2.1 "fallback switch").
     # Demo-video path leaves these disabled so every shot runs large-v3 (see §7 Q4).
     enable_distil_fallback: bool = False
     device: str = "cuda"  # "cpu" is supported; WER parity not guaranteed
     hf_token: str | None = None  # required for pyannote community-1 download
+    # Cleanup model — passed through to TranscriptCleaner.
+    # NEVER "claude-opus-*" (config.py guards this).
+    cleanup_model: str = "gpt-4o-mini"
+    enable_cleanup: bool = True      # set False in tests to skip LLM cleanup
+    enable_preprocessing: bool = True  # set False to skip ffmpeg preprocessing
 
 
 class _VadGate(Protocol):
@@ -103,6 +167,11 @@ class _Transcriber(Protocol):
         initial_prompt: str | None,
         beam_size: int,
         vad_filter: bool,
+        condition_on_previous_text: bool,
+        temperature: float,
+        compression_ratio_threshold: float,
+        logprob_threshold: float,
+        no_speech_threshold: float,
     ) -> list[dict[str, Any]]:
         ...
 
@@ -120,10 +189,13 @@ class _AlignerDiarizer(Protocol):
 
 @dataclass
 class AsrPipeline:
-    """Composed VAD + ASR + alignment + diariser.
+    """Composed VAD + ASR + alignment + diariser + cleanup + guard + correction.
 
     Construct via `build_pipeline` in production. Callers inject typed stubs
     directly in tests (see `tests/unit/extraction/test_pipeline_smoke.py`).
+
+    Pipeline order (Part C spec):
+      preprocess → vad → transcribe → align+diarise → cleanup → guard → correct
     """
 
     config: PipelineConfig
@@ -131,15 +203,65 @@ class AsrPipeline:
     transcriber: _Transcriber
     aligner_diarizer: _AlignerDiarizer
     initial_prompt: str = field(default_factory=build_initial_prompt)
+    # Vocabulary for guard + correction (set at construction; refreshed per pack).
+    medical_vocabulary: set[str] = field(default_factory=set)
 
     def transcribe(self, wav_path: Path) -> Iterator[Turn]:
-        """Transcribe one WAV file, yielding diarised `Turn`s in order.
+        """Transcribe one WAV file, yielding legacy diarised `Turn`s.
+
+        This method preserves backward compatibility with existing tests and
+        callers. New code should use `transcribe_full` which returns
+        `CleanedDiarisedTurn`s with provenance.
+        """
+        for cleaned_turn in self.transcribe_full(wav_path):
+            # Synthesise a legacy Turn from the cleaned output.
+            yield Turn(
+                speaker=cleaned_turn.speaker_role,
+                text=cleaned_turn.cleaned_text,
+                t_start=cleaned_turn.t_start,
+                t_end=cleaned_turn.t_end,
+                asr_confidence=1.0 if not cleaned_turn.hallucination_report.flagged_spans else 0.0,
+            )
+
+    def transcribe_full(self, wav_path: Path) -> Iterator[CleanedDiarisedTurn]:
+        """Full 8-stage pipeline — preprocess → … → CleanedDiarisedTurn.
 
         Per research/asr_stack.md §2.1 the diariser runs post-utterance on the
         full file, not per-window. This file is tolerant of 0 speech segments
         (empty iterator), which happens for silent or sub-threshold-VAD input.
         """
+        from src.extraction.asr import preprocess, telemetry
+
         t0 = time.perf_counter()
+
+        # Stage 1+2: preprocess (normalize + trim).
+        if self.config.enable_preprocessing and preprocess.ffmpeg_available():
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                norm_path = tmp_path / "norm.wav"
+                trim_path = tmp_path / "trim.wav"
+
+                @telemetry.measure("normalize")
+                def _normalize() -> Path:
+                    return preprocess.normalize_audio(wav_path, norm_path)
+
+                @telemetry.measure("trim")
+                def _trim() -> Path:
+                    return preprocess.trim_silence(norm_path, trim_path)
+
+                _normalize()
+                _trim()
+                effective_wav = trim_path
+                yield from self._transcribe_inner(effective_wav, t0)
+        else:
+            yield from self._transcribe_inner(wav_path, t0)
+
+    def _transcribe_inner(self, wav_path: Path, t0: float) -> Iterator[CleanedDiarisedTurn]:
+        """Inner pipeline: VAD → transcribe → align+diarise → cleanup → guard → correct."""
+        from src.extraction.asr import telemetry
+
+        # Stage 3: VAD gate.
         segments = self.vad.speech_segments(wav_path, sample_rate=16_000)
         if not segments:
             logger.info(
@@ -149,13 +271,24 @@ class AsrPipeline:
             )
             return
 
+        # Stage 4: transcribe with all 6 hardened decoder params (A.1).
         prompt = self.initial_prompt if self.config.use_initial_prompt else None
-        raw = self.transcriber.transcribe(
-            wav_path,
-            initial_prompt=prompt,
-            beam_size=self.config.beam_size,
-            vad_filter=self.config.vad_filter,
-        )
+
+        @telemetry.measure("transcribe")
+        def _transcribe() -> list[dict[str, Any]]:
+            return self.transcriber.transcribe(
+                wav_path,
+                initial_prompt=prompt,
+                beam_size=self.config.beam_size,
+                vad_filter=self.config.vad_filter,
+                condition_on_previous_text=self.config.condition_on_previous_text,
+                temperature=self.config.temperature,
+                compression_ratio_threshold=self.config.compression_ratio_threshold,
+                logprob_threshold=self.config.logprob_threshold,
+                no_speech_threshold=self.config.no_speech_threshold,
+            )
+
+        raw = _transcribe()
         logger.info(
             "asr_pipeline.whisper.done",
             segments=len(raw),
@@ -163,15 +296,119 @@ class AsrPipeline:
             elapsed_s=round(time.perf_counter() - t0, 3),
         )
 
-        diarised = self.aligner_diarizer.align_and_diarise(wav_path, raw)
+        # Stage 5: align + diarise.
+        @telemetry.measure("diarise")
+        def _diarise() -> list[dict[str, Any]]:
+            return self.aligner_diarizer.align_and_diarise(wav_path, raw)
+
+        diarised = _diarise()
         logger.info(
             "asr_pipeline.diarised.done",
             turns=len(diarised),
             elapsed_s=round(time.perf_counter() - t0, 3),
         )
 
+        # Build cleanup helper (shared context across turns in this clip).
+        cleaner: TranscriptCleaner | None = None
+        if self.config.enable_cleanup:
+            try:
+                cleaner = TranscriptCleaner(
+                    medical_vocabulary=self.medical_vocabulary,
+                    cleanup_model=self.config.cleanup_model,
+                )
+            except Exception as exc:
+                logger.warning("asr_pipeline.cleaner_init_failed", error=str(exc))
+
         for turn_dict in diarised:
-            yield _to_turn(turn_dict)
+            turn = _to_turn(turn_dict)
+            speaker_role = _guess_speaker_role(turn.speaker)
+            raw_text = turn.text
+
+            # Stage 6: LLM cleanup (per segment).
+            cleaned_text = raw_text
+            cleanup_corrections: tuple[Any, ...] = ()
+            if cleaner is not None:
+                try:
+                    @telemetry.measure("cleanup")
+                    def _cleanup() -> CleanedSegment:
+                        assert cleaner is not None  # noqa: S101 — for pyright
+                        seg = DiarisedSegment(
+                            speaker_role=speaker_role,
+                            raw_text=raw_text,
+                            t_start=turn.t_start,
+                            t_end=turn.t_end,
+                        )
+                        return cleaner.clean(seg)
+
+                    cleaned_seg = _cleanup()
+                    cleaned_text = cleaned_seg.cleaned_text or raw_text
+                    cleanup_corrections = cleaned_seg.corrections_applied
+                except CleanupUnavailable as exc:
+                    logger.warning("asr_pipeline.cleanup_unavailable", error=str(exc))
+                except Exception as exc:
+                    logger.warning("asr_pipeline.cleanup_error", error=str(exc))
+
+            # Stage 7: hallucination guard (on cleaned text).
+            word_confs = list(turn_dict.get("word_confidences", []))
+
+            @telemetry.measure("guard")
+            def _guard() -> HallucinationReport:
+                return hallucination_guard.check(
+                    text=cleaned_text,
+                    vocabulary=self.medical_vocabulary,
+                    word_confidences=word_confs,
+                    audio_duration_s=max(0.0, turn.t_end - turn.t_start),
+                )
+
+            report = _guard()
+
+            # Stage 8: word correction (on cleaned text, after guard).
+            final_text = cleaned_text
+            word_corrections: list[word_correction.Correction] = []
+            if self.medical_vocabulary:
+                try:
+                    @telemetry.measure("correct")
+                    def _correct() -> tuple[str, list[word_correction.Correction]]:
+                        return word_correction.correct_medical_tokens(
+                            transcript=cleaned_text,
+                            vocabulary=self.medical_vocabulary,
+                        )
+
+                    final_text, word_corrections = _correct()
+                except Exception as exc:
+                    logger.warning("asr_pipeline.word_correction_error", error=str(exc))
+
+            all_corrections: tuple[Any, ...] = cleanup_corrections + tuple(word_corrections)
+
+            yield CleanedDiarisedTurn(
+                speaker_role=speaker_role,
+                cleaned_text=final_text,
+                original_text=raw_text,
+                t_start=turn.t_start,
+                t_end=turn.t_end,
+                word_confidences=tuple(word_confs),
+                corrections_applied=all_corrections,
+                hallucination_report=report,
+            )
+
+
+def _guess_speaker_role(speaker_label: str) -> str:
+    """Map a diariser speaker label to a role string.
+
+    The pyannote diariser emits labels like "SPEAKER_00" / "SPEAKER_01". We
+    adopt the convention that SPEAKER_00 is the physician (who typically
+    speaks first) and SPEAKER_01 is the patient. Unknown / higher-numbered
+    labels → "unknown".
+
+    This mapping is a demo heuristic. Production would use explicit role
+    assignment from the session setup UI.
+    """
+    label = speaker_label.upper()
+    if "00" in label:
+        return "doctor"
+    if "01" in label:
+        return "patient"
+    return "unknown"
 
 
 def _to_turn(d: dict[str, Any]) -> Turn:
@@ -277,12 +514,23 @@ def _build_faster_whisper(cfg: PipelineConfig) -> _Transcriber:
             initial_prompt: str | None,
             beam_size: int,
             vad_filter: bool,
+            condition_on_previous_text: bool = False,
+            temperature: float = 0.0,
+            compression_ratio_threshold: float = 2.4,
+            logprob_threshold: float = -1.0,
+            no_speech_threshold: float = 0.6,
         ) -> list[dict[str, Any]]:
+            # All 6 A.1 hardened decoder params passed explicitly.
             segments_iter, _info = model.transcribe(
                 str(wav_path),
                 initial_prompt=initial_prompt,
                 beam_size=beam_size,
                 vad_filter=vad_filter,
+                condition_on_previous_text=condition_on_previous_text,
+                temperature=temperature,
+                compression_ratio_threshold=compression_ratio_threshold,
+                logprob_threshold=logprob_threshold,
+                no_speech_threshold=no_speech_threshold,
             )
             out: list[dict[str, Any]] = []
             for s in segments_iter:

@@ -239,3 +239,19 @@ Final cleanup pass. Commit `a718301` updated eval-facing docs but left "three be
 - **ui/mock_server/server.ts** created: Node.js WebSocket replay server (uses `ws` MIT); run with `npm run mock-server`; streams fixture at real-time cadence to `ws://localhost:8765/session/chest_pain_01/events`.
 - **25 new UI tests** (Vitest, jsdom): 10 in `transcriptSlice.test.ts` (turn dispatch, selection axes, lifecycle); 15 in `ws.test.ts` (parseWsMessage + routeEvent contract). All pass. TypeScript strict-mode clean.
 - Branch `feature/ui` HEAD: `06a8f4e`.
+
+### 2026-04-22 — Track 3 Parts A-D, F, G: ASR hardening + FreeFlow cleanup + telemetry (isolated branch)
+
+- **Part A — Decoder hardening + preprocessing + hallucination guard + word correction**:
+  - `pipeline.py` updated: 6 hardened decoder params (condition_on_previous_text=False, temperature=0.0, beam_size=5, compression_ratio_threshold=2.4, logprob_threshold=-1.0, no_speech_threshold=0.6) passed explicitly to faster-whisper transcribe; protocol updated to match.
+  - NEW `src/extraction/asr/preprocess.py` (~65 LOC): `normalize_audio` (ffmpeg loudnorm → 16 kHz mono PCM) + `trim_silence` (boundary dead-air removal to suppress hallucination trigger, cite Koenecke FAccT 2024). Both wired into pipeline BEFORE transcription.
+  - NEW `src/extraction/asr/hallucination_guard.py` (~155 LOC): 5 deterministic checks (repeated n-gram, OOV medical term, extreme compression ratio, low-confidence span, invented medication). `HallucinationReport` with tri-level severity (clean/warn/block). BLOCK does NOT drop content — logs structlog WARNING.
+  - NEW `src/extraction/asr/word_correction.py` (~120 LOC): `correct_medical_tokens` with `rapidfuzz` Levenshtein (MIT), `DEFAULT_COMMON` 200-word guard, `Correction` dataclass, structlog logging. `rapidfuzz` added to `pyproject.toml`.
+- **Part B — FreeFlow-pattern two-speaker cleanup**:
+  - NEW `src/extraction/asr/transcript_cleanup.py` (~260 LOC): doctor/patient/unknown system prompts (FreeFlow-pattern, OpenWhispr numbered-vocab injection, Voquill glossary concept extended). `TranscriptCleaner` class with rolling context buffer. `CleanedSegment` preserves `original_text` always (rules.md §4). Diff-based `corrections_applied` with 6 reason categories. Cites FreeFlow, OpenWhispr, Voquill in module docstring.
+  - NEW `src/extraction/asr/config.py` (~55 LOC): `DemoCleanupConfig` (gpt-4o-mini, 500 ms), `EvalCleanupConfig` (qwen2.5-7b-local, 2000 ms), `DemoASRConfig`, `EvalASRConfig`. One-liner Opus guard raises `ValueError` at construction.
+- **Part C — Pipeline wiring**: `pipeline.py` completely rewired. `transcribe_full()` returns `CleanedDiarisedTurn` (8-stage pipeline). Legacy `transcribe()` preserved for existing test compatibility. `CleanedDiarisedTurn` carries speaker_role, cleaned_text, original_text, timestamps, word_confidences, corrections_applied, hallucination_report.
+- **Part D — Performance spec + telemetry**: NEW `docs/asr_performance_spec.md` with 5 latency targets + 5 quality targets + 4-point degradation ladder + telemetry stage table. NEW `src/extraction/asr/telemetry.py` (~65 LOC): `@measure` decorator, ring buffer (1000 per stage), `get_stats()` (P50/P95/P99/max), `reset()`. `@measure` wired around normalize, trim, transcribe, diarise, cleanup, guard, correct stages.
+- **Part F — Tests**: 7 new test files, ~27 new tests added. All existing 155 tests preserved; test count expected ≥ 182.
+- **Part G — Docs + reasons.md**: `README.md` Architecture section updated with ASR-layer paragraph. Two new entries appended to `reasons.md`: (a) fine-tuning rejected for layered mitigation (cite Koenecke FAccT 2024, Arora 2502.11572, Nabla blog); (b) batch-only rejected for streaming-capable architecture (cite WhisperX INTERSPEECH 2023, Nabla/Abridge latency targets).
+- **Parts E + H skipped**: GPU benchmark run and main merge are operator-gated separately.

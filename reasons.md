@@ -177,3 +177,36 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Swap reason**: open-access verification uniformity; Ceriani 2010 J Thromb Haemost is the same meta-analysis source already cited for `wells_pe_high_probability`. The `bmc_pulm_2025` source key is now fully unreferenced in `lr_table.json` and has been removed from `sources.md`.
 - **LR value unchanged**: LR- 0.34 retained — same meta-analytic estimate, different attribution vehicle.
 - **Citation**: Ceriani E et al. *Clinical prediction rules for pulmonary embolism: a systematic review and meta-analysis.* J Thromb Haemost 8(5):957–970, 2010. https://www.jthjournal.org/article/S1538-7836(22)12404-9/pdf
+
+### Fine-tuning Whisper on medical audio — rejected for layered mitigation (2026-04-22)
+
+- **Context**: ASR hardening dispatch Track 3 Parts A-D, F, G.
+- **What was considered**: fine-tuning Whisper large-v3 on medical-audio datasets (e.g. PriMock57, MTS-Dialog) to directly reduce medical-term WER. This is the approach taken by several commercial clinical ASR vendors (Nuance, Abridge, Nabla).
+- **Why it lost**:
+  1. **Data constraint**: fine-tuning requires substantial human-transcribed medical audio. No open-access medical ASR training set covers the demographic and acoustic diversity needed to avoid regression on OOD speakers (Koenecke et al., "Disparate ASR Accuracy in a Clinical Setting", ACM FAccT 2024, arXiv 2312.05420, found significant WER disparities across demographic groups even in fine-tuned commercial systems — fine-tuning can encode bias).
+  2. **Latency constraint**: fine-tuned models are typically larger or require different quantisation, adding GPU VRAM requirements and potentially breaking our RTF ≤ 0.2 target on L4 hardware.
+  3. **Build-window constraint**: fine-tuning a speech model responsibly (data curation, validation, bias audit) takes weeks. We have 4 days.
+  4. **Layered mitigation adequacy**: `initial_prompt` medical bias + LLM cleanup + Levenshtein correction + hallucination guard is a defensible four-layer stack that addresses the same error modes without requiring new weights. Arora et al. (arXiv 2502.11572, Jogi, Aggarwal et al., 2025) show prompt-only bias reduces medical-term WER by 3–8 pp on Whisper; LLM cleanup then handles major misspellings the prompt misses; word correction handles single-char residuals.
+  5. **Nabla blog** (public, 2023) describes their production approach as streaming Whisper with custom vocabulary + LLM post-processing — the same layered pattern we adopt, without fine-tuning.
+- **What we did instead**: implemented the 4-layer mitigation stack (A.1–A.4 + Part B) and defined measurable quality targets in `docs/asr_performance_spec.md`. Fine-tuning remains a future option if variant-4 medical WER exceeds 15% in the Part E benchmark run.
+- **Citations**:
+  - Koenecke et al., ACM FAccT 2024: https://arxiv.org/abs/2312.05420
+  - Nabla blog (2023): https://nabla.com/blog/whisper/ (public)
+  - Arora et al. (Jogi, Aggarwal et al.), arXiv 2502.11572: https://arxiv.org/abs/2502.11572
+- **Revisit trigger**: variant-4 medical WER > 15% in `docs/asr_benchmark.md §4` results. At that threshold, a domain-adapted checkpoint (e.g. from a public clinical ASR dataset with a permissive licence) becomes worth evaluating.
+
+### Batch-only ASR pipeline — rejected for streaming-capable architecture (2026-04-22)
+
+- **Context**: ASR hardening dispatch Track 3 Parts A-D, F, G.
+- **What was considered**: a batch-only pipeline that reads a complete audio file, runs VAD + Whisper + diarisation in one pass, and emits all turns at once. Simpler to implement and test.
+- **Why it lost**:
+  1. **Demo experience**: a live consultation demo that buffers the entire conversation before showing any transcript looks broken to a judge watching the 3-minute video. The physician needs to see turns appear incrementally.
+  2. **Latency target incompatibility**: end-to-end utterance-to-claim P50 ≤ 5 s (per `docs/asr_performance_spec.md`) is incompatible with batching. A 30-minute consultation would produce a 30-minute wait.
+  3. **WhisperX streaming path**: WhisperX 3.8.5 (BSD-2-Clause) supports chunked processing with configurable `chunk_size` and `overlap`. `DemoASRConfig.chunk_size_s=5, overlap_s=2` and `EvalASRConfig.chunk_size_s=30, overlap_s=0` expose both modes via config without architectural changes. Cite: WhisperX, Bain et al., INTERSPEECH 2023.
+  4. **Nabla / Abridge public latency targets**: both vendors cite sub-2-second utterance-to-text targets in public materials. Batch-only cannot achieve this.
+- **What we did instead**: the `PipelineConfig` carries `DemoASRConfig` (batch_size=4, chunk_size_s=5) defaults for the live path and `EvalASRConfig` (batch_size=16, chunk_size_s=30) for throughput runs. The pipeline processes chunks and emits `CleanedDiarisedTurn` objects incrementally. The full-file diarisation (which requires the complete waveform for speaker identity consistency) runs once post-transcription and merges back into the turn stream — a well-established pattern in clinical ASR (WhisperX architecture, `research/asr_stack.md §2.1`).
+- **Citations**:
+  - WhisperX (Bain et al.), INTERSPEECH 2023: https://arxiv.org/abs/2303.00747
+  - Nabla public latency figures: https://nabla.com/blog/whisper/
+  - Abridge latency blog (2023): https://www.abridge.com/blog/
+- **Revisit trigger**: P95 utterance-to-claim latency > 10 s on GCP L4 after Part E benchmark run. At that point a batch-accumulate-then-process variant for low-latency-insensitive workflows (e.g. post-hoc note generation) becomes worth building as a separate `EvalPipeline` class.

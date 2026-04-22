@@ -28,6 +28,7 @@ dependencies = [
     "anthropic>=0.39",      # Anthropic Python SDK (MIT; sponsored-tool exempt)
     "pydantic>=2.5",        # data models (MIT)
     "structlog>=24.1",      # structured logging per CLAUDE.md §8 (Apache-2.0 / MIT dual)
+    "rapidfuzz>=3.0",       # Levenshtein / fuzzy-match for word_correction.py (MIT)
 ]
 
 [project.optional-dependencies]
