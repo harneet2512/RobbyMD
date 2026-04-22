@@ -430,3 +430,34 @@ At cycle-report time both were still running with Azure throttle back-pressure; 
 **Memory entries added**: `reference_umls_api_key.md` (points at `D:\hack_it\.env`; raw UMLS API key never echoed).
 
 **Modal spend this cycle**: <$0.25 (bge-m3 + Qwen cold-starts + probes; Stream B.1 ingestion-phase tokens low). Azure spend: several thousand gpt-4.1-mini extraction calls plus a handful of gpt-4o-2024-11-20 LongMemEval reader calls — rough estimate $2–$5, well within uncapped-Azure scope.
+
+### 2026-04-22 — Lessons from this cycle (apply to all future smoke runs)
+
+These are not opinions — they are what the cycle's failures cost in time and money. Each one is a load-bearing rule going forward.
+
+1. **Streaming JSONL writes over accumulator patterns, always.**
+   Stream A OOM'd at the final `json.dumps(all_results, indent=2)` after
+   all 60 questions had run. Process counters looked healthy until the
+   JSON encoder hit the cliff. The fix on `feature/lme-streaming-fix`
+   replaces the accumulator with per-case hypotheses.jsonl + per-extraction
+   extractions.jsonl writes; results.json is rebuilt from the JSONL at
+   end. Partial data from a crashed streaming writer is recoverable;
+   nothing from a crashed accumulator is.
+2. **RSS in every status update, not just progress counters.**
+   "Encounter 8/10" hides "process is at 5.2 GB and headed for OOM."
+   The streaming-fix commit adds an `_log_rss_mb` heartbeat every 20
+   cases. Loud RSS lines are non-negotiable on any run that touches
+   the substrate ingestion path.
+3. **Bound every resource (time, memory, retries, cache size) in-code,
+   not in-head.** This cycle hit *three* unbounded resources: scispacy
+   linker cache (~2 GB on C: which had 2.1 GB free → OSError 28),
+   gpt-4.1-mini retry loop (no retry cap → 14k attempts in an hour),
+   the in-memory accumulator (no cap → final OOM). Bound each at write
+   time; "we'll watch the dashboard" is not bounding.
+4. **Partial data from crashed streaming writes > full data from crashed
+   accumulators.** Stream A produced zero usable output for ~60 minutes
+   of compute and ~$3 of Azure spend. Same run with the streaming fix
+   would have yielded N/60 question results before crash, the substrate
+   arm's per-turn extractions, and the resume-from-where-it-died
+   capability. Engineering for the crash mode is not pessimism — it's
+   the median outcome on a 1-hour run with three external dependencies.
