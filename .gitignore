@@ -74,3 +74,27 @@ eval/longmemeval/results/
 # Logs
 *.log
 logs/
+.env.azure.local
+
+# Research artifacts and validation cycles (kept local, not shipped)
+advisory/
+research/
+
+# Frontend reference downloads (not part of ui/ build)
+dominikmartn-hue/
+jon-typography/
+kylezantos-motion/
+
+# Root-level research markdown (research only, not source of truth)
+/architecture_audit.md
+/architecture_changes.md
+/architecture_recommendations.md
+/evaluation_results.md
+/research_report.md
+/structured_intermediates_literature_survey.md
+/acibench_architecture_deep_research.md
+/longmemeval_architecture_deep_research.md
+
+# Root-level node scratch (actual UI build lives under ui/)
+/package.json
+/package-lock.json
