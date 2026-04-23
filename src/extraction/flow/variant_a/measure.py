@@ -94,35 +94,37 @@ def medical_term_wer(reference: str, hypothesis: str) -> float:
     Returns a float in [0.0, 1.0]. Returns 0.0 if the reference has no
     medical tokens.
     """
-    ref_tokens_raw = reference.split()
-    hyp_tokens_raw = hypothesis.split()
-    if not ref_tokens_raw:
+    if not reference.strip():
         return 0.0
 
-    ref_norm = [_strip(t) for t in ref_tokens_raw]
-    hyp_norm = [_strip(t) for t in hyp_tokens_raw]
+    # jiwer.process_words expects strings (single or list of strings for
+    # batch). Passing a list-of-tokens confuses its tokeniser — earlier
+    # version of this function did that and returned 1.0 for every clip.
+    ref_lower = reference.lower()
+    hyp_lower = hypothesis.lower()
 
-    medical_positions = [i for i, t in enumerate(ref_norm) if t in MEDICAL_TERMS]
+    try:
+        out = jiwer.process_words(ref_lower, hyp_lower)
+    except Exception:
+        return 1.0
+
+    # jiwer's tokenisation strips punctuation and splits on whitespace.
+    # Use its own reference list as the ground truth for position mapping
+    # so indices match the alignment chunks.
+    try:
+        ref_tokens = out.references[0]
+        chunks = out.alignments[0]
+    except (AttributeError, IndexError, TypeError):
+        return 1.0
+
+    medical_positions = [
+        i for i, t in enumerate(ref_tokens) if _strip(t) in MEDICAL_TERMS
+    ]
     if not medical_positions:
         return 0.0
 
-    # Align. jiwer.process_words accepts list-of-lists for ref/hyp to skip
-    # its own tokenisation.
-    try:
-        out = jiwer.process_words([ref_norm], [hyp_norm])
-    except Exception:
-        # Fallback if jiwer API differs: treat all medical positions as errors.
-        return 1.0
-
-    # Walk the alignment chunks and mark which ref positions got a direct
-    # equal match. Substitute / delete / insert leave the position unmatched
-    # (for "insert" it's a hyp-only chunk and doesn't cover any ref position).
-    n_ref = len(ref_norm)
+    n_ref = len(ref_tokens)
     matched = [False] * n_ref
-    try:
-        chunks = out.alignments[0]
-    except (AttributeError, IndexError):
-        return 1.0
     for ch in chunks:
         ch_type = getattr(ch, "type", None)
         if ch_type != "equal":

@@ -148,6 +148,17 @@ class VariantAPipeline:
             initial_prompt=MEDICAL_INITIAL_PROMPT,
             word_timestamps=word_timestamps,
             language="en",
+            # vad_filter=True runs Silero VAD to strip silence/non-speech
+            # BEFORE transcription. Without it, Whisper hallucinates at
+            # the tail of clips where audio trails off (observed on the
+            # fixed-torch run: "Thank you for your?tulo and about this
+            # episode. Next slide, Seat Deskets, ..." appended to every
+            # clip, inflating raw WER from ~12% to ~20%).
+            vad_filter=True,
+            # condition_on_previous_text=False prevents segment N's prior
+            # context from biasing segment N+1 — a known source of
+            # cascading hallucination when earlier segments are noisy.
+            condition_on_previous_text=False,
         )
         segments: list = []
         first_segment_ms: float | None = None
