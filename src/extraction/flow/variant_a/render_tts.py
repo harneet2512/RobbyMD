@@ -59,7 +59,10 @@ def render_all() -> None:
     np.random.seed(42)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-    pipeline = KPipeline(lang_code="a")  # 'a' = American English
+    # Force CPU: Kokoro's CUDA init hits a cuBLAS symbol-load issue against
+    # the L4's torch+cu121 stack. 82M-param model runs in a few seconds per
+    # clip on CPU and frees VRAM for Whisper + pyannote + vLLM downstream.
+    pipeline = KPipeline(lang_code="a", device="cpu")
 
     for scenario in SCENARIOS:
         script_path = SCRIPTS_DIR / f"{scenario}_script.txt"
