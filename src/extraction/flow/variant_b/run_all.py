@@ -28,6 +28,26 @@ if ok:
         arr = sorted(arr)
         return arr[min(int(p*len(arr)), len(arr)-1)]
 
+    import statistics, random
+    def mean_stdev_ci(arr):
+        """D4: paired bootstrap 95% CI. Deterministic seed for reproducibility."""
+        if len(arr) < 2:
+            return {"mean": arr[0] if arr else None, "stdev": None,
+                    "ci95_lo": None, "ci95_hi": None, "n": len(arr)}
+        rng = random.Random(20260423)
+        boots = []
+        for _ in range(2000):
+            sample = [arr[rng.randrange(len(arr))] for _ in range(len(arr))]
+            boots.append(sum(sample) / len(sample))
+        boots.sort()
+        return {
+            "mean": sum(arr) / len(arr),
+            "stdev": statistics.stdev(arr),
+            "ci95_lo": boots[int(0.025 * len(boots))],
+            "ci95_hi": boots[int(0.975 * len(boots))],
+            "n": len(arr),
+        }
+
     agg = {
         "variant": "B",
         "architecture": "Cascaded: Canary-Qwen-2.5B ASR -> pyannote 3.1 diarization -> BioMistral-7B-DARE cleanup",
@@ -57,12 +77,12 @@ if ok:
         "n_clips": len(all_metrics),
         "n_ok": len(ok),
         "n_failed": len(all_metrics) - len(ok),
-        "wer_raw_mean": sum(m["wer_raw"] for m in ok) / len(ok),
-        "wer_cleaned_mean": sum(m["wer_cleaned"] for m in ok) / len(ok),
-        "medical_term_wer_mean": sum(m["medical_term_wer"] for m in ok) / len(ok),
-        "der_mean": sum(m["der"] for m in ok) / len(ok),
-        "first_token_ms_p50": pct([m["first_token_ms"] for m in ok], 0.5),
-        "first_token_ms_p90": pct([m["first_token_ms"] for m in ok], 0.9),
+        "wer_raw": mean_stdev_ci([m["wer_raw"] for m in ok]),
+        "wer_cleaned": mean_stdev_ci([m["wer_cleaned"] for m in ok]),
+        "medical_term_wer": mean_stdev_ci([m["medical_term_wer"] for m in ok]),
+        "der": mean_stdev_ci([m["der"] for m in ok]),
+        "first_segment_ms_p50": pct([m["first_segment_ms"] for m in ok], 0.5),
+        "first_segment_ms_p90": pct([m["first_segment_ms"] for m in ok], 0.9),
         "e2e_ms_p50": pct([m["e2e_ms"] for m in ok], 0.5),
         "e2e_ms_p90": pct([m["e2e_ms"] for m in ok], 0.9),
         "e2e_ms_p99": pct([m["e2e_ms"] for m in ok], 0.99),
@@ -70,6 +90,20 @@ if ok:
         "diar_ms_mean": sum(m["diar_ms"] for m in ok) / len(ok),
         "cleanup_ms_mean": sum(m["cleanup_ms"] for m in ok) / len(ok),
         "vram_peak_mb_max": max(m["vram_peak_mb"] for m in ok),
+        "latency_methodology_note": (
+            "D2: first_segment_ms is first-segment-after-full-audio-ingest, "
+            "NOT Wispr Flow-style streaming-first-word (~700ms target). "
+            "Canary-Qwen returns the full transcript in one call on a "
+            "non-streaming API; comparing directly to streaming ASR targets "
+            "is a category error. e2e_ms is the right number for batch comparisons."
+        ),
+        "calibration_note": (
+            "D7: all 6 clips were rendered by Kokoro-82M TTS (studio-clean). "
+            "Real clinical audio (noise, overlap, accent, mic quality) typically "
+            "degrades ASR WER by 2-3x vs clean TTS. Interpret these numbers as "
+            "upper-bound accuracy on TTS conditions, not deployment-environment "
+            "accuracy. For deployment numbers, re-measure on real clinical recordings."
+        ),
         "competitive_context": {
             "wispr_flow_p99_target_ms": 700,
             "wispr_flow_accuracy_wer_pct": "2-5",

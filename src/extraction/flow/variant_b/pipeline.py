@@ -1,65 +1,70 @@
-import time, os, requests
+import json, os, time
 from pathlib import Path
-from pyannote.audio import Pipeline as DiarPipeline
-import nemo.collections.asr as nemo_asr
 
+import requests
+import torch
+from pyannote.audio import Pipeline as DiarPipeline
+# NeMo / Canary-Qwen run in .venv-asr via asr_prerun.py; transcripts are
+# loaded here from a JSONL sidecar keyed by audio_path. Keeps torch 2.11
+# out of this venv so pyannote.audio 3.3.1 / torch 2.4 can run.
+
+# Subsequence-only cleanup prompt. Forbids paraphrasing/normalisation/expansion.
+# Bundle 4 root-cause: the old prompt invited BioMistral to rewrite conversational
+# segments as formal PubMed-style prose, which inflates WER against a token-exact
+# reference. Fix: explicit subsequence contract + filler-only scope.
 CLEANUP_SYSTEM = (
-    "You are a medical transcript cleaner. Given a raw ASR segment, remove filler "
-    "words and disfluencies, normalize medical terminology to standard forms, fix "
-    "obvious transcription errors in drug names and anatomical terms, and preserve "
-    "every clinically relevant claim. Return ONLY the cleaned text, no explanation."
+    "Return the input text with filler tokens (uh, um, like, you know, basically, "
+    "literally) removed and nothing else. Do not reorder, paraphrase, normalise "
+    "terminology, correct grammar, or add words. The output MUST be a subsequence "
+    "of the input (only deletions allowed). If the input has no filler, return it "
+    "verbatim byte-for-byte. Return ONLY the cleaned text."
+)
+
+import re as _re
+# Fast-path filler detector: if none match, skip the LLM entirely.
+_FILLER_TOKEN_RE = _re.compile(
+    r"(uh+|um+|er+|mm+|uhm+|hmm+|like|you know|i mean|basically|literally|sort of|kind of)",
+    _re.IGNORECASE,
 )
 
 class VariantBPipeline:
     def __init__(self, hf_token: str, cleanup_url: str = "http://127.0.0.1:8001/v1"):
-        # Canary-Qwen-2.5B ASR via NeMo
-        self.asr = nemo_asr.models.EncDecMultiTaskModel.from_pretrained("nvidia/canary-qwen-2.5b")
-        self.asr = self.asr.eval()
-        # Canary-Qwen uses ASR mode by default (LLM mode is separate)
-        decode_cfg = self.asr.cfg.decoding
-        decode_cfg.beam.beam_size = 1  # greedy for speed per NVIDIA's reference eval
-        self.asr.change_decoding_strategy(decode_cfg)
-        import torch
-        self.asr = self.asr.to(torch.device("cuda"))
+        asr_jsonl = os.environ.get("ASR_PRERUN_JSONL", "eval/synthetic_clips/asr_prerun.jsonl")
+        self._asr_cache = {}
+        if not Path(asr_jsonl).exists():
+            raise RuntimeError(f"ASR prerun JSONL missing: {asr_jsonl}. Run asr_prerun.py first.")
+        for line in Path(asr_jsonl).read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            self._asr_cache[rec["audio_path"]] = (rec["transcript"], rec["asr_ms"])
+        print(f"[pipeline] loaded {len(self._asr_cache)} ASR transcripts from {asr_jsonl}")
 
         # pyannote 3.1 diarization
         self.diar = DiarPipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
             use_auth_token=hf_token,
         )
-        self.diar.to("cuda")
+        self.diar.to(torch.device("cuda"))
 
         self.cleanup_url = cleanup_url
 
     def transcribe(self, audio_path: str):
-        t = time.perf_counter()
-        # Canary-Qwen transcribe API: returns list of Hypothesis objects
-        preds = self.asr.transcribe([audio_path], batch_size=1, task="asr", source_lang="en", target_lang="en", pnc=True)
-        dt = (time.perf_counter() - t) * 1000
-        # preds is list of strings or Hypothesis objects depending on NeMo version
-        if hasattr(preds[0], "text"):
-            text = preds[0].text
-        else:
-            text = str(preds[0])
-        return text, dt
+        if audio_path not in self._asr_cache:
+            raise RuntimeError(f"no ASR transcript for {audio_path}. Run asr_prerun.py first.")
+        text, dt = self._asr_cache[audio_path]
+        return text, float(dt)
 
     def diarize(self, audio_path: str):
         return self.diar(audio_path, num_speakers=2)
 
     def cleanup_segment(self, raw_text: str) -> str:
-        payload = {
-            "model": "biomistral-7b-dare",
-            "messages": [
-                {"role": "system", "content": CLEANUP_SYSTEM},
-                {"role": "user", "content": raw_text},
-            ],
-            "temperature": 0.0,
-            "max_tokens": max(64, len(raw_text.split()) * 3),
-        }
-        r = requests.post(f"{self.cleanup_url}/chat/completions", json=payload, timeout=30)
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"].strip()
-
+        # Bundle 5 v1: cleanup DISABLED.
+        # (a) D1: BioMistral paraphrased conversational speech, inflating WER.
+        # (b) vLLM 0.6.3 int*None config bug on BioMistral under torch 2.4;
+        #     upgrading vLLM needs torch 2.5+ which breaks pyannote.audio.
+        # Effect: cleaned_text == raw_text; results.json reports cleanup=disabled.
+        return raw_text
     def align_speakers_from_raw(self, raw_transcript: str, diarization, audio_duration: float):
         """
         Canary-Qwen returns a full transcript without word-level timestamps by default.
@@ -98,7 +103,10 @@ class VariantBPipeline:
         # Stage 1: Canary-Qwen ASR
         raw_transcript, asr_ms = self.transcribe(audio_path)
         timings["asr_ms"] = asr_ms
-        timings["first_token_ms"] = asr_ms  # Canary returns full transcript in one call
+        # D2: honest metric name. Canary-Qwen returns the full transcript after
+        # processing the full audio chunk. This is NOT streaming-first-word
+        # (Wispr Flow~700 ms). Reporting it as first_segment_ms for comparability.
+        timings["first_segment_ms"] = asr_ms
 
         # Stage 2: pyannote diarization (runs in parallel on paper, sequential here)
         t_d = time.perf_counter()

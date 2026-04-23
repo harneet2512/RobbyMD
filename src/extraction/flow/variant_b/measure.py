@@ -64,7 +64,7 @@ def measure_one(clip, pipeline):
         "scenario": clip["scenario"],
         "audio_duration_sec": audio_duration,
         "num_speakers_detected": len(set(s["speaker"] for s in result["segments"])),
-        "first_token_ms": result["timings"]["first_token_ms"],
+        "first_segment_ms": result["timings"]["first_segment_ms"],
         "asr_ms": result["timings"]["asr_ms"],
         "diar_ms": result["timings"]["diar_ms"],
         "cleanup_ms": result["timings"]["cleanup_ms"],

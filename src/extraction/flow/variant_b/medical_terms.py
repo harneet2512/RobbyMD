@@ -1,38 +1,32 @@
-# TODO (L4 operator, Step 3): OVERWRITE this file verbatim with Bundle 4's
-# src/extraction/flow/variant_a/medical_terms.py so Variants A and B score
-# against the identical MEDICAL_TERMS set. The A-vs-B comparison is invalid
-# if the medical-term WER sub-metric uses different term lists.
-#
-# This file exists as a placeholder so that measure.py imports cleanly on the
-# laptop scaffold session. The terms below are a rough cross-section drawn
-# from predicate_packs/clinical_general/differentials/chest_pain/branches.json
-# and common ACI-Bench medical vocabulary. DO NOT ship the A-vs-B comparison
-# with these placeholder terms — swap in Bundle 4's authoritative set first.
+"""Fixed vocabulary used to compute medical-term WER.
 
-MEDICAL_TERMS: set[str] = {
-    # Cardiac
-    "chest", "pain", "angina", "ischemia", "infarction", "mi", "stemi",
-    "nstemi", "acs", "troponin", "cad", "dissection", "aortic",
-    "nitroglycerin", "diaphoresis", "diaphoretic", "radiation", "s3", "s4",
-    "gallop",
-    # Pulmonary
-    "dyspnea", "dyspnoea", "pleuritic", "embolism", "pe", "pneumonia",
-    "pneumothorax", "hemoptysis", "haemoptysis", "spo2", "oxygen",
-    "respiratory", "tachypnea", "tachypnoea",
-    # GI
-    "abdominal", "nausea", "vomiting", "emesis", "diarrhea", "diarrhoea",
-    "melena", "haematemesis",
-    # Neuro
-    "headache", "syncope", "dizziness", "vertigo", "seizure",
-    # Vitals
-    "bp", "sbp", "dbp", "hr", "heart-rate", "blood-pressure", "pulse",
-    "temp", "temperature", "afebrile", "febrile",
-    # Labs / imaging
-    "bnp", "ecg", "ekg", "ct", "mri", "xray", "x-ray", "cbc", "bmp", "cmp",
-    # History / comorbidity
-    "htn", "hypertension", "dm", "dm2", "diabetes", "copd", "asthma",
-    "chf", "smoker", "smoking", "pack-year", "pack-years",
-    # Medications (common)
-    "aspirin", "metoprolol", "lisinopril", "atorvastatin", "furosemide",
-    "heparin", "warfarin", "insulin",
-}
+Lower-case stems only — the measurement strips punctuation before comparing.
+Additions tracked against predicate_packs/clinical_general/differentials/
+feature names, so the term list biases towards what the differential engine
+cares about.
+"""
+
+MEDICAL_TERMS = frozenset({
+    # cardiac
+    "chest", "pain", "pressure", "dyspnea", "dyspnoea", "palpitations",
+    "troponin", "aspirin", "nitroglycerin", "myocardial", "infarction",
+    "angina", "radiates", "radiation", "heart", "timi", "pericarditis",
+    "tamponade", "ecg", "ekg",
+    # pulmonary
+    "embolism", "pneumonia", "asthma", "wheezing", "tachypnea", "tachypnoea",
+    "pleuritic", "perc", "wells",
+    # gi
+    "cholecystitis", "appendicitis", "diverticulitis", "bowel", "obstruction",
+    "murphy", "mcburney", "guarding", "rebound", "rigidity", "periumbilical",
+    # neuro
+    "migraine", "subarachnoid", "hemorrhage", "haemorrhage", "aphasia",
+    "seizure",
+    # vestibular / syncope
+    "vasovagal", "orthostatic", "bppv", "arrhythmia", "syncope", "presyncope",
+    "dizziness", "vertigo",
+    # general
+    "hypertension", "diabetes", "ibuprofen", "metformin", "amlodipine",
+    "atorvastatin", "statin", "lisinopril", "losartan", "metoprolol",
+    "clopidogrel", "heparin", "apixaban", "enoxaparin", "albuterol",
+    "furosemide", "acetaminophen", "ceftriaxone", "metronidazole",
+})
