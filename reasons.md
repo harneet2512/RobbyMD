@@ -515,3 +515,15 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - Restore `valid_from_ts` schema + time-filter to amplify temporal-reasoning gains.
 
 **Citation**: results.json + hypotheses.jsonl + extractions.jsonl at `eval/longmemeval/results/20260423_postmerge_lme_stratified_n30_20260423T002307Z_seed42/`; summariser at `eval/smoke/summarise_longmemeval.py`; cycle main commit at the time of run was `7d0311a`.
+
+---
+
+## 2026-04-23 — Bundle 1
+
+### Branches preserved for manual review
+- **feature/lme-temporal**: 0 commits not on main. Fully merged via the wave-b integration at `e94c20f`. Preserved pending operator confirmation per Bundle 1 prompt instructions; safe to delete locally on the operator's nod (`git branch -d feature/lme-temporal`). May be of interest if operator wants to inspect the Worker-3 isolated history before garbage-collecting the ref.
+- **feature/aci-audit-revise**: 0 commits not on main. Fully merged at `e94c20f` (only `audit_prompt.py` landed; the orchestrator `audit.py` was killed mid-Step-3 in the original Worker 5 session and has not been re-attempted). Preserved pending operator review of whether to revive the orchestrator on a fresh branch or fold further work onto main.
+- **eval/azure-gpt4o-baseline**: 0 commits not on main. Origin still unclear (no commits on the branch that aren't on main, so it carried no unique work as of 2026-04-23). Preserved pending operator confirmation that no off-tree experimentation is parked here.
+
+### Branches deleted (Bundle 1, 2026-04-23)
+Local + origin (where present): `feature/lme-retrieval`, `feature/aci-hybrid`, `feature/asr-spec`, `feature/lme-streaming-fix`, `fix/benchmark-integrity`, `feature/substrate-core`, `feature/wave-b`, `feature/retrieval-fusion`. All confirmed `git log main..<br> --oneline | wc -l == 0` before deletion. Only `feature/lme-streaming-fix` existed on origin; the other 7 were local-only worker branches and `git push --delete` returned "remote ref does not exist" (expected, logged, continued).
