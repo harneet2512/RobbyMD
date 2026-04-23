@@ -52,9 +52,10 @@ tmux kill-session -t vllm 2>/dev/null || true
 tmux new-session -d -s vllm
 # vLLM 0.8+ flags. Dropped --enforce-eager (vLLM 0.8 handles the AWQ
 # kernel compile without it and keeps CUDA graph optimisations for faster
-# first-token). gpu-memory-utilization bumped to 0.60 to reserve a bit
-# more headroom for pyannote 4.x diariser (re-enabled this run).
-tmux send-keys -t vllm "source $PWD/.venv-flow-a/bin/activate && export HF_TOKEN=$HF_TOKEN && vllm serve $BIOMISTRAL_REPO --served-model-name biomistral-7b-dare --host 127.0.0.1 --port 8000 --quantization awq --dtype float16 --max-model-len 8192 --gpu-memory-utilization 0.60 --disable-log-requests 2>&1 | tee /home/Lenovo/robbymd/vllm.log" Enter
+# first-token) and --disable-log-requests (removed in 0.8; use
+# --uvicorn-log-level warning to quiet access logs instead).
+# gpu-memory-utilization bumped to 0.60 for pyannote 4.x headroom.
+tmux send-keys -t vllm "source $PWD/.venv-flow-a/bin/activate && export HF_TOKEN=$HF_TOKEN && vllm serve $BIOMISTRAL_REPO --served-model-name biomistral-7b-dare --host 127.0.0.1 --port 8000 --quantization awq --dtype float16 --max-model-len 8192 --gpu-memory-utilization 0.60 --uvicorn-log-level warning 2>&1 | tee /home/Lenovo/robbymd/vllm.log" Enter
 
 step "2. Wait for vLLM health (up to 5 min)"
 ok=0
