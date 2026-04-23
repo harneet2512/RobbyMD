@@ -21,11 +21,34 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from collections import defaultdict
 from pathlib import Path
 
+# Allow `python eval/smoke/summarise_longmemeval.py` from repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-def _bucket(rows: list[dict], arm: str) -> dict[str, list[float]]:
+
+def _load_case_id_to_question_type() -> dict[str, str]:
+    """Join key for per-category bucketing.
+
+    CaseResult doesn't carry question_type (would inflate every smoke
+    results.json); we re-read the dataset once and build a case_id →
+    question_type map. Prefers the cleaned dataset.
+    """
+    from eval.smoke.run_smoke import _resolve_longmemeval_dataset
+    import json as _json
+
+    p = _resolve_longmemeval_dataset()
+    if not p.is_file():
+        return {}
+    data = _json.loads(p.read_text(encoding="utf-8"))
+    return {str(o["question_id"]): str(o.get("question_type", "")) for o in data}
+
+
+def _bucket(rows: list[dict], arm: str, qid_to_type: dict[str, str]) -> dict[str, list[float]]:
     buckets: dict[str, list[float]] = defaultdict(list)
     for r in rows:
         if r.get("variant") != arm:
@@ -33,10 +56,8 @@ def _bucket(rows: list[dict], arm: str) -> dict[str, list[float]]:
         # LongMemEval judge scores land on substrate_score for substrate rows
         # and baseline_score for baseline rows. Unify under "score" here.
         score = r.get("substrate_score") if arm == "substrate" else r.get("baseline_score")
-        cat = r.get("question_type")
-        if cat is None:
-            # Some rows may not have question_type set; skip rather than bucket as "unknown".
-            continue
+        # Bucket key from the joined map (CaseResult doesn't carry the type itself).
+        cat = qid_to_type.get(str(r.get("case_id", "")), "unknown")
         if score is not None:
             buckets[cat].append(float(score))
     return buckets
@@ -62,8 +83,9 @@ def main(argv: list[str] | None = None) -> int:
           f"stratified: {cfg.get('stratified', '?')}   n_cases: {cfg.get('n_cases', '?')}")
     print()
 
-    base_buckets = _bucket(rows, "baseline")
-    sub_buckets = _bucket(rows, "substrate")
+    qid_to_type = _load_case_id_to_question_type()
+    base_buckets = _bucket(rows, "baseline", qid_to_type)
+    sub_buckets = _bucket(rows, "substrate", qid_to_type)
     all_cats = sorted(set(base_buckets) | set(sub_buckets))
 
     def _mean(x: list[float]) -> float:

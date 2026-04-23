@@ -478,3 +478,40 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 4. Seeds 42/43/44 only — single-seed in the original Wang-Lab paper; 3-seed multi-seed adds confidence not present in published numbers.
 
 **Citation**: per-seed results.json under `eval/acibench/results/20260423_postmerge_hybrid_phase{1,15}_*_seed{42,43,44}/`; aggregator at `eval/smoke/aggregate_seeds.py`; multi-seed discipline doc at `reasons.md` § Phase 1.5 multi-seed.
+
+### Stream A re-run LongMemEval n=30 stratified seed 42 (post-merge cycle)
+
+**Headline (gpt-4o-2024-11-20 reader+judge, bge-m3 retrieval+CoN substrate path, single seed 42, stratified 5/category × 6 types):**
+
+| Category | n | baseline | substrate | Δ |
+|---|---:|---:|---:|---:|
+| knowledge-update | 5 | 0.40 | 0.20 | **−0.20** |
+| multi-session | 5 | 0.00 | 0.00 | 0.00 |
+| single-session-assistant | 5 | 0.40 | 0.00 | **−0.40** |
+| single-session-preference | 5 | 0.00 | 0.00 | 0.00 |
+| single-session-user | 5 | 0.20 | 0.20 | 0.00 |
+| temporal-reasoning | 5 | 0.00 | 0.20 | **+0.20** |
+| **aggregate** | 30 | **0.167** | **0.100** | **−0.067** |
+
+**Knowledge-update headline**: substrate 0.20 vs baseline 0.40 — substrate's supersession-edges machinery does NOT yet beat full-context baseline at the n=5 sample size. Multi-seed follow-up could move this either way.
+
+**Most surprising finding**: single-session-assistant Δ −0.40. Substrate's claim retrieval appears to miss the assistant's own statements at a much higher rate than user statements. Hypothesis: the claim extractor's predicate ontology for `personal_assistant` pack is biased toward user-utterance predicate families (`user_fact`, `user_preference`, etc.). Assistant turns may not produce claims in the substrate, so retrieval can't surface them when the question asks "what did the assistant tell me about X?". Verification path: read substrate ingestion stats per question_type; expect very low `claims_written_count` on single-session-assistant cases.
+
+**ONE positive**: temporal-reasoning Δ +0.20 (substrate beats baseline by 20pp). Even with time-aware filtering CUT pre-merge (FIX 1), the substrate's claim retrieval surfaces relevant temporal facts well enough at small n. Adding back the `valid_from_ts` schema change + time filter could amplify this.
+
+**Two categories show 0.000 / 0.000**: multi-session and single-session-preference. Both arms scored zero on all 5 questions per category. At n=5 and gpt-4o-2024-11-20 baseline accuracy this low, these slices are too hard to be informative — Phase-2 follow-up should bias the stratified sample toward harder buckets within these categories OR raise n to ≥10 per category to get any signal.
+
+**Critical caveats** to label in any external comparison:
+
+1. **Reader+judge model**: `gpt-4o-2024-11-20`, NOT the LongMemEval-paper-pinned `gpt-4o-2024-08-06` (which Azure deprecated 2026-03-31 with `ServiceModelDeprecated`). Methodology deviation logged in reasons.md.
+2. **Sample size**: n=30 stratified (5/category × 6 types). Wang et al. paper uses 500 questions full. n=5 per bucket is detection-level, not confirmation-level.
+3. **Single seed 42**: per the Phase 1.5 multi-seed discipline, single-seed numbers can shift ±0.10 per bucket between seeds. ANY per-category delta < 0.20 magnitude is plausibly noise.
+4. **Time-aware retrieval filter CUT pre-merge** (see reasons.md FIX 1): `Claim.created_ts` is wall-clock-at-ingestion not session-time, so any time-window filter would silently exclude every claim. This penalizes the temporal-reasoning category and indirectly the multi-session category.
+5. **Streaming JSONL writes** survived: the previous Stream A n=60 attempt OOM'd at the final json.dumps; this run used the streaming-fix branch (merged to main as `7d0311a`) which kept RSS bounded at 23 MiB throughout. Resume from a mid-run bge-m3 HTTP 429 also worked: 4 cases done before crash were skipped on resume.
+
+**Operator-gated next steps**:
+- Multi-seed (43, 44) on temporal-reasoning to confirm the +0.20 signal isn't noise — single category × 5 questions × 2 seeds = ~10 min Azure spend.
+- Investigate the assistant-turn claim-extraction gap before scaling n.
+- Restore `valid_from_ts` schema + time-filter to amplify temporal-reasoning gains.
+
+**Citation**: results.json + hypotheses.jsonl + extractions.jsonl at `eval/longmemeval/results/20260423_postmerge_lme_stratified_n30_20260423T002307Z_seed42/`; summariser at `eval/smoke/summarise_longmemeval.py`; cycle main commit at the time of run was `7d0311a`.
