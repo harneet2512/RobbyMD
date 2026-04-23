@@ -22,11 +22,10 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
-from time import time_ns
 
 import structlog
 
-from src.substrate.claims import set_claim_status
+from src.substrate.claims import now_ns, set_claim_status
 from src.substrate.schema import Claim, ClaimStatus, EdgeType, Speaker, SupersessionEdge
 
 log = structlog.get_logger(__name__)
@@ -133,6 +132,20 @@ def detect_pass1(
         identity_score=None,
     )
     set_claim_status(conn, old_claim.claim_id, ClaimStatus.SUPERSEDED)
+    # Close the temporal validity window on the superseded claim. Reuse the
+    # edge's `created_ts` rather than calling now_ns() again — keeps the
+    # supersession event atomic (one timestamp, two records). Aligned with
+    # Zep's KG-edge `valid_until` pattern (arXiv:2501.13956). If the old
+    # claim's `valid_from_ts` happens to equal `edge.created_ts` (extreme
+    # clock collision), guard the CHECK constraint by leaving valid_until
+    # NULL — the supersession event itself is still recorded in the edges
+    # table and `status=SUPERSEDED` is the canonical signal.
+    conn.execute(
+        "UPDATE claims SET valid_until_ts = ?"
+        " WHERE claim_id = ?"
+        " AND (valid_from_ts IS NULL OR valid_from_ts < ?)",
+        (edge.created_ts, old_claim.claim_id, edge.created_ts),
+    )
     # Collapse transitive chains (gt_v2_study_notes §3.4). If old_claim itself
     # superseded an older claim, we do nothing extra here: the older claim is
     # already SUPERSEDED and the chain is one-hop in the edges table. That is
@@ -165,7 +178,11 @@ def write_supersession_edge(
     change policy.
     """
     edge_id = _new_edge_id()
-    ts = time_ns()
+    # Use the substrate's monotonic-bumped clock (claims.now_ns) so edge
+    # timestamps stay strictly greater than any claim's valid_from_ts —
+    # otherwise the temporal-validity update in detect_pass1 silently
+    # skips, breaking determinism across runs that have warmed _last_ts.
+    ts = now_ns()
     conn.execute(
         "INSERT INTO supersession_edges"
         " (edge_id, old_claim_id, new_claim_id, edge_type, identity_score, created_ts)"
