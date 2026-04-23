@@ -83,6 +83,8 @@ def test_enum_values_match_schema_vocabulary() -> None:
         "superseded",
         "confirmed",
         "dismissed",
+        "draft",
+        "audited",
     }
     assert {e.value for e in EdgeType} == {
         "patient_correction",

@@ -16,6 +16,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from time import time_ns
 
 import structlog
@@ -94,6 +95,22 @@ def row_to_claim(row: sqlite3.Row) -> Claim:
         valid_from_ts=row["valid_from_ts"] if "valid_from_ts" in keys else None,
         valid_until_ts=row["valid_until_ts"] if "valid_until_ts" in keys else None,
     )
+
+
+def _temporal_bin(valid_from_ts: int | None) -> str | None:
+    """Coarse YYYY-Qn bin for `claim_metadata.temporal_bin`.
+
+    Used by `retrieve_hybrid()` (Worker 4) for cheap range filtering and as
+    one of the three RRF signals (Hindsight TEMPR, arXiv:2512.12818). Input
+    is the claim's nanosecond `valid_from_ts`; None passes through so the
+    sidecar row carries NULL instead of a fabricated bin.
+    """
+    if valid_from_ts is None:
+        return None
+    seconds = valid_from_ts / 1e9
+    dt = datetime.fromtimestamp(seconds, tz=UTC)
+    quarter = (dt.month - 1) // 3 + 1
+    return f"{dt.year:04d}-Q{quarter}"
 
 
 def _normalise_subject(subject: str) -> str:
@@ -291,6 +308,16 @@ def insert_claim(
             valid_until_ts,
         ),
     )
+    # Populate the retrieval-fusion sidecar (Worker 4 — Hindsight TEMPR
+    # arXiv:2512.12818). Same connection, same autocommit transaction as the
+    # claim INSERT (sqlite isolation_level=None). entity_key = normalised
+    # subject for v1; predicate_family = the predicate string itself
+    # (predicates are already a closed family, see PREDICATE_FAMILIES).
+    conn.execute(
+        "INSERT INTO claim_metadata (claim_id, entity_key, predicate_family,"
+        " temporal_bin) VALUES (?, ?, ?, ?)",
+        (cid, norm_subject, predicate, _temporal_bin(valid_from_ts)),
+    )
     log.info(
         "substrate.claim_inserted",
         session_id=session_id,
@@ -342,14 +369,18 @@ def set_claim_status(
 def list_active_claims(
     conn: sqlite3.Connection, session_id: str
 ) -> list[Claim]:
-    """All claims in the session with status in {active, confirmed}.
+    """All claims in the session with status in {active, confirmed, audited}.
 
-    Superseded and dismissed claims are excluded. `confirmed` is a stronger
-    "active" — still visible to projections.
+    Superseded, dismissed, and DRAFT claims are excluded. `confirmed` is a
+    stronger "active" — still visible to projections. `audited` is the
+    audit-and-revise variant's "passed audit, ready to inform revision"
+    state (Worker 5 — empirical bet, see
+    `advisory/validation/architecture_validation.md` §3 Claim E). DRAFT is
+    deliberately excluded so unaudited extractions never feed projections.
     """
     rows = conn.execute(
         "SELECT * FROM claims WHERE session_id = ?"
-        " AND status IN ('active','confirmed')"
+        " AND status IN ('active','confirmed','audited')"
         " ORDER BY created_ts ASC",
         (session_id,),
     ).fetchall()

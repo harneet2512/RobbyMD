@@ -25,6 +25,29 @@ Design (locked in `reasons.md` entries for this stream):
 - **Cache** embeddings under `~/.cache/substrate/embeddings/`; write-time
   `embed_and_store` failures log a WARN and leave the claim un-embedded so
   a backfill pass can pick it up later rather than blocking ingestion.
+
+Temporal-window event-tuple retrieval (`retrieve_event_tuples`, Worker 3):
+
+- Projects each candidate `Claim` onto an `EventTuple`
+  ⟨subject, action, object, valid_from, valid_until⟩ — Chronos
+  (arXiv:2603.16862) representation. RobbyMD's contribution: temporal
+  window supplied by deterministic Pass-1 supersession, not LLM revision.
+- Optional `valid_at_ts` filter retains only claims whose validity window
+  brackets the query time — half-open on the upper bound (matches Pass-1
+  supersession atomicity).
+
+Multi-signal retrieval head (`retrieve_hybrid`, Worker 4):
+
+- Combines **semantic** (cosine over bge-m3 embeddings), **entity** (match on
+  `claim_metadata.entity_key`), and **temporal** (recency over `valid_from_ts`,
+  fallback `created_ts`) signals.
+- Fused via **Reciprocal Rank Fusion** (Bruch et al., ACM TOIS 2023,
+  doi:10.1145/3596512) with the canonical RRF constant k = 60.
+- Architectural alignment: **Hindsight TEMPR** (arXiv:2512.12818) demonstrates
+  that fusing semantic + entity + temporal rankers outperforms pure semantic
+  retrieval on long-horizon clinical conversations. RobbyMD's contribution
+  vs TEMPR: deterministic supersession-aware filtering before fusion (a
+  superseded claim never reaches any of the three rankers).
 """
 
 from __future__ import annotations
@@ -43,6 +66,7 @@ from typing import Any
 import structlog
 
 from src.substrate.claims import list_active_claims
+from src.substrate.event_tuples import EventTuple, claim_to_event
 from src.substrate.schema import Claim
 
 log = structlog.get_logger(__name__)
@@ -503,16 +527,313 @@ def _filter_by_branch(claims: list[Claim], branch: str) -> list[Claim]:
     return [c for c in claims if c.predicate in allowed]
 
 
+# --- multi-signal retrieval (Worker 4 — Hindsight TEMPR + RRF) --------------
+
+# Canonical Reciprocal Rank Fusion constant. Bruch et al. ACM TOIS 2023
+# (doi:10.1145/3596512) — k=60 is the value used in the original Cormack
+# RRF paper and reproduced as the default in subsequent IR fusion work.
+RRF_K: int = 60
+
+
+def _claim_recency_ts(c: Claim) -> int:
+    """Recency proxy: prefer `valid_from_ts`; fall back to `created_ts`.
+
+    Per `retrieve_hybrid` spec — when a claim has no temporal-validity window
+    set the substrate falls back to wall-clock at ingestion (`created_ts`).
+    Both fields are nanosecond integers so direct comparison is safe.
+    """
+    return c.valid_from_ts if c.valid_from_ts is not None else c.created_ts
+
+
+def _entity_in_query(query_norm: str, entity_key: str) -> bool:
+    """True if `entity_key` (already normalised) appears as a token in `query_norm`.
+
+    Cheap substring match on whitespace-tokenised query is sufficient for v1;
+    a fuller implementation would lemmatise. Documented as TODO under the
+    cross-encoder rerank block at the bottom of this section.
+    """
+    if not entity_key:
+        return False
+    tokens = query_norm.replace("_", " ").split()
+    needle_tokens = entity_key.replace("_", " ").split()
+    if not needle_tokens:
+        return False
+    # Match if every needle token appears in the query tokens.
+    return all(nt in tokens for nt in needle_tokens)
+
+
+def _rrf_ranks(scores: list[float]) -> list[int]:
+    """Convert raw scores → 1-indexed ranks (higher score = lower rank index).
+
+    Stable ordering by descending score; ties preserve original index order
+    so the overall fusion is deterministic. Returns the rank for each input
+    position (NOT the sorted positions).
+    """
+    indexed = sorted(
+        range(len(scores)), key=lambda i: (-scores[i], i)
+    )
+    ranks = [0] * len(scores)
+    for rank_minus_1, idx in enumerate(indexed):
+        ranks[idx] = rank_minus_1 + 1
+    return ranks
+
+
+def retrieve_hybrid(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str,
+    query: str,
+    entity_hint: str | None = None,
+    top_k: int = 20,
+    valid_at_ts: int | None = None,  # noqa: ARG001 — reserved for time-travel queries
+    weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    embedding_client: EmbeddingClient | None = None,
+) -> list[tuple[Claim, float]]:
+    """Multi-signal retrieval combining semantic + entity + temporal signals.
+
+    Aligned with **Hindsight TEMPR** (arXiv:2512.12818); fused via
+    **Reciprocal Rank Fusion** (Bruch et al., ACM TOIS 2023,
+    doi:10.1145/3596512) with the canonical RRF constant k = 60.
+
+    Signals:
+
+    - semantic: cosine similarity (query embedding vs claim_text embedding)
+    - entity:   1.0 if `claim_metadata.entity_key` matches `entity_hint` or
+                 appears in the normalised query, else 0.0
+    - temporal: recency boost — newer `valid_from_ts` ranks higher; falls
+                 back to `created_ts` when `valid_from_ts` is NULL
+
+    Fusion: for each signal s, rank the candidates and assign
+    rrf_score = 1 / (k + rank). Final score is the weighted sum:
+    `weights[0]*rrf_sem + weights[1]*rrf_ent + weights[2]*rrf_tmp`.
+
+    Returns: list of (Claim, fused_score), len ≤ top_k, sorted by fused_score
+    descending. Empty substrate or empty query → returns `[]`.
+
+    TODO (v2): cross-encoder rerank pass over the top-K fused candidates
+    (e.g. bge-reranker-v2-m3). Deliberately deferred from this PR to keep
+    the change small and the latency budget intact; see
+    `advisory/validation/implementation_plan.md` §5.
+    """
+    if not query or not query.strip():
+        return []
+
+    effective = embedding_client or EmbeddingClient()
+    model_version = effective.model_version
+
+    active = list_active_claims(conn, session_id)
+    if not active:
+        return []
+
+    # --- semantic signal: pull embeddings, score against query embedding ---
+    ids = tuple(c.claim_id for c in active)
+    placeholders = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT claim_id, embedding, embedding_model_version "
+        f"FROM claim_embeddings WHERE claim_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    embedding_by_id: dict[str, tuple[list[float], str]] = {}
+    for row in rows:
+        try:
+            vec = _decode_vector(row["embedding"])
+        except ValueError:
+            log.warning(
+                "substrate.retrieve_hybrid_decode_failed", claim_id=row["claim_id"]
+            )
+            continue
+        embedding_by_id[row["claim_id"]] = (vec, row["embedding_model_version"])
+
+    q_vec = effective.embed([query])[0]
+
+    sem_scores: list[float] = []
+    for c in active:
+        entry = embedding_by_id.get(c.claim_id)
+        if entry is None:
+            sem_scores.append(0.0)
+            continue
+        vec, version = entry
+        if version != model_version:
+            sem_scores.append(0.0)
+            continue
+        score = _cosine_normalised(q_vec, vec)
+        if not (-1.01 <= score <= 1.01):
+            score = _cosine_fallback(q_vec, vec)
+        sem_scores.append(score)
+
+    # --- entity signal: pull claim_metadata.entity_key in one query ---
+    meta_rows = conn.execute(
+        f"SELECT claim_id, entity_key FROM claim_metadata WHERE claim_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    entity_by_id: dict[str, str] = {r["claim_id"]: r["entity_key"] for r in meta_rows}
+
+    # Normalise the hint + query the same way subjects are normalised.
+    from src.substrate.claims import _normalise_subject
+
+    hint_norm = _normalise_subject(entity_hint) if entity_hint else ""
+    query_norm = query.strip().lower()
+
+    ent_scores: list[float] = []
+    for c in active:
+        ek = entity_by_id.get(c.claim_id, "")
+        match = False
+        if hint_norm and ek == hint_norm:
+            match = True
+        elif _entity_in_query(query_norm, ek):
+            match = True
+        ent_scores.append(1.0 if match else 0.0)
+
+    # --- temporal signal: pure recency (newer = better) ---
+    tmp_scores: list[float] = [float(_claim_recency_ts(c)) for c in active]
+
+    # --- RRF fusion ---
+    sem_ranks = _rrf_ranks(sem_scores)
+    ent_ranks = _rrf_ranks(ent_scores)
+    tmp_ranks = _rrf_ranks(tmp_scores)
+
+    w_sem, w_ent, w_tmp = weights
+    fused: list[tuple[Claim, float]] = []
+    for i, c in enumerate(active):
+        rrf_sem = 1.0 / (RRF_K + sem_ranks[i])
+        rrf_ent = 1.0 / (RRF_K + ent_ranks[i])
+        rrf_tmp = 1.0 / (RRF_K + tmp_ranks[i])
+        fused_score = w_sem * rrf_sem + w_ent * rrf_ent + w_tmp * rrf_tmp
+        fused.append((c, fused_score))
+
+    # Deterministic tie-break: descending fused score, then claim_id ascending.
+    fused.sort(key=lambda x: (-x[1], x[0].claim_id))
+    return fused[:top_k]
+
+
+# --- temporal-window event-tuple retrieval (Worker 3 — Chronos projection) --
+
+
+def _claim_valid_at(claim: Claim, valid_at_ts: int) -> bool:
+    """Treat NULL `valid_from_ts` as -∞ and NULL `valid_until_ts` as +∞.
+
+    A claim is valid at time `t` when:
+        (valid_from_ts IS NULL OR valid_from_ts <= t)
+        AND (valid_until_ts IS NULL OR t < valid_until_ts)
+
+    Half-open on the upper bound matches Pass-1 supersession semantics: when
+    a new claim supersedes an old one, the old claim's `valid_until_ts` is
+    set to the supersession edge's `created_ts`, and the new claim's
+    `valid_from_ts` is its own `created_ts`. The half-open interval prevents
+    both old and new from being "valid at" the supersession instant.
+    """
+    if claim.valid_from_ts is not None and claim.valid_from_ts > valid_at_ts:
+        return False
+    if claim.valid_until_ts is not None and valid_at_ts >= claim.valid_until_ts:
+        return False
+    return True
+
+
+def retrieve_event_tuples(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str,
+    query: str,
+    top_k: int = 16,
+    valid_at_ts: int | None = None,
+    embedding_client: EmbeddingClient | None = None,
+) -> list[tuple[EventTuple, float]]:
+    """Retrieve event tuples ranked by query-claim cosine similarity.
+
+    Projects each candidate `Claim` onto an `EventTuple`
+    ⟨subject, action, object, valid_from, valid_until⟩ (see
+    `src.substrate.event_tuples`) and returns the top-`k` by cosine similarity.
+
+    Filters (applied in this order so superseded claims can never reach the
+    reader):
+
+    1. Active set — `list_active_claims` (status ∈ {active, confirmed, audited}).
+    2. Temporal window — when `valid_at_ts` is provided, retain only claims
+       satisfying `_claim_valid_at`. NULL bounds extend to ±∞.
+    3. Embedding presence + model-version match (same as
+       `retrieve_relevant_claims`); claims missing an embedding row are
+       skipped with a DEBUG log and remain recoverable via `backfill_embeddings`.
+
+    Returns `[(EventTuple, similarity), ...]` of length ≤ `top_k`. Empty
+    query or empty active set → `[]`. Citations: Chronos (arXiv:2603.16862)
+    for the event-tuple shape; Hindsight TEMPR (arXiv:2512.12818) and Zep
+    (arXiv:2501.13956) for the temporal-validity precedent.
+    """
+    if not query or not query.strip():
+        return []
+
+    effective = embedding_client or EmbeddingClient()
+    model_version = effective.model_version
+
+    active = list_active_claims(conn, session_id)
+    if valid_at_ts is not None:
+        active = [c for c in active if _claim_valid_at(c, valid_at_ts)]
+    if not active:
+        return []
+
+    ids = tuple(c.claim_id for c in active)
+    placeholders = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT claim_id, embedding, embedding_model_version "
+        f"FROM claim_embeddings WHERE claim_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    embedding_by_id: dict[str, tuple[list[float], str]] = {}
+    for row in rows:
+        try:
+            vec = _decode_vector(row["embedding"])
+        except ValueError:
+            log.warning(
+                "substrate.retrieve_event_tuples_decode_failed",
+                claim_id=row["claim_id"],
+            )
+            continue
+        embedding_by_id[row["claim_id"]] = (vec, row["embedding_model_version"])
+
+    q_vec = effective.embed([query])[0]
+
+    scored: list[tuple[float, EventTuple]] = []
+    for c in active:
+        entry = embedding_by_id.get(c.claim_id)
+        if entry is None:
+            log.debug(
+                "substrate.retrieve_event_tuples_skip_unembedded",
+                claim_id=c.claim_id,
+            )
+            continue
+        vec, version = entry
+        if version != model_version:
+            log.debug(
+                "substrate.retrieve_event_tuples_version_mismatch",
+                claim_id=c.claim_id,
+                claim_version=version,
+                query_version=model_version,
+            )
+            continue
+        score = _cosine_normalised(q_vec, vec)
+        if not (-1.01 <= score <= 1.01):
+            score = _cosine_fallback(q_vec, vec)
+        scored.append((score, claim_to_event(c)))
+
+    # Deterministic sort: cosine desc, then claim_id asc to break ties.
+    scored.sort(key=lambda x: (-x[0], x[1].claim_id))
+    top = scored[:top_k]
+    return [(et, s) for s, et in top]
+
+
 __all__ = [
     "BGE_M3_EMBED_DIM",
     "BGE_M3_MODEL_ID",
     "BGE_M3_MODEL_REVISION",
     "BGE_M3_VERSION_TAG",
     "DEFAULT_TOP_K",
+    "RRF_K",
     "EmbeddingClient",
     "RankedClaim",
     "backfill_embeddings",
     "claim_retrieval_text",
     "embed_and_store",
+    "retrieve_event_tuples",
+    "retrieve_hybrid",
     "retrieve_relevant_claims",
 ]
