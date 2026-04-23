@@ -97,14 +97,17 @@ def measure_one(clip: dict, pipeline: VariantAPipeline) -> dict[str, Any]:
     hyp_cleaned = " ".join(s["cleaned_text"] for s in result["segments"])
     ref = clip["full_text_reference"]
 
-    der_metric = DiarizationErrorRate()
-    gt_ann = _ground_truth_annotation(clip["turns"], audio_duration)
-    hyp_ann = _hyp_annotation(result["segments"])
-    try:
-        der = float(der_metric(gt_ann, hyp_ann))
-    except Exception as e:
-        der = -1.0
-        print(f"DER computation failed for {clip['scenario']}: {e}")
+    if result.get("diarisation_enabled"):
+        der_metric = DiarizationErrorRate()
+        gt_ann = _ground_truth_annotation(clip["turns"], audio_duration)
+        hyp_ann = _hyp_annotation(result["segments"])
+        try:
+            der = float(der_metric(gt_ann, hyp_ann))
+        except Exception as e:
+            der = -1.0
+            print(f"DER computation failed for {clip['scenario']}: {e}")
+    else:
+        der = None  # Diarisation skipped; DER is N/A for this run
 
     return {
         "scenario": clip["scenario"],

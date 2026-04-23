@@ -63,25 +63,26 @@ def main() -> None:
     agg = {
         "variant": "A",
         "stack": (
-            "Whisper-large-v3-turbo (MIT) + WhisperX alignment (BSD-2) + "
-            "pyannote speaker-diarization-community-1 (MIT code + CC-BY-4.0 weights) + "
-            "BioMistral-7B-DARE cleanup (Apache-2.0) + Kokoro-82M TTS (Apache-2.0)"
+            "Whisper-large-v3-turbo (MIT) + "
+            "BioMistral-7B-DARE-AWQ cleanup (Apache-2.0) + Kokoro-82M TTS (Apache-2.0). "
+            "Diarisation deferred: pyannote community-1 requires torch>=2.8 "
+            "(pyannote.audio v4) which is incompatible with vLLM 0.6.3's torch==2.4 pin. "
+            "Speaker labels inferred by alternating-turn heuristic; DER is N/A."
         ),
         "all_licenses_osi_or_open_data": True,
-        "hardware": "NVIDIA L4 24GB on GCP (Aravind project)",
+        "hardware": "NVIDIA L4 24GB on GCP",
         "n_clips": len(all_metrics),
         "n_ok": len(ok),
         "n_failed": len(all_metrics) - len(ok),
     }
     if ok:
+        der_samples = [m["der"] for m in ok if m.get("der") is not None and m["der"] >= 0]
         agg.update(
             {
                 "wer_raw_mean": sum(m["wer_raw"] for m in ok) / len(ok),
                 "wer_cleaned_mean": sum(m["wer_cleaned"] for m in ok) / len(ok),
                 "medical_term_wer_mean": sum(m["medical_term_wer"] for m in ok) / len(ok),
-                "der_mean": sum(m["der"] for m in ok if m["der"] >= 0) / max(
-                    1, len([m for m in ok if m["der"] >= 0])
-                ),
+                "der_mean": (sum(der_samples) / len(der_samples)) if der_samples else None,
                 "first_token_ms_p50": _percentile([m["first_token_ms"] for m in ok], 0.5),
                 "first_token_ms_p90": _percentile([m["first_token_ms"] for m in ok], 0.9),
                 "asr_ms_mean": sum(m["asr_ms"] for m in ok) / len(ok),
