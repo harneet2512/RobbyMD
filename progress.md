@@ -641,3 +641,70 @@ All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
 - Re-enable diarisation by upgrading vLLM to a torch-2.8 release; re-measure for DER.
 - Bundle 5 (Variant B on `harneet-l4-gpu`) consumes the same `eval/synthetic_clips/audio/*.wav` + `ground_truth.jsonl` for apples-to-apples comparison.
 - Operator decides whether to fast-forward `main` to include `bundle4-variant-a-run`.
+
+---
+
+## 2026-04-23 — Bundle 4 Variant A — rerun #1 with fixes applied
+
+**Status**: measurement complete on 6 TTS clips, results pushed on `bundle4-variant-a-run`.
+**Hardware**: `harneet-l4-gpu` (us-central1-a, NVIDIA L4 24 GB). `aravind-l4-gpu` was preempted in europe-west4; harneet came back first from the waiter.
+**Results dir**: `eval/flow_results/variant_a/20260423T194716Z/`
+
+### Headline delta vs first run
+
+| Metric | First run (20260423T163104Z) | Rerun (20260423T194716Z) | Change |
+|---|---:|---:|---|
+| WER raw | 12.1 % | **12.3 %** | ≈ same (good — confirms VAD fix restored baseline) |
+| WER cleaned | 19.9 % | **13.9 %** | **−6.0 pp** — cleanup regression largely fixed |
+| Cleaned − raw (paired) | +7.8 pp, CI crosses 0 | **+1.6 pp, CI [0.0, 3.2]** | regression collapsed |
+| Medical-term WER | 6.7 % (broken metric) | **18.6 %** (real alignment-based) | number changed meaning; new value is correct |
+| E2E p50 | 13.3 s | **6.5 s** | **−51 %** (VAD + no condition_on_previous_text) |
+| ASR p50 (was asr_ms_mean) | 4.5 s | **2.3 s** | **−49 %** |
+| First-segment p50 | 832 ms | 1042 ms | +25 % (VAD preproc overhead; trade accepted) |
+| VRAM peak | 14.3 GB | 17.1 GB | vLLM 0.8 uses wider mem budget (0.60 vs 0.35) |
+| Diarisation | disabled (vLLM torch pin) | disabled (torchcodec/FFmpeg) | **still not running** — different root cause |
+| Cleanup LLM call rate | 100 % (all segments) | **11 / 103 = 11 %** (filler fast-path fires) | 89 % of segments bypass the LLM now |
+
+### What the fixes did
+
+**Issue 1 (cleanup regression)** — *mostly resolved.* The filler-regex fast-path bypassed the LLM on 92 of 103 segments. The 11 segments that did hit BioMistral used the subsequence-only prompt, which produced much tamer output than the old "normalise medical terminology" prompt. The paired cleaned-minus-raw CI `[0.0003, 0.0320]` is a +1.6 pp mean damage — still not helping, but no longer actively breaking the pipeline. To make cleanup *help* rather than just *not hurt*, the remaining 11 segments need the LLM to emit true subsequences; inspection shows it still occasionally paraphrases. Next iteration: constrained-decoding or n-best rejection sampling with subsequence validation.
+
+**Issue 2 (DER null)** — *not resolved in this cycle.* The vLLM 0.8 / torch 2.8 / pyannote.audio 4.0 matrix lifts the *torch pin* conflict, but pyannote 4.0 now hard-depends on `torchcodec` for its telemetry, and torchcodec's prebuilt `.so` needs FFmpeg 5/6/7/8 runtime libs that Ubuntu 22.04 doesn't ship by default (only FFmpeg 4, which matches a torchcodec build that in turn has an undefined torch symbol against the cu128 torch 2.10 that vLLM 0.8's dep chain pulled). Gated diarisation on an `ENABLE_DIARISATION` env var (default off) to unblock the rest of the rerun. Re-enable after adding a FFmpeg 6 PPA or swapping to a pyannote build that doesn't use torchcodec.
+
+**D1** — *resolved.* The cleanup damage concentration on chest_pain / abdominal_pain disappeared: both clips had zero filler tokens in their raw output, so the fast-path returned them byte-for-byte. Cleaned = raw for those two.
+
+**D2** — *resolved (naming + honesty).* `first_token_ms` renamed to `first_segment_after_ingest_ms` everywhere; `streaming_first_word_ms: null` placeholder reminds the reader that the real Wispr-Flow-comparable metric is deferred. `competitive_context` in results.json explicitly flags the metric mismatch.
+
+**D3** — *resolved.* Medical-term WER now uses `jiwer.process_words` alignment, restricted to ref positions whose token is in MEDICAL_TERMS. First pass of the new implementation had a `[ref_norm]`-vs-string bug that made it return 1.0 for every clip; second pass (pass strings to jiwer) gave the real 18.6 % mean. Interpretation: the strict alignment-based definition is *harsher* than the old subsetted-WER metric (which undercounted because reorders and non-medical substitutions were silently dropped), so the metric going "up" from 6.7 % to 18.6 % is a correction, not a regression.
+
+**D4** — *resolved.* `results.json["metrics"]` now reports `{mean, stdev, n, ci95_low, ci95_high, min, max}` for every metric, plus a `wer_cleaned_minus_raw_paired` block so the reader can see whether the cleanup regression is statistically real (at n=6 it now is, but only barely — CI lower bound is 0.0003).
+
+**D5** — *resolved.* `word_timestamps=False` by default. ASR p50 halved; no downstream loss because nothing consumed word-level offsets.
+
+**D6** — *resolved.* `max_tokens = max(16, len(input.split()) + 4)` — subsequence-only means output can't exceed input length.
+
+**D7** — *resolved.* `calibration_note` in results.json: *"Audio is Kokoro-rendered synthetic TTS (studio-clean, no room noise, no overlap, invariant mic distance). Real clinical audio typically gives 2-3× higher WER. These numbers are a best-case upper-bound."*
+
+### Remaining issues (for the next cycle)
+
+- **Diarisation still disabled** — fix: `sudo add-apt-repository ppa:savoury1/ffmpeg6 && sudo apt install ffmpeg` to get FFmpeg 6 runtime libs, then torchcodec_core6.so will load and pyannote 4.0 telemetry will work. Or switch to pyannote's no-telemetry build path if it exists.
+- **Cleaned WER still +1.6 pp above raw** on the 11 segments that do hit the LLM. Options:
+  - Constrained decoding: only allow tokens in the input's token set (strict subsequence at inference time).
+  - N-best sample; reject candidates that aren't subsequences of input.
+  - Drop the LLM cleanup stage entirely for v1 demo — raw Whisper with medical `initial_prompt` already gives 12.3 % WER, the cleanup adds latency + marginal damage, not value.
+- **Streaming first-word latency** still not measured.
+
+### Infra surprises resolved this cycle
+
+- `torch==2.8.*` doesn't live on the cu121 or cu124 pip indexes — only cu126 and cu128 have torch 2.8 wheels.
+- vLLM 0.8 dropped `--disable-log-requests` — use `--uvicorn-log-level warning` instead.
+- pyannote.audio 4.0 renamed `use_auth_token` → `token` in `Pipeline.from_pretrained`.
+- vLLM 0.8's transitive deps promoted torch from 2.8 to 2.10 despite the explicit `torch==2.8.*` pin — the `torchcodec` wheel in site-packages was built against 2.8 and now has an undefined symbol against 2.10, cascading into the diarisation failure.
+- faster-whisper 1.2 with no VAD hallucinates 50-80 gibberish tokens at the tail of any clip whose audio trails into silence. `vad_filter=True` suppresses it cleanly.
+- jiwer's `process_words` expects strings, not pre-tokenised lists — passing `[ref_tokens]` causes silent tokenisation inside the inner list.
+
+### Branch state
+
+- `origin/bundle4-variant-a-run` @ `d213c72` carries all the code fixes (plus this progress.md entry after the next commit).
+- `eval/flow_results/variant_a/20260423T194716Z/` carries the real numbers.
+- `rerun_fixes.md` at repo root is the source-of-truth punch list; update it if the next cycle surfaces more.
