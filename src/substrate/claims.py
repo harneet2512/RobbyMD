@@ -69,7 +69,15 @@ def new_turn_id() -> str:
 
 
 def row_to_claim(row: sqlite3.Row) -> Claim:
-    """Map a sqlite3.Row from `claims` into the typed `Claim` dataclass."""
+    """Map a sqlite3.Row from `claims` into the typed `Claim` dataclass.
+
+    Hydrates `valid_from_ts` / `valid_until_ts` if the row carries them.
+    Older rows (or test fixtures using subset-column SELECT) gracefully
+    fall back to None — both fields default to None on the dataclass.
+    """
+    # `sqlite3.Row` lacks a `.get()`. Use `keys()` to detect column presence
+    # so callers passing a narrower SELECT don't trip a KeyError.
+    keys = set(row.keys())
     return Claim(
         claim_id=row["claim_id"],
         session_id=row["session_id"],
@@ -83,6 +91,8 @@ def row_to_claim(row: sqlite3.Row) -> Claim:
         created_ts=row["created_ts"],
         char_start=row["char_start"],
         char_end=row["char_end"],
+        valid_from_ts=row["valid_from_ts"] if "valid_from_ts" in keys else None,
+        valid_until_ts=row["valid_until_ts"] if "valid_until_ts" in keys else None,
     )
 
 
@@ -220,11 +230,19 @@ def insert_claim(
     char_end: int | None = None,
     claim_id: str | None = None,
     status: ClaimStatus = ClaimStatus.ACTIVE,
+    valid_from: int | None = None,
+    valid_until: int | None = None,
 ) -> Claim:
     """Insert a new claim after validation.
 
     Checks that `source_turn_id` refers to an existing turn (rules.md §4.1).
     Returns the persisted `Claim` with its server-assigned id + timestamp.
+
+    Temporal validity defaults: `valid_from` defaults to `created_ts` (claim
+    is valid from creation onward); `valid_until` defaults to None (unbounded
+    until supersession or explicit narrowing). Pass-1 supersession will
+    later set `valid_until_ts` on the superseded claim — see
+    `src/substrate/supersession.py::detect_pass1`.
     """
     turn = get_turn(conn, source_turn_id)
     if turn is None:
@@ -244,12 +262,18 @@ def insert_claim(
 
     cid = claim_id or new_claim_id()
     ts = now_ns()
+    valid_from_ts = ts if valid_from is None else valid_from
+    valid_until_ts = valid_until
+    if valid_until_ts is not None and valid_until_ts <= valid_from_ts:
+        raise ClaimValidationError(
+            f"valid_until ({valid_until_ts}) must be > valid_from ({valid_from_ts})"
+        )
     norm_subject = _normalise_subject(subject)
     conn.execute(
         "INSERT INTO claims (claim_id, session_id, subject, predicate, value,"
         " value_normalised, confidence, source_turn_id, status, created_ts,"
-        " char_start, char_end)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " char_start, char_end, valid_from_ts, valid_until_ts)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             cid,
             session_id,
@@ -263,6 +287,8 @@ def insert_claim(
             ts,
             char_start,
             char_end,
+            valid_from_ts,
+            valid_until_ts,
         ),
     )
     log.info(
@@ -286,6 +312,8 @@ def insert_claim(
         created_ts=ts,
         char_start=char_start,
         char_end=char_end,
+        valid_from_ts=valid_from_ts,
+        valid_until_ts=valid_until_ts,
     )
 
 
@@ -334,6 +362,27 @@ def list_claims_for_turn(conn: sqlite3.Connection, turn_id: str) -> list[Claim]:
         (turn_id,),
     ).fetchall()
     return [row_to_claim(r) for r in rows]
+
+
+def get_superseded_by(
+    conn: sqlite3.Connection, claim_id: str
+) -> str | None:
+    """Return the `new_claim_id` that supersedes `claim_id`, or None.
+
+    Derived view over `supersession_edges` — the edge table is canonical;
+    this function is the read-time accessor (per
+    `advisory/validation/architecture_validation.md` §4: "derived `superseded_by`
+    accessor (vs stored field)"). If multiple edges exist for the same
+    `old_claim_id`, returns the most recent by `created_ts` (deterministic
+    tie-break by edge_id ordering when timestamps collide).
+    """
+    row = conn.execute(
+        "SELECT new_claim_id FROM supersession_edges"
+        " WHERE old_claim_id = ?"
+        " ORDER BY created_ts DESC, edge_id DESC LIMIT 1",
+        (claim_id,),
+    ).fetchone()
+    return row["new_claim_id"] if row is not None else None
 
 
 def find_same_identity_claim(

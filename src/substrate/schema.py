@@ -116,12 +116,21 @@ class Turn:
 
 @dataclass(frozen=True, slots=True)
 class Claim:
-    """One claim (`Eng_doc.md` §4.1 `claims` + span upgrade).
+    """One claim (`Eng_doc.md` §4.1 `claims` + span + temporal-validity upgrades).
 
     `char_start` / `char_end` index into the source turn's `text` and bound
     the substring the extractor believes produced this claim. Both `None`
     means the extractor could not localise the span (still admissible;
     the UI falls back to full-turn highlight).
+
+    `valid_from_ts` / `valid_until_ts` carry the temporal-validity window —
+    aligned with Zep (arXiv:2501.13956 — valid_from / valid_until on KG edges)
+    and Chronos (arXiv:2603.16862 — start_datetime / end_datetime on event
+    tuples). Default behaviour: `valid_from_ts == created_ts`,
+    `valid_until_ts == None` (unbounded). Pass-1 supersession sets
+    `valid_until_ts` on the superseded claim to the supersession edge's
+    `created_ts`. RobbyMD's contribution vs Chronos: deterministic algorithmic
+    supersession (vs LLM-based revision).
     """
 
     claim_id: str
@@ -136,6 +145,8 @@ class Claim:
     created_ts: int
     char_start: int | None = None
     char_end: int | None = None
+    valid_from_ts: int | None = None
+    valid_until_ts: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,10 +205,24 @@ CREATE TABLE IF NOT EXISTS claims (
                       ),
     created_ts        INTEGER NOT NULL,
     char_start        INTEGER,
-    char_end          INTEGER
+    char_end          INTEGER,
+    -- Temporal validity windows. Aligned with Zep (arXiv:2501.13956 —
+    -- valid_from / valid_until on KG edges) and Chronos (arXiv:2603.16862
+    -- — start_datetime / end_datetime on event tuples). RobbyMD's contribution:
+    -- deterministic Pass-1 supersession algorithmically sets valid_until_ts
+    -- on the superseded claim (vs LLM-based revision in Chronos).
+    valid_from_ts     INTEGER,
+    valid_until_ts    INTEGER,
+    CHECK (
+        valid_until_ts IS NULL
+        OR valid_from_ts IS NULL
+        OR valid_until_ts > valid_from_ts
+    )
 );
 CREATE INDEX IF NOT EXISTS idx_claims_active
     ON claims(session_id, subject, predicate, status);
+CREATE INDEX IF NOT EXISTS idx_claims_temporal
+    ON claims(valid_from_ts, valid_until_ts);
 
 CREATE TABLE IF NOT EXISTS supersession_edges (
     edge_id         TEXT PRIMARY KEY,
