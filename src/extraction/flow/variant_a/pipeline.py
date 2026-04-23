@@ -83,13 +83,21 @@ class VariantAPipeline:
         hf_token: str,
         cleanup_url: str = "http://127.0.0.1:8000/v1",
         cleanup_model: str = "biomistral-7b-dare",
-        enable_diarisation: bool = True,
+        enable_diarisation: bool | None = None,
     ) -> None:
-        # Diarisation is re-enabled by default now that vLLM 0.8+ carries
-        # torch 2.8, which pyannote.audio 4.0 (community-1 diariser) needs.
-        # If the caller is still on the old torch-2.4 / vLLM-0.6 stack, they
-        # can pass enable_diarisation=False to fall back to the alternating
-        # heuristic.
+        # enable_diarisation default: read ENABLE_DIARISATION env var
+        # ("1"/"true"/"yes" → True, anything else → False). This lets the
+        # measure script toggle without a code change. Default off for
+        # this cycle because pyannote.audio 4.0's telemetry insists on
+        # torchcodec for every pipeline call, and torchcodec's prebuilt
+        # shared libs need FFmpeg 5/6/7/8 runtime libs that Ubuntu 22.04
+        # doesn't ship by default. Re-enable after adding a FFmpeg PPA
+        # or switching to a pyannote build that doesn't use torchcodec.
+        import os as _os
+        if enable_diarisation is None:
+            enable_diarisation = _os.environ.get(
+                "ENABLE_DIARISATION", ""
+            ).lower() in ("1", "true", "yes")
         self.whisper = WhisperModel(
             "large-v3-turbo",
             device="cuda",
