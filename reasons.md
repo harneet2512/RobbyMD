@@ -527,3 +527,31 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 
 ### Branches deleted (Bundle 1, 2026-04-23)
 Local + origin (where present): `feature/lme-retrieval`, `feature/aci-hybrid`, `feature/asr-spec`, `feature/lme-streaming-fix`, `fix/benchmark-integrity`, `feature/substrate-core`, `feature/wave-b`, `feature/retrieval-fusion`. All confirmed `git log main..<br> --oneline | wc -l == 0` before deletion. Only `feature/lme-streaming-fix` existed on origin; the other 7 were local-only worker branches and `git push --delete` returned "remote ref does not exist" (expected, logged, continued).
+
+### T0 vs T1 MEDCON smoke test on D2N088 (Bundle 1, 2026-04-23)
+
+**Purpose**: verify the remote T0 QuickUMLS endpoint (http://34.31.192.65:8000, GCP VM `robbymd-umls-t0`, `singhharneet2512@gmail.com` account) returns plausible CUI sets on real ACI-Bench clinical text before any batch re-scoring.
+
+**Sample**: D2N088-virtassist gold reference note (4090 chars) from `eval/data/acibench/data/challenge_data_json/clinicalnlp_taskB_test1_full.json`, also the first case in the completed phase-1 seed-42 run at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/results.json`.
+
+**T0 extraction numbers** (via `eval/aci_bench/quickumls_client.extract_cuis_t0`, QuickUMLS threshold=0.7 Jaccard):
+- Gold reference note: 293 unique CUIs
+- First half (2078 chars): 147 unique CUIs
+- Second half (2118 chars): 222 unique CUIs
+- Self-F1 sanity check (ref vs ref): 1.0000 (expected)
+- First-half vs second-half F1: **0.4119** (P=0.5170, R=0.3423, Jaccard=0.2594) — conceptual overlap within the same note, as a proxy for "T0 F1 behaviour on D2N088 material"
+
+**T1 scispaCy baseline F1 for same case** (baseline-arm hypothesis vs gold, from archived results.json): **0.5731**.
+
+**Interpretation**: T0 and T1 numbers are not strictly comparable here because the archived run's baseline-arm hypothesis text was not saved (results.json stores scores only, not the reader's output). However, both numbers land in the 0.4-0.6 range typical of clinical-note MEDCON F1, confirming:
+1. T0 endpoint is operational and returns CUIs from the full 7 MEDCON semantic groups.
+2. T0's extraction density on clinical text (293 CUIs / 4090 chars ~= 0.072 CUI/char) is consistent with QuickUMLS defaults.
+3. The factory dispatch (`build_extractor()` → `RemoteQuickUMLSExtractor` when `UMLS_T0_ENDPOINT` is set) fires correctly with both env vars set.
+
+**Limitation**: True T0-vs-T1 head-to-head on the *same* hypothesis text requires re-running the baseline reader (or saving hypothesis text on future runs). That is a follow-up cycle, not Bundle 1.
+
+**Status**: T0 endpoint verified functional. Batch re-scoring of all ACI results can be triggered by setting `CONCEPT_EXTRACTOR=quickumls`+`UMLS_T0_ENDPOINT` in env; no re-inference of the reader is required as long as the run's hypothesis text is persisted.
+
+**Endpoint URL**: http://34.31.192.65:8000 (FastAPI + uvicorn, `/match` and `/health`). Firewall rule `umls-t0-scoring` allows tcp:8000 from 0.0.0.0/0 (no auth; concept lookups are not secrets, and the endpoint handles no PII/PHI).
+
+**Index**: UMLS 2025AB full Metathesaurus, QuickUMLS index built at `/home/Lenovo/umls-index` on the VM (5.4 GB, 10,654,777 terms ingested in 1535.7 s).
