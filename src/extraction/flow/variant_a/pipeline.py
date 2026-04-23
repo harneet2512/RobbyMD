@@ -98,10 +98,19 @@ class VariantAPipeline:
         self.enable_diarisation = enable_diarisation
         self.diar = None
         if enable_diarisation:
-            self.diar = DiarPipeline.from_pretrained(
-                DIARISER_MODEL,
-                use_auth_token=hf_token,
-            )
+            # pyannote.audio 4.0 renamed `use_auth_token` → `token`; keep
+            # a fallback to the old name in case an older pyannote is
+            # ever installed.
+            try:
+                self.diar = DiarPipeline.from_pretrained(
+                    DIARISER_MODEL,
+                    token=hf_token,
+                )
+            except TypeError:
+                self.diar = DiarPipeline.from_pretrained(
+                    DIARISER_MODEL,
+                    use_auth_token=hf_token,
+                )
             import torch
 
             self.diar.to(torch.device("cuda"))
