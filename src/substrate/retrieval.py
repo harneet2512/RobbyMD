@@ -164,7 +164,28 @@ class EmbeddingClient:
                 "or unset MODAL_BGE_M3_URL to use the local sentence-transformers fallback."
             ) from exc
         url = self._modal_url.rstrip("/") + "/embed"  # type: ignore[union-attr]
-        resp = requests.post(url, json={"texts": texts}, timeout=60.0)
+        # Bounded exponential backoff on 429 / 5xx. Modal autoscalers sometimes
+        # throttle bursts; retrying with jitter recovers without needing a
+        # local-fallback swap mid-run. Non-transient errors re-raise immediately.
+        import time as _time
+        import random as _random
+        backoffs = (0.0, 2.0, 5.0, 12.0, 30.0, 60.0)
+        resp = None
+        for attempt, wait_s in enumerate(backoffs):
+            if wait_s:
+                _time.sleep(wait_s + _random.uniform(0, 0.5))
+            resp = requests.post(url, json={"texts": texts}, timeout=60.0)
+            if resp.status_code < 400:
+                break
+            if resp.status_code not in (408, 425, 429, 500, 502, 503, 504):
+                resp.raise_for_status()
+            if attempt == len(backoffs) - 1:
+                raise requests.HTTPError(
+                    f"modal embed transient {resp.status_code} after "
+                    f"{len(backoffs)} attempts",
+                    response=resp,
+                )
+        assert resp is not None
         resp.raise_for_status()
         payload = resp.json()
         vectors = payload.get("embeddings") or []
