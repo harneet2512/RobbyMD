@@ -68,6 +68,7 @@ eval/reports/*/
 eval/smoke/results/
 eval/acibench/results/
 eval/longmemeval/results/
+eval/medqa/results/
 # Downloaded benchmark datasets — too large for git, reconstructable from HF.
 /data/
 

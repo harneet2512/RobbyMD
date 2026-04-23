@@ -10,6 +10,7 @@ Every dataset, audio file, transcript, vignette, and labelled case used by this 
 |---|---|---|---|---|---|
 | **LongMemEval-S** | Wu et al. | ICLR 2025 | MIT | Memory-substrate benchmark, all 500 questions; GitHub commit SHA pinned in `eval/longmemeval/README.md` | `eval/longmemeval/data/` (not committed) |
 | **ACI-Bench (aci + virtscribe)** | Yim et al. | Nature Sci Data 2023 | CC BY 4.0 | Conversation → note benchmark, full test splits | `eval/aci_bench/data/` (not committed) |
+| **MedQA-USMLE-4-options (test split)** | Jin et al., repackaged by GBaker | EMNLP 2021 / HF 2022 | MIT (HF reshare); original USMLE content public domain per GBaker/MedQA-USMLE-4-options README | Context-layer ablation on clinical MCQs (NOT a substrate benchmark — see `docs/decisions/2026-04-23_medqa-reinstated-as-context-layer-ablation.md`); 1273 test questions | `eval/data/medqa/test.jsonl` (not committed; reconstructable from HF) |
 
 Citations and upstream URLs: see each `eval/<name>/README.md`.
 
