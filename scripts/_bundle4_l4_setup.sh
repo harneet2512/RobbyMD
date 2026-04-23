@@ -64,12 +64,12 @@ if ! is_done stage2_pip; then
   source .venv-flow-a/bin/activate
   python -m pip install --quiet --upgrade pip setuptools wheel || fail "pip upgrade"
 
-  # torch 2.8 + matching torchaudio. The cu121 index only ships up to
-  # torch 2.5.1; torch 2.8 wheels live on cu124+. L4's driver (580) is
-  # CUDA 12.x-compatible and handles cu124 fine.
+  # torch 2.8 + matching torchaudio. The cu121/cu124 indexes only ship
+  # up to torch 2.5/2.6; torch 2.8 wheels live on cu126+. L4's driver
+  # (580) is CUDA 12.x-compatible and handles cu126 fine.
   python -m pip install --quiet \
       "torch==2.8.*" "torchaudio==2.8.*" \
-      --index-url https://download.pytorch.org/whl/cu124 \
+      --index-url https://download.pytorch.org/whl/cu126 \
     || fail "torch"
 
   # Application stack. pyannote.audio 4.0 pulls pyannote-core 6.x which
