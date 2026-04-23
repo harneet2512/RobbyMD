@@ -506,3 +506,81 @@ on port 8000, wire `eval/acibench/quickumls_client.py` + dispatch in
 the T1 MEDCON path (T0 activates on
 `CONCEPT_EXTRACTOR=quickumls`+`UMLS_T0_ENDPOINT`; falls back to T1 on
 empty results), smoke-test T0 vs T1 F1 on one existing seed-42 case.
+
+### 2026-04-23 — Bundle 1 COMPLETE: hygiene sprint + UMLS T0 deployment
+
+All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
+
+**Commits landed (7)**:
+- `c617ab9` — cursor.md committed with project rules (Flow naming +
+  dual-write mirror). Rule 1 generalized to use `$ROBBYMD_MIRROR_DIR`
+  env var so personal paths stay out of git history.
+- `2c09508` — .gitignore swept (advisory/, research/, frontend
+  reference dirs, root-level scratch md + package.json).
+- `7935d72` — docs/asr_engineering_spec.md §1 + §8.3 rewritten to
+  use generic single-speaker framing and reference Flow as the
+  pipeline (aligns with cursor.md Rule 2).
+- `42a4727` — progress.md rolling-state refreshed (Main commit,
+  Tests, Date) + in-flight Bundle-1 log entry.
+- `2cc526b` — reasons.md branch-preservation notes + deletion log
+  (8 branches deleted, 3 preserved pending operator review; all 11
+  are actually merged to main).
+- `3256c08` — eval T0 path: `eval/aci_bench/quickumls_client.py`
+  HTTP client + `RemoteQuickUMLSExtractor` in `extractors.py` +
+  factory dispatch (prefers remote when `UMLS_T0_ENDPOINT` set,
+  falls through to local QUICKUMLS_PATH) + 7 new pytest tests.
+  `.env.example` documents both paths.
+- `e973e87` — T0 smoke on D2N088: 293 CUIs from 4090-char gold
+  note; first/second-half F1 0.4119; self-F1 1.0000 sanity check.
+
+**Infrastructure**:
+- Repo state: main clean, only `.claude/` (gitignored) and one pre-
+  existing ADR untracked. Test count **408 passed, 2 skipped**
+  (net +7 from 401 post-rolling-state commit — new
+  `test_quickumls_client.py`).
+- Branches: 11 local. 3 flagged branches preserved per bundle
+  prompt. 7 stray (feature/{differential,eval,extraction,substrate,ui}
+  + 2 worktree-agent-* refs) — outside Bundle-1's authorized
+  deletion scope, kept.
+- Worktrees: 1 (`D:/hack_it [main]`). 5 `wt-*` + 2 locked
+  `.claude/worktrees/agent-*` pruned. agent-a592bb7b required
+  `--force` (operator-confirmed; content was strictly a subset of
+  main's wave-b merge).
+- GCP VM `robbymd-umls-t0` on `singhharneet2512@gmail.com`, project
+  `project-26227097-98fa-4016-a54`, zone `us-central1-a`,
+  `e2-standard-4` Ubuntu 22.04, external IP 34.31.192.65. Firewall
+  rule `umls-t0-scoring` tcp:8000 from 0.0.0.0/0.
+- UMLS 2025AB Metathesaurus (5.2 GB ZIP) downloaded + unzipped.
+  QuickUMLS index built in 25.6 min (1535.7 s, 10,654,777 terms,
+  5.4 GB at `/home/Lenovo/umls-index`). FastAPI scoring server on
+  uvicorn 0.0.0.0:8000 (`/match` + `/health`).
+
+**Verification**:
+- `curl http://34.31.192.65:8000/health` returns
+  `{"status":"ok","index_dir":"/home/Lenovo/umls-index"}`.
+- `pytest tests/unit/eval/test_quickumls_client.py -v` → 7/7 pass.
+- `is_t0_enabled()` + `extract_cuis_t0()` + factory dispatch all
+  exercised by tests + smoke.
+
+**State for downstream sessions**:
+- Session 2 (benchmarks): clean `origin/main`; re-measurement runs
+  on `e973e87` can proceed.
+- Session 3 (LME retrieval fix): `src/substrate/retrieval.py` and
+  `eval/longmemeval/reader_con.py` untouched; Session 3 can edit.
+- Sessions 4/5 (Flow): `src/extraction/asr/*` untouched.
+- T0 scoring available via `CONCEPT_EXTRACTOR=quickumls` +
+  `UMLS_T0_ENDPOINT=http://34.31.192.65:8000` in env. `.env.example`
+  documents it; existing scispaCy T1 path remains the default.
+
+**Flagged for operator review**:
+- Branches `feature/lme-temporal`, `feature/aci-audit-revise`,
+  `eval/azure-gpt4o-baseline` — all actually merged (0 unique
+  commits), preserved per bundle prompt pending operator sign-off.
+  `git branch -d` on operator's nod.
+- 7 stray branches outside Bundle-1's authorized deletion scope —
+  can be swept in a follow-up hygiene pass.
+
+**Not in scope / explicitly deferred**:
+- Re-scoring all existing ACI results with T0 (follow-up cycle).
+- Running benchmarks against `e973e87` (Session 2).
+- Fixing LongMemEval retrieval (Session 3).
