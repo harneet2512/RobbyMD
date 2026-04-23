@@ -74,16 +74,68 @@ def _hyp_annotation(segments: list[dict]) -> Annotation:
 _PUNCT = ".,?!;:\"'()"
 
 
+def _strip(tok: str) -> str:
+    return tok.lower().strip(_PUNCT)
+
+
 def medical_term_wer(reference: str, hypothesis: str) -> float:
-    ref_tokens = [t.lower().strip(_PUNCT) for t in reference.split()]
-    hyp_tokens = [t.lower().strip(_PUNCT) for t in hypothesis.split()]
-    ref_medical = [t for t in ref_tokens if t in MEDICAL_TERMS]
-    if not ref_medical:
+    """Error rate on reference tokens that are in MEDICAL_TERMS.
+
+    Uses jiwer's word-level alignment on the FULL reference and hypothesis
+    (not a pre-subsetted string), then counts errors restricted to
+    reference positions whose normalised token is in MEDICAL_TERMS.
+
+    This replaces an earlier implementation that subsetted both sides to
+    only medical tokens and called `jiwer.wer`. That approach lost
+    positional information: reorders counted as errors, non-medical
+    substitutions silently deleted adjacent medical positions, and
+    inserted medical tokens could falsely inflate the count.
+
+    Returns a float in [0.0, 1.0]. Returns 0.0 if the reference has no
+    medical tokens.
+    """
+    ref_tokens_raw = reference.split()
+    hyp_tokens_raw = hypothesis.split()
+    if not ref_tokens_raw:
         return 0.0
-    hyp_medical = [t for t in hyp_tokens if t in MEDICAL_TERMS]
-    if not hyp_medical:
+
+    ref_norm = [_strip(t) for t in ref_tokens_raw]
+    hyp_norm = [_strip(t) for t in hyp_tokens_raw]
+
+    medical_positions = [i for i, t in enumerate(ref_norm) if t in MEDICAL_TERMS]
+    if not medical_positions:
+        return 0.0
+
+    # Align. jiwer.process_words accepts list-of-lists for ref/hyp to skip
+    # its own tokenisation.
+    try:
+        out = jiwer.process_words([ref_norm], [hyp_norm])
+    except Exception:
+        # Fallback if jiwer API differs: treat all medical positions as errors.
         return 1.0
-    return float(jiwer.wer(" ".join(ref_medical), " ".join(hyp_medical)))
+
+    # Walk the alignment chunks and mark which ref positions got a direct
+    # equal match. Substitute / delete / insert leave the position unmatched
+    # (for "insert" it's a hyp-only chunk and doesn't cover any ref position).
+    n_ref = len(ref_norm)
+    matched = [False] * n_ref
+    try:
+        chunks = out.alignments[0]
+    except (AttributeError, IndexError):
+        return 1.0
+    for ch in chunks:
+        ch_type = getattr(ch, "type", None)
+        if ch_type != "equal":
+            continue
+        ref_start = getattr(ch, "ref_start_idx", None)
+        ref_end = getattr(ch, "ref_end_idx", None)
+        if ref_start is None or ref_end is None:
+            continue
+        for i in range(ref_start, min(ref_end, n_ref)):
+            matched[i] = True
+
+    errors = sum(1 for p in medical_positions if not matched[p])
+    return errors / len(medical_positions)
 
 
 def measure_one(clip: dict, pipeline: VariantAPipeline) -> dict[str, Any]:
@@ -104,16 +156,17 @@ def measure_one(clip: dict, pipeline: VariantAPipeline) -> dict[str, Any]:
         try:
             der = float(der_metric(gt_ann, hyp_ann))
         except Exception as e:
-            der = -1.0
+            der = None
             print(f"DER computation failed for {clip['scenario']}: {e}")
     else:
-        der = None  # Diarisation skipped; DER is N/A for this run
+        der = None
 
     return {
         "scenario": clip["scenario"],
         "audio_duration_sec": audio_duration,
         "num_speakers_detected": len({s["speaker"] for s in result["segments"]}),
-        "first_token_ms": result["timings"]["first_token_ms"],
+        "first_segment_after_ingest_ms": result["timings"]["first_segment_after_ingest_ms"],
+        "streaming_first_word_ms": result["timings"]["streaming_first_word_ms"],
         "asr_ms": result["timings"]["asr_ms"],
         "diar_ms": result["timings"]["diar_ms"],
         "cleanup_ms": result["timings"]["cleanup_ms"],
@@ -123,6 +176,9 @@ def measure_one(clip: dict, pipeline: VariantAPipeline) -> dict[str, Any]:
         "wer_cleaned": float(jiwer.wer(ref, hyp_cleaned)) if hyp_cleaned else 1.0,
         "medical_term_wer": medical_term_wer(ref, hyp_cleaned),
         "der": der,
+        "diarisation_enabled": result.get("diarisation_enabled", False),
+        "cleanup_llm_calls": result.get("cleanup_llm_calls", 0),
+        "cleanup_total_segments": result.get("cleanup_total_segments", 0),
         "hypothesis_raw": hyp_raw,
         "hypothesis_cleaned": hyp_cleaned,
         "reference": ref,
