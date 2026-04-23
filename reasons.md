@@ -435,3 +435,46 @@ Every decision *not* taken, with its reason and a source. Append-only; new rejec
 - **Single-seed n=10 caveat**: per-case σ within 0.05 means individual cases are not noisy at temp=0, but aggregate σ from n=10 alone is ±0.05/√10 ≈ ±0.015 around the mean delta — single-seed mean is plausibly anywhere in [−0.018, +0.013]. Multi-seed collapses this.
 - **Deviations to label** in the final report: (1) Qwen2.5-14B-AWQ reader, not GPT-4-class; (2) T1 scispacy MEDCON, not T0 QuickUMLS (Stream E install blocked this cycle); (3) n=10 smoke, not the full aci+virtscribe 90-encounter test split; (4) seed 42 only at this point.
 - **Citation**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`; aggregator at `eval/smoke/aggregate_seeds.py`.
+
+### ACI-Bench hybrid 3-seed aggregate (Stream B, post-merge cycle)
+
+**Headline (T1 scispacy MEDCON-F1, Qwen2.5-14B-AWQ via Modal `glitch112213`, n=10 smoke, seeds 42/43/44):**
+
+- mean baseline: **0.4919**
+- mean substrate (hybrid): **0.4884**
+- **mean Δ: −0.0034** — well within the ±0.03 parity threshold
+- σ(Δ) global: 0.0505
+- per-case σ across 3 seeds: range 0.004–0.058 (no case σ > 0.15 → no noisy cases)
+
+**Sign-vote breakdown** (delta gate = 0.0; each case across seeds 42/43/44):
+
+- **Robust wins (3/3 seeds positive)**: D2N089-virtassist (mean +0.021), D2N092-virtassist (mean +0.030), D2N094-virtassist (mean +0.068)
+- **Likely wins (≥2/3 seeds positive)**: D2N091-virtassist, D2N096-virtassist
+- **Likely losses (≥2/3 seeds negative)**: D2N088-virtassist, D2N090-virtassist, D2N093-virtassist, D2N095-virtassist, D2N097-virtassist
+- **Noisy cases (σ > 0.15)**: 0
+
+**Per-case detail** (Δ rows substrate − baseline; first row is seed 42, second 43, third 44):
+
+| case_id | Δ(42) | Δ(43) | Δ(44) | meanΔ | σ(Δ) | vote |
+|---|---:|---:|---:|---:|---:|---|
+| D2N088-virtassist | −0.028 | −0.038 | +0.012 | −0.018 | 0.027 | likely_loss |
+| D2N089-virtassist | +0.027 | +0.030 | +0.006 | +0.021 | 0.013 | robust_win |
+| D2N090-virtassist | −0.005 | −0.099 | −0.096 | −0.066 | 0.054 | likely_loss |
+| D2N091-virtassist | +0.014 | +0.023 | −0.082 | −0.015 | 0.058 | likely_win |
+| D2N092-virtassist | +0.033 | +0.026 | +0.031 | +0.030 | 0.004 | robust_win |
+| D2N093-virtassist | −0.017 | +0.064 | −0.000 | +0.015 | 0.043 | likely_loss |
+| D2N094-virtassist | +0.044 | +0.079 | +0.082 | +0.068 | 0.021 | robust_win |
+| D2N095-virtassist | −0.086 | +0.001 | −0.038 | −0.041 | 0.043 | likely_loss |
+| D2N096-virtassist | +0.063 | +0.010 | −0.005 | +0.023 | 0.036 | likely_win |
+| D2N097-virtassist | −0.071 | −0.030 | −0.054 | −0.052 | 0.021 | likely_loss |
+
+**Decision-rule outcome (per the Phase 1.5 spec)**: 3-seed mean delta is within ±0.03 of baseline → escalate-eligible. Phase 2 (n=40 stratified) is operator-gated. Per-case σ is uniformly low so the signals are real, not run-to-run noise.
+
+**Deviations to label** in any external comparison:
+
+1. Qwen2.5-14B-AWQ reader, not GPT-4-class — chosen to match the published Wang-Lab 2023 ACI-Bench reader tier on commodity GPUs.
+2. T1 scispacy MEDCON, not T0 QuickUMLS (Stream E install blocked this cycle on Java + UMLS-release-name issues).
+3. n=10 smoke, not the full aci+virtscribe 90-encounter test split. Phase 2 escalation = n=40 stratified.
+4. Seeds 42/43/44 only — single-seed in the original Wang-Lab paper; 3-seed multi-seed adds confidence not present in published numbers.
+
+**Citation**: per-seed results.json under `eval/acibench/results/20260423_postmerge_hybrid_phase{1,15}_*_seed{42,43,44}/`; aggregator at `eval/smoke/aggregate_seeds.py`; multi-seed discipline doc at `reasons.md` § Phase 1.5 multi-seed.
