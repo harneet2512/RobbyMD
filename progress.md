@@ -8,9 +8,17 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-22 (post-merge execution cycle: harness P.1 edits + Modal/Azure deploys + Stream D clips + smokes partial/throttled)
-- **Main commit**: `c896b05` — `eval+infra: bge-m3 dict body + gpt-4o-* route via longmemeval_reader purpose`. Tip after three post-merge cycle commits (`6085827` harness P.1, `26bdc78` Stream D clips, `c896b05` infra fixes). Not yet pushed to origin.
-- **Tests on main**: **360 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 351 pre-cycle + 9 new (P.1 `test_smoke_output_dir_and_stratified.py`: 9). Existing tests unchanged green (bge-m3 redeploy, purpose-map addition don't alter tests).
+- **Date**: 2026-04-22 (post-merge execution cycle: P.1 + Stream D + B.1/B.2 partials + Stream A OOM + streaming-fix merged + Stream A re-run armed)
+- **Main commit**: `7d0311a` — `eval: streaming JSONL writes for LongMemEval (Stream A memory-fix)`. Tip after 10 cycle commits. Pushed to origin/main.
+- **Tests on main**: **376 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 351 pre-cycle + 9 (P.1 output_dir/stratified) + 6 (aggregate_seeds) + 10 (streaming-fix) = 376.
+- **Smoke results so far this cycle** (T1 scispacy MEDCON-F1, Qwen2.5-14B-AWQ via Modal, deviations labeled):
+  - **B.1 ACI-Bench hybrid n=10 seed 42**: baseline 0.4937 / substrate 0.4911 / **mean Δ −0.0026** — well within ±0.03 parity. results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`.
+  - **B.2 ACI-Bench hybrid n=10 seed 44**: 2-seed aggregate (42+44) baseline 0.4911 / substrate 0.4827 / **mean Δ −0.0084** — still parity. 3 robust wins (D2N089, D2N092, D2N094); 4 likely losses (D2N090, D2N093, D2N095, D2N097); 3 mixed. Per-case σ between seeds 0.001–0.068.
+  - **B.2 seed 43**: in flight after two OOM crashes (concurrent-run RAM pressure); RAM freed by Stream A's death + B.1/seed44 finish; retry running, last seen at 4/10 encounters.
+  - **Stream A LongMemEval n=60 seed 42**: 💀 dead at ~14k extraction attempts with `MemoryError` during final json.dumps of the in-memory accumulator. No usable results.json. Streaming-fix merged to address; re-run armed at scope n=30, single seed 42.
+- **Azure deployment state**: `gpt-4o-2024-11-20` at capacity=30 (raised 10→30 via upsert; no quota approval needed). `gpt-4o-2024-08-06` is permanently deprecated by Azure (since 2026-03-31, `ServiceModelDeprecated` on create) — minor-version deviation from paper-pinned `-08-06` is logged in reasons.md. `gpt-4-1-mini-2025-04-14` deployment unchanged.
+- **Modal deployment state**: profile `glitch112213` running `bge-m3-embeddings` (200 OK 1024-dim) + `qwen25-14b-vllm` (warm). Profile `chinowitheno-svg` has both apps deployed as standby (not in primary path).
+- **Stream A re-run armed (operator-gated to launch)**: scope n=30 stratified (5/category × 6 types), `gpt-4o-2024-11-20` reader+judge, single seed 42, output dir `eval/longmemeval/results/20260423_postmerge_lme_stratified_n30_<UTC>_seed42/`. Streaming-fix branch merged to main → JSONL hypotheses + extractions + RSS heartbeat + resume support all live. Raised Azure SKU should cut wall-clock ~3× vs pre-raise.
 - **Streams landed** (parallel-execution-synthetic-rain plan + pre-merge gate, 2026-04-22):
   - Stream C (critical-path landing): **DONE** — commits `2d90abd`, `835039a`.
   - Stream A (LongMemEval retrieval + CoN, time_expansion CUT, dispatcher flipped to default): **DONE** — merged at `c52aa0a`. Branch `feature/lme-retrieval` ready for delete on origin.
