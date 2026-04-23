@@ -1,0 +1,52 @@
+=== SCRIPT: chest pain ===
+
+DIALOGUE (60–90 seconds when read aloud, ~150–250 words):
+DR: Good morning, Mr. Johnson. What brings you in today?
+PT: I've been having this pressure in my chest. It started about two hours ago.
+DR: Can you describe what it feels like?
+PT: Like something heavy sitting on my chest. Dull, not sharp.
+DR: Does it radiate anywhere — your arm, jaw, back?
+PT: A little into my left arm, and up to my jaw.
+DR: On a scale of one to ten, how bad is it right now?
+PT: Around a six. It was worse when I was walking to the car.
+DR: Anything make it better or worse?
+PT: It got better when I sat down. Worse with walking.
+DR: Any shortness of breath, sweating, or nausea?
+PT: I felt sweaty at first. A little short of breath too.
+DR: You said it started two hours ago — was this the first episode, or have you felt it before?
+PT: Actually, now that I think about it, I had something similar yesterday evening after dinner. It went away in a few minutes so I didn't mention it.
+DR: Got it. Any history of heart disease, high blood pressure, or diabetes?
+PT: High blood pressure for about ten years. My father had a heart attack at fifty-eight.
+DR: What medications are you on?
+PT: Amlodipine for my blood pressure, atorvastatin for cholesterol, and a daily aspirin.
+DR: Any smoking or alcohol?
+PT: I smoked a pack a day for thirty years, quit five years ago.
+DR: I want to get an ECG and a troponin, and apply the HEART score to assess your risk.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- drug names: aspirin, nitroglycerin, atorvastatin, amlodipine, metoprolol, clopidogrel, heparin
+- anatomy / physiology: substernal, left arm, jaw, coronary artery, myocardium, pericardium
+- decision rules or syndromes: HEART score, TIMI risk, Wells criteria, PERC rule, myocardial infarction, unstable angina, acute coronary syndrome, aortic dissection, pericarditis
+- dose/route modifiers: oral, sublingual, 81 mg, 325 mg, 0.4 mg SL
+
+=== SUPERSESSION MOMENTS ===
+- Line (patient): "Actually, now that I think about it, I had something similar yesterday evening after dinner. It went away in a few minutes so I didn't mention it." — updates earlier onset claim of "two hours ago, first episode" to "recurrent, first episode yesterday evening with spontaneous resolution, again two hours ago". Also promotes pain_similar_to_prior_ischemia to true.
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- onset: "yesterday evening after dinner, recurrent two hours ago" (superseding earlier "two hours ago, first episode")
+- character: pressure, heavy, dull (not sharp)
+- location: substernal (implied — chest pressure)
+- radiation: left arm, jaw
+- severity: 6/10
+- aggravating_factor: exertion (walking)
+- relieving_factor: rest (sitting down)
+- associated_symptom: diaphoresis
+- associated_symptom: dyspnea
+- associated_symptom: negated:nausea
+- pain_similar_to_prior_ischemia: true (from supersession)
+- medical_history: hypertension (10 years)
+- family_history: myocardial infarction (father, age 58)
+- medication: amlodipine
+- medication: atorvastatin
+- medication: aspirin (daily, antiplatelet)
+- social_history: former smoker (~30 pack-year history, quit 5 years ago)
