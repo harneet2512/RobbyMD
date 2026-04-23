@@ -125,6 +125,31 @@ class QuickUMLSExtractor:
         return cuis
 
 
+# ── T0 remote (HTTP — used when UMLS_T0_ENDPOINT is set) ────────────────────
+@dataclass
+class RemoteQuickUMLSExtractor:
+    """Tier 0 (remote) — QuickUMLS over HTTP.
+
+    Same scoring contract as `QuickUMLSExtractor` but the index lives on a
+    GCP VM rather than on the local machine. Activates when
+    `CONCEPT_EXTRACTOR=quickumls` AND `UMLS_T0_ENDPOINT` are both set.
+    """
+
+    name: ClassVar[str] = "quickumls"
+    label: ClassVar[str] = "MEDCON (official, QuickUMLS — remote)"
+    semantic_groups: ClassVar[frozenset[str]] = MEDCON_SEMANTIC_GROUPS
+
+    endpoint: str
+    timeout: float = 30.0
+
+    def extract(self, text: str) -> set[str]:
+        # Imported here so the module loads cleanly without httpx in unit
+        # tests that never touch the remote path.
+        from eval.aci_bench.quickumls_client import extract_cuis_t0
+
+        return extract_cuis_t0(text, endpoint=self.endpoint, timeout=self.timeout)
+
+
 # ── T1 (default) ────────────────────────────────────────────────────────────
 @dataclass
 class ScispacyExtractor:
@@ -209,11 +234,18 @@ def build_extractor(env: dict[str, str] | None = None) -> ConceptExtractor:
     choice = env.get("CONCEPT_EXTRACTOR", "scispacy").strip().lower()
 
     if choice == "quickumls":
+        # Prefer the remote endpoint if set — Bundle-1 deploys QuickUMLS on a
+        # GCP VM so operators don't need a local 5–6 GB index.
+        remote_endpoint = env.get("UMLS_T0_ENDPOINT", "").strip()
+        if remote_endpoint:
+            return RemoteQuickUMLSExtractor(endpoint=remote_endpoint)
         path = env.get("QUICKUMLS_PATH", "").strip()
         if not path:
             raise RuntimeError(
-                "CONCEPT_EXTRACTOR=quickumls but QUICKUMLS_PATH is unset. "
-                "Run scripts/install_umls.sh and export QUICKUMLS_PATH."
+                "CONCEPT_EXTRACTOR=quickumls but neither UMLS_T0_ENDPOINT nor "
+                "QUICKUMLS_PATH is set. Either point UMLS_T0_ENDPOINT at the "
+                "remote scoring endpoint or run scripts/install_umls.sh and "
+                "export QUICKUMLS_PATH for a local index."
             )
         return QuickUMLSExtractor(quickumls_path=Path(path))
 
