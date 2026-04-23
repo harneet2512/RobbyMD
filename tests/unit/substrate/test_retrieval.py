@@ -41,7 +41,11 @@ class _StubEmbedder(EmbeddingClient):
         # Prevent the local fallback from ever running.
         self._local_model = object()  # type: ignore[assignment]
 
-    def embed(self, texts: list[str]) -> list[list[float]]:  # type: ignore[override]
+    def embed(self, texts: list[str], *, query_mode: bool = False) -> list[list[float]]:  # type: ignore[override]
+        # query_mode is ignored in this stub; existing tests verify retrieval
+        # plumbing, not the bge-m3 asymmetric-prefix semantics. A dedicated
+        # spy-based test in test_asymmetric_embedding.py verifies prefix threading.
+        del query_mode
         out: list[list[float]] = []
         for t in texts:
             digest = hashlib.sha256(t.encode("utf-8")).digest()
@@ -144,7 +148,8 @@ class TestEmbedAndStore:
                 super().__init__(modal_url=None)
                 self._modal_url = None
 
-            def embed(self, texts: list[str]) -> list[list[float]]:  # type: ignore[override]
+            def embed(self, texts: list[str], *, query_mode: bool = False) -> list[list[float]]:  # type: ignore[override]
+                del query_mode
                 raise RuntimeError("upstream unavailable")
 
         claim = _seed_claim(
