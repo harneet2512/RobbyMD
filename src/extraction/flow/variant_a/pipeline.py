@@ -140,11 +140,20 @@ class VariantAPipeline:
         return aligned
 
     def cleanup_segment(self, raw_text: str) -> str:
+        # Mistral's default chat template rejects the "system" role
+        # ("Conversation roles must alternate user/assistant/..."). Merge the
+        # system prompt into the first (and only) user message instead.
         payload = {
             "model": self.cleanup_model,
             "messages": [
-                {"role": "system", "content": CLEANUP_SYSTEM_PROMPT},
-                {"role": "user", "content": raw_text},
+                {
+                    "role": "user",
+                    "content": (
+                        CLEANUP_SYSTEM_PROMPT
+                        + "\n\nTranscript segment to clean:\n"
+                        + raw_text
+                    ),
+                },
             ],
             "temperature": 0.0,
             "max_tokens": max(64, len(raw_text.split()) * 3),
