@@ -25,13 +25,13 @@ exercised by the unit-test suite under `tests/unit/extraction/`.
 
 ## 1. Position
 
-Commercial single-speaker dictation tools (WisprFlow, Superwhisper, MacWhisper,
-OpenWhispr) solve the problem of turning *one* person's speech into clean
-text. That problem is well-served. The problem this pipeline addresses is
-different in kind:
+Commercial single-speaker dictation tools (Superwhisper, MacWhisper,
+OpenWhispr, and similar) solve the problem of turning *one* person's
+speech into clean text. That problem is well-served. The problem this
+pipeline (Flow) addresses is different in kind:
 
-> **Canonical one-liner**: "Single-person dictation tools like WisprFlow
-> don't solve the two-speaker clinical problem; this does."
+> **Canonical one-liner**: "Single-speaker dictation tools don't solve
+> the two-speaker clinical problem; Flow does."
 
 A clinical consultation is a **two-speaker, turn-taking, role-asymmetric**
 signal. The physician and the patient have different vocabularies, different
@@ -477,21 +477,30 @@ run is scheduled. One "ambient hospital noise" clip (same chest-pain
 transcript overlaid with public-domain ward ambience) also remains open for
 the noise-robustness claim under §3.
 
-### 8.3 Demo video script confirmation — WisprFlow one-liner framing
+### 8.3 Flow positioning vs single-speaker dictation tools
 
-Decision 2 in the parallel-execution plan says the demo-video narration
-includes the WisprFlow one-liner verbatim (or a close paraphrase). This
-spec has no direct control over the video; confirmation from the operator
-that the line is in the shooting script before the voice-over record is
-the ask. Canonical phrasing:
+Flow (the two-speaker voice/ASR pipeline described throughout this spec)
+differentiates from single-speaker dictation tools through pyannote-based
+speaker diarization and per-speaker role-aware cleanup. Single-speaker
+dictation tools structurally cannot perform speaker attribution on
+overlapping two-party medical dialogue, so they are not a direct
+comparator for the architecture documented here. Flow's novelty is in
+the combination of Whisper-large-v3 ASR, WhisperX word-level alignment,
+pyannote speaker diarization, and the downstream claim-extraction
+substrate that treats every transcribed token as provisional evidence
+subject to confidence gating and supersession.
 
-> "Single-person dictation tools like WisprFlow don't solve the two-speaker
-> clinical problem; this does."
+Demo-video narration ask: include a one-liner that frames Flow as the
+two-speaker counterpart to single-speaker dictation tools. Canonical
+phrasing:
+
+> "Single-speaker dictation tools don't solve the two-speaker clinical
+> problem; Flow does."
 
 If the one-liner is cut from the video, the canonical distinction this
-spec embodies loses its on-screen anchor, and judges watching the 3-minute
-video will not understand why a diarised pipeline exists. This is a
-product-narrative ask, not a code ask.
+spec embodies loses its on-screen anchor, and judges watching the
+3-minute video will not understand why a diarised pipeline exists.
+This is a product-narrative ask, not a code ask.
 
 ---
 
