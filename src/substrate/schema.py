@@ -41,12 +41,22 @@ class Speaker(StrEnum):
 
 
 class ClaimStatus(StrEnum):
-    """Lifecycle state. Matches `claims.status` CHECK constraint."""
+    """Lifecycle state. Matches `claims.status` CHECK constraint.
+
+    DRAFT and AUDITED extend the lifecycle for the audit-and-revise variant
+    (Worker 5 — empirical bet, see
+    `advisory/validation/architecture_validation.md` §3 Claim E). DRAFT
+    claims are extracted from a generated draft awaiting audit and are NOT
+    considered active for projection. AUDITED claims have passed the audit
+    pass and are treated as active.
+    """
 
     ACTIVE = "active"
     SUPERSEDED = "superseded"
     CONFIRMED = "confirmed"
     DISMISSED = "dismissed"
+    DRAFT = "draft"
+    AUDITED = "audited"
 
 
 class EdgeType(StrEnum):
@@ -201,7 +211,10 @@ CREATE TABLE IF NOT EXISTS claims (
     confidence        REAL NOT NULL,
     source_turn_id    TEXT NOT NULL REFERENCES turns(turn_id) ON DELETE CASCADE,
     status            TEXT NOT NULL CHECK (
-                          status IN ('active','superseded','confirmed','dismissed')
+                          status IN (
+                              'active','superseded','confirmed','dismissed',
+                              'draft','audited'
+                          )
                       ),
     created_ts        INTEGER NOT NULL,
     char_start        INTEGER,
@@ -272,6 +285,20 @@ CREATE TABLE IF NOT EXISTS claim_embeddings (
 );
 CREATE INDEX IF NOT EXISTS idx_claim_embeddings_model
     ON claim_embeddings(embedding_model_version);
+
+-- Sidecar metadata for multi-signal retrieval fusion. Aligned with Hindsight
+-- TEMPR (arXiv:2512.12818) — semantic + entity + temporal signals fused via
+-- Reciprocal Rank Fusion (Bruch et al. ACM TOIS 2023, doi:10.1145/3596512).
+CREATE TABLE IF NOT EXISTS claim_metadata (
+    claim_id           TEXT PRIMARY KEY REFERENCES claims(claim_id) ON DELETE CASCADE,
+    entity_key         TEXT NOT NULL,
+    predicate_family   TEXT NOT NULL,
+    -- Coarse temporal bin for cheap range filtering (e.g. "2024-Q1").
+    -- NULL when the source claim has no valid_from_ts.
+    temporal_bin       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_claim_metadata_entity ON claim_metadata(entity_key);
+CREATE INDEX IF NOT EXISTS idx_claim_metadata_temporal ON claim_metadata(temporal_bin);
 """
 
 
