@@ -1,6 +1,6 @@
 # 2026-04-21 — CC-BY-4.0 for model weights: extend rules.md §1.2 allowlist
 
-**Status**: **proposed** — awaiting human operator approval to patch `rules.md §1.2`
+**Status**: **accepted by user directive 2026-04-23** — `rules.md §1.2` patch pending human commit (CLAUDE.md §4 forbids agent edits of `rules.md`; the recommended-text patch in this ADR is the authoritative text the human will apply). Attribution obligations for CC-BY-4.0 model weights are consolidated in `CC-BY-4.0-ATTRIBUTIONS.md` at repo root.
 **Driver**: hack_it operator
 **Affected**: `rules.md §1.2`, `tests/licensing/test_open_source.py`, `research/asr_stack.md` (§R1 escalation), `wt-extraction` dispatch readiness
 
@@ -71,6 +71,17 @@ Once this extension lands:
 
 ## Human decision needed
 
-- [ ] Accept extension (recommended) → I patch `rules.md §1.2` with the text above.
+- [x] Accept extension (recommended) → user directive 2026-04-23. Human still to commit the `rules.md §1.2` patch per the recommended text above.
 - [ ] Reject extension → swap to NeMo Sortformer per Alternative 1; I update `research/asr_stack.md` and run NeMo latency benchmark before wt-extraction dispatches.
 - [ ] Defer decision → wt-extraction blocked on diariser; can dispatch transcription-only work on `feature/extraction` in the meantime.
+
+## 2026-04-23 — user acceptance
+
+User directive on 2026-04-23 accepts the proposed extension. Effective immediately for agent decision-making, with the `rules.md §1.2` patch itself still owed from the human operator.
+
+Models unblocked under this acceptance (CC-BY-4.0 weights):
+- `nvidia/canary-qwen-2.5b` — Variant B ASR on `flow/variant-b` (Bundle 5)
+- `pyannote/speaker-diarization-3.1` — speaker diarisation across Variant A + Variant B (same model, held constant)
+- `hexgrad/Kokoro-82M` — Apache-2.0, not strictly under this ADR but attributed alongside for centralised model-credits visibility
+
+Attribution for all three is consolidated at repo root in `CC-BY-4.0-ATTRIBUTIONS.md`. The existing `tests/licensing/test_open_source.py` (code-dep allowlist, inspects `pyproject.toml` / `package.json`) is not impacted.
