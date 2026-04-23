@@ -40,9 +40,22 @@ class FullRunner:
         # something to score. The real variant will pass substrate-retrieved
         # claims instead of the full haystack.
         pred = baseline_predict(q)
-        return LongMemEvalPrediction(
+        wrapped = LongMemEvalPrediction(
             question_id=pred.question_id,
             question_type=pred.question_type,
             predicted_answer=pred.predicted_answer,
             raw_response="[SUBSTRATE STUB] wt-engine retrieval pending\n" + pred.raw_response,
         )
+        # Bypass detection (orchestrator CRITICAL CONSTRAINT, Worker 1):
+        # `--variant full` MUST exercise the real substrate. The
+        # `[SUBSTRATE STUB]` sentinel above means we degraded to baseline.
+        # Failing loudly here prevents accidental publication of baseline
+        # numbers labelled as substrate. Wire the real substrate (Worker 3
+        # event tuples + shared backend in eval/_substrate_backend.py) to
+        # remove the sentinel and let this assertion pass silently.
+        assert "[SUBSTRATE STUB]" not in wrapped.raw_response, (
+            "Bypass detected: --variant full fell back to baseline. "
+            "Wire the real substrate (Worker 3 + shared backend) before "
+            "running LongMemEval --variant full."
+        )
+        return wrapped

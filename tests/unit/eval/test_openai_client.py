@@ -20,7 +20,9 @@ class TestDirectOpenAIBranch:
         with patch("openai.OpenAI", return_value=SimpleNamespace(marker="direct")) as openai_cls:
             client, model = make_openai_client("judge_gpt4o", env=env)
         openai_cls.assert_called_once_with(api_key="sk-test")
-        assert model == "gpt-4o-2024-08-06"
+        # Bumped 2026-04-22 from gpt-4o-2024-08-06 (retired 2026-03-31).
+        # See _openai_client.py::_DIRECT_DEFAULTS comment.
+        assert model == "gpt-4o-2024-11-20"
         assert getattr(client, "marker", None) == "direct"
 
     def test_llm_medcon_returns_gpt4omini(self) -> None:

@@ -25,13 +25,14 @@ class TestDirectOpenAIBranch:
         env = {"OPENAI_API_KEY": "sk-test"}
         with patch("openai.OpenAI", return_value=SimpleNamespace(marker="direct")):
             _, model = make_openai_client("longmemeval_reader", env=env)
-        assert model == "gpt-4o-2024-08-06"
+        # Bumped 2026-04-22 from gpt-4o-2024-08-06 (retired 2026-03-31).
+        assert model == "gpt-4o-2024-11-20"
 
     def test_lme_judge_direct_returns_gpt4o(self) -> None:
         env = {"OPENAI_API_KEY": "sk-test"}
         with patch("openai.OpenAI", return_value=SimpleNamespace()):
             _, model = make_openai_client("longmemeval_judge", env=env)
-        assert model == "gpt-4o-2024-08-06"
+        assert model == "gpt-4o-2024-11-20"
 
 
 class TestAzureWithLmeDeployment:
@@ -128,5 +129,6 @@ class TestConcurrencyConstant:
 
 class TestDirectDefaultsTable:
     def test_lme_purposes_are_gpt4o(self) -> None:
-        assert _DIRECT_DEFAULTS["longmemeval_reader"] == "gpt-4o-2024-08-06"
-        assert _DIRECT_DEFAULTS["longmemeval_judge"] == "gpt-4o-2024-08-06"
+        # Bumped 2026-04-22 from gpt-4o-2024-08-06 (retired 2026-03-31).
+        assert _DIRECT_DEFAULTS["longmemeval_reader"] == "gpt-4o-2024-11-20"
+        assert _DIRECT_DEFAULTS["longmemeval_judge"] == "gpt-4o-2024-11-20"

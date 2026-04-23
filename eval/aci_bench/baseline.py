@@ -41,14 +41,16 @@ def _format_dialogue(enc: ACIEncounter) -> str:
 def predict_note(enc: ACIEncounter) -> ACINotePrediction:
     """Return Opus 4.7's SOAP note for one encounter.
 
-    Without ANTHROPIC_API_KEY → stub returning the gold note so the harness
-    can run without network. Flagged in run.py.
+    Requires `ANTHROPIC_API_KEY`. Returning gold-as-prediction silently
+    (the prior behaviour) inflated baseline scores to 1.0 in any
+    no-key run and would have polluted any unattended sweep. We refuse
+    rather than emit a misleading number — caller must set the key.
     """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return ACINotePrediction(
-            encounter_id=enc.encounter_id,
-            predicted_note=enc.gold_note,  # stub — not a scoring path
-            raw_response="[STUB] ANTHROPIC_API_KEY not set",
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY required for ACI-Bench baseline; "
+            "refusing to return gold note as prediction (would inflate score). "
+            "Set ANTHROPIC_API_KEY before invoking the harness."
         )
 
     try:

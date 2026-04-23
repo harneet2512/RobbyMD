@@ -46,16 +46,16 @@ def _flatten_sessions(q: LongMemEvalQuestion) -> str:
 def predict_answer(q: LongMemEvalQuestion) -> LongMemEvalPrediction:
     """Return Opus 4.7's answer to the question, full-context.
 
-    Without ANTHROPIC_API_KEY → deterministic stub (echoes the gold answer so
-    the harness can run without network). Stub path is flagged prominently in
-    run.py.
+    Requires `ANTHROPIC_API_KEY`. Returning the gold answer silently when
+    the key is absent (the prior behaviour) inflated baseline scores to 1.0
+    in any no-key run and would have polluted any unattended sweep. We
+    refuse rather than emit a misleading number — caller must set the key.
     """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return LongMemEvalPrediction(
-            question_id=q.question_id,
-            question_type=q.question_type,
-            predicted_answer=q.answer,  # stub — not a scoring path
-            raw_response="[STUB] ANTHROPIC_API_KEY not set",
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY required for LongMemEval baseline; "
+            "refusing to return gold answer as prediction (would inflate score). "
+            "Set ANTHROPIC_API_KEY before invoking the harness."
         )
 
     try:
