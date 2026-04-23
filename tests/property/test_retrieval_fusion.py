@@ -46,7 +46,8 @@ class _StubEmbedder(EmbeddingClient):
         self._modal_url = None
         self._local_model = object()  # block local fallback
 
-    def embed(self, texts: list[str]) -> list[list[float]]:  # type: ignore[override]
+    def embed(self, texts: list[str], *, query_mode: bool = False) -> list[list[float]]:  # type: ignore[override]
+        del query_mode
         out: list[list[float]] = []
         for t in texts:
             digest = hashlib.sha256(t.encode("utf-8")).digest()

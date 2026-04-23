@@ -81,6 +81,11 @@ BGE_M3_MODEL_REVISION = "main"  # HuggingFace branch pin
 BGE_M3_VERSION_TAG = f"{BGE_M3_MODEL_ID}@{BGE_M3_MODEL_REVISION}"
 BGE_M3_EMBED_DIM = 1024
 
+# bge-m3 is an asymmetric encoder: queries need a task-instruction prefix,
+# documents do not. Applied in EmbeddingClient.embed when query_mode=True.
+# Empty string would be a no-op — this is the official bge instruction.
+BGE_M3_QUERY_PREFIX: str = "Represent this sentence for searching relevant passages: "
+
 MODAL_URL_ENV = "MODAL_BGE_M3_URL"
 CACHE_DIR_ENV = "SUBSTRATE_EMBED_CACHE_DIR"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "substrate" / "embeddings"
@@ -133,10 +138,17 @@ class EmbeddingClient:
     def model_version(self) -> str:
         return self._model_version
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed a list of texts; returns one unit-length vector per input."""
+    def embed(self, texts: list[str], *, query_mode: bool = False) -> list[list[float]]:
+        """Embed a list of texts; returns one unit-length vector per input.
+
+        When query_mode=True, prepends BGE_M3_QUERY_PREFIX to each text before
+        embedding (bge-m3 asymmetric-encoder contract for queries). Documents
+        and claims use the default query_mode=False.
+        """
         if not texts:
             return []
+        if query_mode:
+            texts = [BGE_M3_QUERY_PREFIX + t for t in texts]
         if self._modal_url is not None:
             return self._embed_modal(texts)
         return self._embed_local(texts)
@@ -470,7 +482,8 @@ def retrieve_relevant_claims(
 
     # Embed the question. Assume the client produces unit-length vectors
     # (bge-m3 server-side + local fallback both set normalize_embeddings=True).
-    q_vec = effective.embed([question])[0]
+    # query_mode=True applies the bge-m3 asymmetric-encoder query prefix.
+    q_vec = effective.embed([question], query_mode=True)[0]
 
     scored: list[tuple[float, Claim, str]] = []
     for c in active:
@@ -644,7 +657,7 @@ def retrieve_hybrid(
             continue
         embedding_by_id[row["claim_id"]] = (vec, row["embedding_model_version"])
 
-    q_vec = effective.embed([query])[0]
+    q_vec = effective.embed([query], query_mode=True)[0]
 
     sem_scores: list[float] = []
     for c in active:
@@ -790,7 +803,7 @@ def retrieve_event_tuples(
             continue
         embedding_by_id[row["claim_id"]] = (vec, row["embedding_model_version"])
 
-    q_vec = effective.embed([query])[0]
+    q_vec = effective.embed([query], query_mode=True)[0]
 
     scored: list[tuple[float, EventTuple]] = []
     for c in active:
