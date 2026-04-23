@@ -39,8 +39,21 @@ class FullRunner:
         # Placeholder: fall back to baseline so the metrics pipeline has
         # something to score.
         pred = baseline_predict(enc)
-        return ACINotePrediction(
+        wrapped = ACINotePrediction(
             encounter_id=pred.encounter_id,
             predicted_note=pred.predicted_note,
             raw_response="[SUBSTRATE STUB] wt-engine+wt-extraction+wt-trees pending\n" + pred.raw_response,
         )
+        # Bypass detection (orchestrator CRITICAL CONSTRAINT, Worker 1):
+        # `--variant full` MUST exercise the real substrate. The
+        # `[SUBSTRATE STUB]` sentinel above means we degraded to baseline.
+        # Failing loudly here prevents accidental publication of baseline
+        # numbers labelled as substrate. Wire the real substrate (Worker 3
+        # event tuples + shared backend in eval/_substrate_backend.py) to
+        # remove the sentinel and let this assertion pass silently.
+        assert "[SUBSTRATE STUB]" not in wrapped.raw_response, (
+            "Bypass detected: --variant full fell back to baseline. "
+            "Wire the real substrate (Worker 3 + shared backend) before "
+            "running ACI-Bench --variant full."
+        )
+        return wrapped

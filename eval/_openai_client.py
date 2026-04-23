@@ -108,13 +108,18 @@ LME_CONCURRENT_DEFAULT: Final[int] = int(
 # Default models for the direct-OpenAI branch. Keep in sync with
 # methodology.md's model-usage policy.
 _DIRECT_DEFAULTS: Final[dict[str, str]] = {
-    "judge_gpt4o": "gpt-4o-2024-08-06",
+    # Bumped 2026-04-22 from gpt-4o-2024-08-06 (retired 2026-03-31). The
+    # paper-faithful judge in LongMemEval ICLR 2025 (Wu et al., arXiv:2410.10813)
+    # was gpt-4o-2024-08-06; we use 2024-11-20 because the older snapshot
+    # returns 404. Methodology deviation must be labelled in any reported
+    # number (see methodology.md).
+    "judge_gpt4o": "gpt-4o-2024-11-20",
     "llm_medcon_gpt4omini": "gpt-4o-mini",
     "claim_extractor_gpt4omini": "gpt-4o-mini",
     "reader_gpt41mini": "gpt-4.1-mini",
     "reader_gpt41": "gpt-4.1",
-    "longmemeval_reader": "gpt-4o-2024-08-06",
-    "longmemeval_judge": "gpt-4o-2024-08-06",
+    "longmemeval_reader": "gpt-4o-2024-11-20",
+    "longmemeval_judge": "gpt-4o-2024-11-20",
 }
 
 # Per-purpose Azure deployment env-var keys.
