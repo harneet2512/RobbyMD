@@ -152,7 +152,21 @@ class VariantAPipeline:
         return segments, first_segment_ms
 
     def diarize(self, audio_path: str):
-        return self.diar(audio_path, num_speakers=2)
+        # pyannote.audio 4.0 switched to torchcodec for its default audio I/O
+        # path. On Ubuntu 22.04 the torchcodec shared library sometimes fails
+        # to load against the system FFmpeg, surfacing as
+        # `NameError: AudioDecoder is not defined` deep inside pipeline calls.
+        # We sidestep the whole AudioDecoder path by pre-loading the audio
+        # with torchaudio (which uses soundfile/libsndfile, already healthy
+        # via our apt install) and handing pyannote a waveform/sample_rate
+        # dict — this is documented as a supported input format.
+        import torchaudio
+
+        waveform, sample_rate = torchaudio.load(audio_path)
+        return self.diar(
+            {"waveform": waveform, "sample_rate": sample_rate},
+            num_speakers=2,
+        )
 
     @staticmethod
     def align_speakers(whisper_segments, diarization) -> list[AlignedSegment]:
