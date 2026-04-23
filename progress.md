@@ -8,9 +8,9 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 
 ## Rolling state (edit in place)
 
-- **Date**: 2026-04-22 (post-merge execution cycle: P.1 + Stream D + B.1/B.2 partials + Stream A OOM + streaming-fix merged + Stream A re-run armed)
-- **Main commit**: `7d0311a` — `eval: streaming JSONL writes for LongMemEval (Stream A memory-fix)`. Tip after 10 cycle commits. Pushed to origin/main.
-- **Tests on main**: **376 passed, 2 skipped, 0 failed, 0 xfail**. Test math: 351 pre-cycle + 9 (P.1 output_dir/stratified) + 6 (aggregate_seeds) + 10 (streaming-fix) = 376.
+- **Date**: 2026-04-23 (Bundle 1 cleanup cycle — repo hygiene + UMLS T0)
+- **Main commit**: `7935d72` (post-Bundle-1 cleanup cycle, 2026-04-23) — tip after Wave A/B + Bundle-1 hygiene commits (cursor.md committed, .gitignore swept, asr_engineering_spec WisprFlow framing rewritten). Pushed to origin/main.
+- **Tests on main**: **401 passed, 2 skipped, 0 failed, 0 xfail** (recounted 2026-04-23 with `pytest -q`). Net +25 vs 376 pre-Bundle-1 — reflects Wave A bypass-detection + Wave B temporal/event-tuple/fusion property tests landed via merges `4bce29d`, `dcb9759`, `a332bb2`, `e94c20f`.
 - **Smoke results so far this cycle** (T1 scispacy MEDCON-F1, Qwen2.5-14B-AWQ via Modal, deviations labeled):
   - **B.1 ACI-Bench hybrid n=10 seed 42**: baseline 0.4937 / substrate 0.4911 / **mean Δ −0.0026** — well within ±0.03 parity. results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`.
   - **B.2 ACI-Bench hybrid n=10 seed 44**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase15_20260422T221817Z_seed44/`.
@@ -470,3 +470,39 @@ These are not opinions — they are what the cycle's failures cost in time and m
    arm's per-turn extractions, and the resume-from-where-it-died
    capability. Engineering for the crash mode is not pessimism — it's
    the median outcome on a 1-hour run with three external dependencies.
+
+### 2026-04-23 — Bundle 1: hygiene sprint + UMLS T0 provisioning (in-flight)
+
+Session 1 of a 5-bundle parallel cycle. State leading into Bundle 1:
+main 6 commits ahead of origin, cursor.md untracked, .gitignore
+incomplete (~22 untracked artifacts), `docs/asr_engineering_spec.md
+§8.3` carried external-WisprFlow-as-competitor framing contradicting
+cursor.md Rule 2, 7+ stale merged branches, 5 stale wt-* worktrees +
+2 locked .claude/worktrees/agent-* worktrees.
+
+Bundle 1 commits landed so far:
+- `e94c20f → c617ab9` — `docs: commit cursor.md with project rules
+  (Flow naming + dual-write mirror)`. Rule 1 generalized to use
+  `$ROBBYMD_MIRROR_DIR` env var so personal paths stay out of git
+  history.
+- `c617ab9 → 2c09508` — `gitignore: sweep research artifacts, frontend
+  references, root-level scratch`. ~22 untracked items now ignored.
+- `2c09508 → 7935d72` — `docs: asr_engineering_spec — remove
+  WisprFlow-as-external-competitor framing, align with Flow internal
+  naming`. §1 + §8.3 rewritten to use generic single-speaker
+  dictation framing; Flow named as the pipeline.
+- `7935d72 → <next>` — `docs: refresh progress.md rolling-state for
+  Bundle 1 cleanup cycle` (this commit).
+
+Remaining Bundle 1 steps (will append a closing entry on completion):
+1.6 delete 8 merged branches locally + origin (preserve
+feature/lme-temporal, feature/aci-audit-revise,
+eval/azure-gpt4o-baseline pending operator review).
+1.7 prune 5 wt-* + 2 locked agent worktrees.
+1.8–1.12 provision GCP VM `robbymd-umls-t0` on
+`singhharneet2512@gmail.com` account, build QuickUMLS index against
+the current Metathesaurus release, deploy FastAPI `/match` + `/health`
+on port 8000, wire `eval/acibench/quickumls_client.py` + dispatch in
+the T1 MEDCON path (T0 activates on
+`CONCEPT_EXTRACTOR=quickumls`+`UMLS_T0_ENDPOINT`; falls back to T1 on
+empty results), smoke-test T0 vs T1 F1 on one existing seed-42 case.
