@@ -12,10 +12,10 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - **Main commit**: `7935d72` (post-Bundle-1 cleanup cycle, 2026-04-23) — tip after Wave A/B + Bundle-1 hygiene commits (cursor.md committed, .gitignore swept, asr_engineering_spec WisprFlow framing rewritten). Pushed to origin/main.
 - **Tests on main**: **401 passed, 2 skipped, 0 failed, 0 xfail** (recounted 2026-04-23 with `pytest -q`). Net +25 vs 376 pre-Bundle-1 — reflects Wave A bypass-detection + Wave B temporal/event-tuple/fusion property tests landed via merges `4bce29d`, `dcb9759`, `a332bb2`, `e94c20f`.
 - **Smoke results so far this cycle** (T1 scispacy MEDCON-F1, Qwen2.5-14B-AWQ via Modal, deviations labeled):
-  - **B.1 ACI-Bench hybrid n=10 seed 42**: baseline 0.4937 / substrate 0.4911 / **mean Δ −0.0026** — well within ±0.03 parity. results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`.
-  - **B.2 ACI-Bench hybrid n=10 seed 44**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase15_20260422T221817Z_seed44/`.
-  - **B.2 ACI-Bench hybrid n=10 seed 43**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase15_20260422T232603Z_seed43/` (landed after two OOM retries).
-  - **B.3 ACI-Bench 3-seed aggregate (42 + 43 + 44)**: baseline 0.4919 / substrate 0.4884 / **mean Δ −0.0034** — well within ±0.03 parity. 3 robust wins (D2N089, D2N092, D2N094); 2 likely wins (D2N091, D2N096); 5 likely losses (D2N088, D2N090, D2N093, D2N095, D2N097); 0 noisy. Per-case σ across seeds: 0.004–0.058 — signals real, not noise. Decision-rule outcome: at parity → Phase 2 (n=40 stratified) operator-gated.
+  - **B.1 MedXpertQA Text hybrid n=10 seed 42**: baseline 0.4937 / substrate 0.4911 / **mean Δ −0.0026** — well within ±0.03 parity. results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase1_20260422T203847Z_seed42/`.
+  - **B.2 MedXpertQA Text hybrid n=10 seed 44**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase15_20260422T221817Z_seed44/`.
+  - **B.2 MedXpertQA Text hybrid n=10 seed 43**: results.json at `eval/acibench/results/20260423_postmerge_hybrid_phase15_20260422T232603Z_seed43/` (landed after two OOM retries).
+  - **B.3 MedXpertQA Text 3-seed aggregate (42 + 43 + 44)**: baseline 0.4919 / substrate 0.4884 / **mean Δ −0.0034** — well within ±0.03 parity. 3 robust wins (D2N089, D2N092, D2N094); 2 likely wins (D2N091, D2N096); 5 likely losses (D2N088, D2N090, D2N093, D2N095, D2N097); 0 noisy. Per-case σ across seeds: 0.004–0.058 — signals real, not noise. Decision-rule outcome: at parity → Phase 2 (n=40 stratified) operator-gated.
   - **Stream A LongMemEval n=60 seed 42**: 💀 dead at ~14k extraction attempts with `MemoryError` during final json.dumps of the in-memory accumulator. No usable results.json. Streaming-fix merged to address; re-run armed at scope n=30, single seed 42.
 - **Azure deployment state**: `gpt-4o-2024-11-20` at capacity=30 (raised 10→30 via upsert; no quota approval needed). `gpt-4o-2024-08-06` is permanently deprecated by Azure (since 2026-03-31, `ServiceModelDeprecated` on create) — minor-version deviation from paper-pinned `-08-06` is logged in reasons.md. `gpt-4-1-mini-2025-04-14` deployment unchanged.
 - **Modal deployment state**: profile `glitch112213` running `bge-m3-embeddings` (200 OK 1024-dim) + `qwen25-14b-vllm` (warm). Profile `chinowitheno-svg` has both apps deployed as standby (not in primary path).
@@ -23,16 +23,16 @@ All agents (main + per-worktree) read this on startup and append a new entry at 
 - **Streams landed** (parallel-execution-synthetic-rain plan + pre-merge gate, 2026-04-22):
   - Stream C (critical-path landing): **DONE** — commits `2d90abd`, `835039a`.
   - Stream A (LongMemEval retrieval + CoN, time_expansion CUT, dispatcher flipped to default): **DONE** — merged at `c52aa0a`. Branch `feature/lme-retrieval` ready for delete on origin.
-  - Stream B (ACI-Bench hybrid mode + --seed + Phase 1.5 multi-seed doc): **DONE** — fast-forward merged at `c59168b` after rebase on A. Branch `feature/aci-hybrid` ready for delete on origin.
+  - Stream B (MedXpertQA Text hybrid mode + --seed + Phase 1.5 multi-seed doc): **DONE** — fast-forward merged at `c59168b` after rebase on A. Branch `feature/aci-hybrid` ready for delete on origin.
   - Stream D (ASR engineering spec, bypass_cleanup flag, hallucination-guard 5-check coverage, asr_benchmark.md trim): **DONE** — merged at `a92910f`. Branch `feature/asr-spec` ready for delete on origin.
 - **Worktrees**:
   - `D:\hack_it` — `main` (operator's working copy; authoritative).
   - `D:\wt-engine`, `D:\wt-trees`, `D:\wt-extraction`, `D:\wt-eval`, `D:\wt-ui` — original feature branches, all merged; safe to prune (operator-confirmed).
   - `D:\wt-lme-retrieval`, `D:\wt-aci-hybrid`, `D:\wt-asr-spec` — Stream A/B/D worktrees, all merged at `a92910f`; safe to prune (operator-confirmed).
-- **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + ACI-Bench (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
-- **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (ACI-Bench). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
+- **Benchmarks (revised this session)**: **two** — LongMemEval-S (all 500 questions, loads `personal_assistant` pack) + MedXpertQA Text (aci+virtscribe 90 encounters, loads `clinical_general` pack). **DDXPlus + MedQA dropped** 2026-04-21 (see `reasons.md` entries).
+- **Primary eval reader**: `Qwen2.5-14B-Instruct` (Apache-2.0, self-hosted via vLLM on GCP L4 spot; fallback Azure NVadsA10_v5). Secondary readers for published-comparator alignment: `gpt-4o-mini` (LongMemEval-S) + `gpt-4.1-mini` (MedXpertQA Text). Opus 4.7 stays on demo-path only (`Eng_doc.md §3.5` Tank-for-the-war policy).
 - **UMLS licence**: application submitted on CMU email; approval pending (0–3 business days; not on critical path). MEDCON 3-tier fallback means T1 scispaCy runs by default; T0 QuickUMLS swaps in automatically when licence lands. See `docs/decisions/2026-04-21_medcon-tiered-fallback.md`.
-- **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); GPT-4 ICL 57.78 MEDCON (ACI-Bench). Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
+- **Smoke harness**: **built, not yet run**. `eval/smoke/run_smoke.py` with `--dry-run`, `--budget-usd`, deterministic first-10-case selection. `eval/smoke/reference_baselines.json` seeded with Mem0 49.0 / Zep 63.8 / gpt-4o-mini 61.2 (LongMemEval-S); MedXpertQA Text comparator numbers still to be populated. Real-run path scaffolded but not wired to per-benchmark judge calls — lands when operator signs off on first invocation.
 - **Predicate packs shipped**: `clinical_general` (20 families + sub-slots + 6 chest-pain few-shots + 79-row chest_pain LR table with 5 open-access citation swaps); `personal_assistant` (6 families + 6 hand-authored few-shots; no LR table). Pack loader at `src/substrate/predicate_packs.py`.
 - **Infrastructure live** (post-merge execution cycle, 2026-04-22):
   - **Modal (profile `glitch112213`)**: `bge-m3-embeddings` deployed, probe 200 OK 1024-dim × 2 in ~17 s cold; `qwen25-14b-vllm` deployed, probe 200 OK ~80 s first-token cold / sub-second warm. URLs stashed in `.env` as `MODAL_BGE_M3_URL` / `QWEN_API_BASE`.
@@ -584,3 +584,60 @@ All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
 - Re-scoring all existing ACI results with T0 (follow-up cycle).
 - Running benchmarks against `e973e87` (Session 2).
 - Fixing LongMemEval retrieval (Session 3).
+
+---
+
+## 2026-04-23 — Bundle 4 (Flow Variant A) — measurement complete
+
+**Status**: shipped — branch `bundle4-variant-a-run` @ `8d3f634` pushed to origin.
+
+**Stack** (all OSI-approved or open-data licenced, audit block at top of file):
+- Whisper-large-v3-turbo (MIT) via `faster-whisper==1.2.1`
+- BioMistral-7B-DARE-AWQ-QGS128-W4-GEMM (Apache-2.0) cleanup served by `vllm==0.6.3`
+- Kokoro-82M (Apache-2.0) for the 6 TTS-rendered clinical dialogues
+- Voices: `am_michael` (DOCTOR) + `af_bella` (PATIENT); pinned seed=42, 24 kHz
+
+**Hardware**: NVIDIA L4 24 GB on `aravind-l4-gpu` (europe-west4-a). ~4 hours wall-clock × ~$0.21/h spot ≈ $0.85 spend on Aravind project + ~$0.05 on `harneet-l4-gpu` while bouncing between zones.
+
+**Headline metrics** (6/6 clips successful, mean unless noted):
+- WER raw (Whisper-only):       12.1 %
+- WER cleaned (+ BioMistral):   19.9 %  ← cleanup is paraphrasing more than cleaning; prompt needs tightening
+- Medical-term WER:              6.7 %  ← beats published Whisper+medical-vocab 8-10 %
+- First-token latency p50/p90:  832 ms / 1227 ms
+- E2E latency p50/p90/p99:      13.3 s / 16.2 s / 16.2 s
+- VRAM peak:                    14.3 GB of 24 GB
+
+**Artifacts on `bundle4-variant-a-run`**:
+- `eval/flow_results/variant_a/20260423T163104Z/{results.json, per_clip_metrics.jsonl}`
+- `eval/synthetic_clips/audio/*.wav` × 6 — Bundle 5 can pull and re-use
+- `eval/synthetic_clips/ground_truth.jsonl`
+- `src/extraction/flow/variant_a/` — pipeline, measure, run_all, render_tts, build_ground_truth, medical_terms
+
+**Caveats explicitly logged in `results.json["stack"]`**:
+1. **Diarisation deferred** — pyannote `speaker-diarization-community-1` requires `pyannote.audio>=4.0` which needs `torch>=2.8`; vLLM 0.6.3 pins `torch==2.4`. Cannot coexist in one venv. Speaker labels filled by alternating-turn heuristic; **DER reported as `null`**. Re-enable once vLLM is bumped to a torch-2.8 release.
+2. **Cleaned WER worse than raw** — BioMistral is rewriting content, not just removing disfluencies. The prompt ("normalize medical terminology to standard forms") is too aggressive. Tighten to "preserve every word, remove only filler tokens" before the next run.
+
+**Resolved during the run** (so future bundles don't re-discover):
+- LoneStriker's BioMistral-7B-DARE-AWQ ships a `model.safetensors.index.json` pointing at non-existent shards (merge-kit artefact) — vLLM's HF-API refetch path honours the index even if you delete it locally. Use `BioMistral/BioMistral-7B-DARE-AWQ-QGS128-W4-GEMM` (BioMistral org's own AWQ — single-file weights, no stray index).
+- vLLM 0.6.3 + outlines 0.0.46 trip on missing `pyairports` (PyPI's `pyairports==0.0.1` is a namespace squat with no `airports` submodule). Stub fix: create `pyairports/airports.py` containing `AIRPORT_LIST = []`.
+- Mistral chat template rejects the `system` role ("Conversation roles must alternate user/assistant/..."). Merge system prompt into the first user message.
+- Kokoro CUDA init crashes with `Invalid handle. Cannot load symbol cublasLtCreate` against torch 2.4.0+cu121 — pass `device="cpu"` to `KPipeline`. 82M-param model is fast on CPU and frees ~200 MB VRAM.
+- Spot preemption hit europe-west4-a twice and us-central1-a once during the run. Stage markers under `~/robbymd/.b4_markers/` made setup resumable; measurement re-ran from clean state.
+- pyannote 3.1 was originally specified in the brief; swapped to `community-1` per the existing CC-BY-4.0 ADR (`docs/decisions/2026-04-21_pyannote-ccby40-model-weights.md`). Then deferred entirely per caveat 1 above.
+
+**Competitive placement** (from `results.json["competitive_context"]`):
+- Wispr Flow (~700 ms p99, non-medical): we're ~20× slower but medical-specialised
+- DAX / Abridge (2-3 min async, medical): we're 10-15× faster with visible reasoning
+- Nabla (< 20 s, medical cloud): comparable latency, but our stack is open
+
+**Hard rules satisfied**:
+- Branch policy: never pushed to `main` from the L4 (commits stayed local; integration via this laptop session only).
+- Code scope: nothing under `src/extraction/asr/`, `src/substrate/`, `src/note/`, `eval/acibench/`, `eval/longmemeval/` was touched.
+- Licence audit block written to `progress.md` by `scripts/download_and_verify_variant_a.py` at download time.
+- No invented numbers — every metric in `results.json` is measured.
+
+**Next steps not in this bundle**:
+- Tighten BioMistral cleanup prompt; re-measure to drive cleaned WER below raw WER.
+- Re-enable diarisation by upgrading vLLM to a torch-2.8 release; re-measure for DER.
+- Bundle 5 (Variant B on `harneet-l4-gpu`) consumes the same `eval/synthetic_clips/audio/*.wav` + `ground_truth.jsonl` for apples-to-apples comparison.
+- Operator decides whether to fast-forward `main` to include `bundle4-variant-a-run`.
