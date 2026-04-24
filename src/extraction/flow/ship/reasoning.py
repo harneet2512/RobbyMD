@@ -1,24 +1,35 @@
 """
-Gemini 2.5 Pro reasoning layer via Vertex AI.
+Claude Opus 4.7 reasoning layer via the Anthropic API.
 
 Claim extraction, differential diagnosis, and SOAP note generation from the
-ship-pipeline transcript segments. Separate from the ASR measurement — can
-fail without invalidating the WER/DER numbers.
+ship-pipeline transcript segments. Uses the hackathon's named sponsored tool
+(Opus 4.7) per rules.md §2 / CLAUDE.md §2. Replaces an earlier Gemini 2.5 Pro
+implementation that violated the open-source/Opus-only constraint; see
+docs/decisions/2026-04-24_opus-reasoning-only.md for the switch rationale.
 """
 from __future__ import annotations
 
 import json
-from typing import Optional
+import os
+from typing import List, Optional
 
-import vertexai
-from vertexai.generative_models import GenerativeModel
+import anthropic
 
-_MODEL_ID = "gemini-2.5-pro"
+_MODEL_ID = "claude-opus-4-7"
+_MAX_TOKENS = 4096
 
 
-def init_gemini(project_id: str, location: str = "us-central1") -> GenerativeModel:
-    vertexai.init(project=project_id, location=location)
-    return GenerativeModel(_MODEL_ID)
+def init_claude(api_key: Optional[str] = None) -> anthropic.Anthropic:
+    """Build an Anthropic client. Reads ANTHROPIC_API_KEY from env if not passed."""
+    return anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _extract_text(response: anthropic.types.Message) -> str:
+    parts: List[str] = []
+    for block in response.content:
+        if getattr(block, "type", None) == "text":
+            parts.append(block.text)
+    return "".join(parts).strip()
 
 
 def _strip_code_fence(text: str) -> str:
@@ -32,7 +43,7 @@ def _strip_code_fence(text: str) -> str:
     return t
 
 
-def extract_claims(model: GenerativeModel, transcript_segments: list) -> list:
+def extract_claims(client: anthropic.Anthropic, transcript_segments: list) -> list:
     transcript_text = "\n".join(
         f"{s['speaker']}: {s['text']}" for s in transcript_segments
     )
@@ -54,14 +65,19 @@ For each claim, output JSON with:
 - supersession_reason: why (if any)
 
 Output ONLY a JSON array of claim objects. No other text."""
-    response = model.generate_content(prompt)
+    response = client.messages.create(
+        model=_MODEL_ID,
+        max_tokens=_MAX_TOKENS,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = _extract_text(response)
     try:
-        return json.loads(_strip_code_fence(response.text))
+        return json.loads(_strip_code_fence(text))
     except json.JSONDecodeError:
-        return [{"error": "failed to parse claims", "raw": response.text[:500]}]
+        return [{"error": "failed to parse claims", "raw": text[:500]}]
 
 
-def generate_differential(model: GenerativeModel, claims: list) -> list:
+def generate_differential(client: anthropic.Anthropic, claims: list) -> list:
     prompt = f"""You are a clinical reasoning engine. Given these extracted claims from a patient encounter, generate a differential diagnosis.
 
 CLAIMS:
@@ -77,15 +93,20 @@ For each hypothesis, output JSON with:
 - likelihood_ratio_estimate: rough LR if known
 
 Output ONLY a JSON array of hypothesis objects, ranked by likelihood. No other text."""
-    response = model.generate_content(prompt)
+    response = client.messages.create(
+        model=_MODEL_ID,
+        max_tokens=_MAX_TOKENS,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = _extract_text(response)
     try:
-        return json.loads(_strip_code_fence(response.text))
+        return json.loads(_strip_code_fence(text))
     except json.JSONDecodeError:
-        return [{"error": "failed to parse differential", "raw": response.text[:500]}]
+        return [{"error": "failed to parse differential", "raw": text[:500]}]
 
 
 def generate_soap_note(
-    model: GenerativeModel,
+    client: anthropic.Anthropic,
     claims: list,
     differential: list,
     transcript_segments: list,
@@ -105,17 +126,18 @@ Rules:
 4. Use standard SOAP format: Subjective, Objective, Assessment, Plan.
 
 Output the SOAP note as plain text with [c:XX] tags inline."""
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.messages.create(
+        model=_MODEL_ID,
+        max_tokens=_MAX_TOKENS,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return _extract_text(response)
 
 
-def smoke_test(project_id: str, transcript_segments: list) -> dict:
-    """One-shot smoke test: run all three stages on a single transcript.
-
-    Returns {claims, differential, note} for manual inspection.
-    """
-    model = init_gemini(project_id)
-    claims = extract_claims(model, transcript_segments)
-    differential = generate_differential(model, claims)
-    note = generate_soap_note(model, claims, differential, transcript_segments)
+def smoke_test(transcript_segments: list, api_key: Optional[str] = None) -> dict:
+    """Run all three stages on a single transcript for manual inspection."""
+    client = init_claude(api_key=api_key)
+    claims = extract_claims(client, transcript_segments)
+    differential = generate_differential(client, claims)
+    note = generate_soap_note(client, claims, differential, transcript_segments)
     return {"claims": claims, "differential": differential, "note": note}

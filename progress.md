@@ -691,3 +691,16 @@ Apples-to-apples comparison (both normalized):
 **DER caveat**: ground_truth's `turns[]` don't carry real timestamps — `compute_der` assigns equal-duration slots across the audio. A Kokoro render-time log of turn boundaries would drop DER substantially. 0.577 is the rough proxy, not a hard comparison to a pyannote leaderboard number.
 
 **Pipeline latency decision**: CPU pyannote adds ~141s per 90s clip vs ~1.7s without. For demo purposes the no-DER fast path is the shippable one; DER is a lab-bench measurement at this point. Real production fix is either installing matching CUDA toolkit (`libnvrtc-builtins.so.13.0`) or downgrading torch to cu124 to match the DLVM's CUDA 12.9.
+
+### 2026-04-24 — Reasoning layer: Gemini 2.5 Pro → Claude Opus 4.7
+
+Independent code review flagged that the ship pipeline's reasoning layer violated `rules.md §2` (only commercial API allowed is Opus 4.7 — Gemini is outside the whitelist).
+
+Fix: `src/extraction/flow/ship/reasoning.py` rewritten to call the Anthropic API (`claude-opus-4-7`) instead of Vertex AI. Prompts and JSON return shapes unchanged — only the transport swapped. ADR at `docs/decisions/2026-04-24_opus-reasoning-only.md`. `ANTHROPIC_API_KEY` env var replaces Vertex AI ADC; no IAM grants needed.
+
+Gemini smoke output at `eval/flow_results/ship/20260424T025318Z/step8_gemini_smoke.txt` is retained as historical record (file is explicitly `gemini` in its name). A fresh Opus smoke test runs next and will land as `step8_opus_smoke.txt` alongside.
+
+Two other verifier findings not yet actioned:
+- `results.json` top-level still shows default-jiwer `wer_raw_mean: 0.2406`; the normalized 2.71% is only derivable from `per_clip_normalized.jsonl`. Follow-up: add a `*_normalized_mean` field to the aggregate in `run_all.py` so the headline matches the narrative.
+- Fuzzy corrector fires 0 times on the Kokoro test set. The ship WER wins come entirely from (a) Whisper medical hotwords biasing and (b) removing BioMistral's regression. The corrector is present as a safety net for real (non-synthetic) audio with genuine Whisper misrecognitions — not as a contributing mechanism on this benchmark. Progress-md framing should be tightened.
+
