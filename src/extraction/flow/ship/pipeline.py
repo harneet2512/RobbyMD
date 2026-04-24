@@ -101,10 +101,15 @@ class ShipPipeline:
             # clip rather than failing the whole measurement run.
             import torchaudio
             waveform, sample_rate = torchaudio.load(audio_path)
-            return self.diar(
+            out = self.diar(
                 {"waveform": waveform, "sample_rate": sample_rate},
                 num_speakers=2,
             )
+            # pyannote 4.x returns a DiarizeOutput wrapper; older 3.x
+            # returns the Annotation directly. Normalize to Annotation.
+            if hasattr(out, "speaker_diarization"):
+                return out.speaker_diarization
+            return out
         except Exception as exc:
             print(f"  diarize error on {audio_path}: {type(exc).__name__}: {exc}")
             return None
