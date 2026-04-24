@@ -21,7 +21,14 @@ from time import time_ns
 
 import structlog
 
-from src.substrate.schema import PREDICATE_FAMILIES, Claim, ClaimStatus, Turn
+from src.substrate.schema import (
+    PREDICATE_FAMILIES,
+    Claim,
+    ClaimStatus,
+    EdgeType,
+    SupersessionEdge,
+    Turn,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -385,6 +392,46 @@ def list_active_claims(
         (session_id,),
     ).fetchall()
     return [row_to_claim(r) for r in rows]
+
+
+def list_claims_with_lifecycle(
+    conn: sqlite3.Connection, session_id: str, mode: str = "current_truth",
+) -> list[Claim]:
+    if mode == "current_truth":
+        return list_active_claims(conn, session_id)
+    rows = conn.execute(
+        "SELECT * FROM claims WHERE session_id = ?"
+        " AND status IN ('active','confirmed','audited','superseded')"
+        " ORDER BY created_ts ASC", (session_id,),
+    ).fetchall()
+    return [row_to_claim(r) for r in rows]
+
+
+def list_supersession_pairs(
+    conn: sqlite3.Connection, session_id: str,
+) -> list[tuple[Claim, Claim, SupersessionEdge]]:
+    rows = conn.execute(
+        "SELECT e.edge_id, e.old_claim_id, e.new_claim_id,"
+        "       e.edge_type, e.identity_score, e.created_ts"
+        " FROM supersession_edges e"
+        " JOIN claims c_old ON e.old_claim_id = c_old.claim_id"
+        " JOIN claims c_new ON e.new_claim_id = c_new.claim_id"
+        " WHERE c_old.session_id = ? AND c_new.session_id = ?"
+        " ORDER BY e.created_ts DESC", (session_id, session_id),
+    ).fetchall()
+    pairs: list[tuple[Claim, Claim, SupersessionEdge]] = []
+    for r in rows:
+        old_row = conn.execute("SELECT * FROM claims WHERE claim_id = ?", (r["old_claim_id"],)).fetchone()
+        new_row = conn.execute("SELECT * FROM claims WHERE claim_id = ?", (r["new_claim_id"],)).fetchone()
+        if old_row is None or new_row is None:
+            continue
+        edge = SupersessionEdge(
+            edge_id=r["edge_id"], old_claim_id=r["old_claim_id"],
+            new_claim_id=r["new_claim_id"], edge_type=EdgeType(r["edge_type"]),
+            identity_score=r["identity_score"], created_ts=r["created_ts"],
+        )
+        pairs.append((row_to_claim(old_row), row_to_claim(new_row), edge))
+    return pairs
 
 
 def list_claims_for_turn(conn: sqlite3.Connection, turn_id: str) -> list[Claim]:

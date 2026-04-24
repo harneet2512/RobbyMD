@@ -271,9 +271,128 @@ def answer_with_con(
     return answer, provenance
 
 
+SUBSTRATE_NOTE_EXTRACTION_SYSTEM = (
+    "You are a careful note-taker. Given a question and retrieved facts with "
+    "lifecycle metadata (status: active/superseded, validity periods), extract "
+    "ONLY the facts that are directly relevant to answering the question.\n\n"
+    "Return a JSON object with key \"notes\", a list of objects each having:\n"
+    "- \"item_id\": str\n"
+    "- \"verbatim_fact\": str — copied verbatim from the provided fact\n"
+    "- \"reason\": str — one sentence explaining relevance\n"
+    "- \"is_current\": bool — true if fact's status is 'active'\n\n"
+    "If no fact is relevant, return {\"notes\": []}."
+)
+
+SUBSTRATE_ANSWER_SYSTEM = (
+    "You are a careful assistant. Answer the user's question using ONLY the "
+    "extracted notes provided. Notes include lifecycle metadata.\n\n"
+    "Rules:\n"
+    "1. If notes show a fact was updated, use the MOST RECENT version unless "
+    "   the question asks about the old value.\n"
+    "2. If notes show conflicting facts, use the most recent one.\n"
+    "3. If the question asks about changes, describe BOTH old and new values.\n"
+    "4. If notes do not contain the answer, reply exactly: \"I don't know\".\n"
+    "Give a concise answer, one to two sentences."
+)
+
+
+def _format_classified_evidence_for_extraction(
+    classified_evidence: list[Any],
+    supersession_info: dict[str, str] | None = None,
+) -> str:
+    lines: list[str] = []
+    ss_info = supersession_info or {}
+    for i, ev in enumerate(classified_evidence):
+        claim = ev.claim
+        status = claim.status.value if hasattr(claim.status, "value") else str(claim.status)
+        replaced_by = ss_info.get(claim.claim_id, "")
+        suffix = f", replaced_by={replaced_by}" if replaced_by else ""
+        valid_from = claim.valid_from_ts or claim.created_ts
+        lines.append(
+            f"[item_{i:03d}] (claim_id={claim.claim_id}, status={status}, "
+            f"evidence={ev.evidence_type}, valid_from={valid_from}{suffix}) "
+            f"{claim.subject} / {claim.predicate} = {claim.value}"
+        )
+    return "\n".join(lines)
+
+
+def answer_with_substrate_aware_con(
+    question: str,
+    classified_evidence: list[Any],
+    question_type: str,
+    *,
+    supersession_info: dict[str, str] | None = None,
+    client_pair: tuple[Any, str] | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Substrate-aware two-call Chain-of-Note."""
+    if question_type == "information_extraction" and not supersession_info:
+        ranked = [
+            RankedClaim(claim=ev.claim, similarity_score=ev.fused_score, embedding_model_version="n/a")
+            for ev in classified_evidence
+        ]
+        return answer_with_con(question, ranked, client_pair=client_pair, env=env)
+
+    if client_pair is None:
+        from eval._openai_client import make_openai_client
+        client, model = make_openai_client("longmemeval_reader", env=env)
+    else:
+        client, model = client_pair
+
+    evidence_text = _format_classified_evidence_for_extraction(classified_evidence, supersession_info)
+
+    t0 = time.monotonic()
+    try:
+        resp1 = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SUBSTRATE_NOTE_EXTRACTION_SYSTEM},
+                {"role": "user", "content": f"Question: {question}\n\nRetrieved facts:\n{evidence_text}\n"},
+            ],
+            temperature=0.0, response_format={"type": "json_object"},
+        )
+        raw_notes = resp1.choices[0].message.content or "{}"
+    except Exception as exc:
+        log.warning("con.substrate_extraction_error", error=repr(exc)[:200])
+        raise
+    extract_ms = (time.monotonic() - t0) * 1000
+
+    note_dicts = _parse_notes(raw_notes)
+    notes: list[CoNNote] = []
+    for i, n in enumerate(note_dicts):
+        verbatim = str(n.get("verbatim_fact") or "").strip()
+        reason = str(n.get("reason") or "").strip()
+        if verbatim:
+            notes.append(CoNNote(item_id=str(n.get("item_id") or f"item_{i:03d}"), verbatim_fact=verbatim, reason=reason))
+
+    t1 = time.monotonic()
+    try:
+        resp2 = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SUBSTRATE_ANSWER_SYSTEM},
+                {"role": "user", "content": f"{_notes_to_prompt_block(notes)}\n\nQuestion: {question}\n"},
+            ],
+            temperature=0.0, max_tokens=256,
+        )
+        answer = (resp2.choices[0].message.content or "").strip()
+    except Exception as exc:
+        log.warning("con.substrate_answer_error", error=repr(exc)[:200])
+        raise
+
+    if not notes:
+        answer = "I don't know"
+
+    return answer, {"mode": "substrate_aware_con", "notes_count": len(notes),
+                    "total_latency_ms": extract_ms + (time.monotonic() - t1) * 1000, "model": model}
+
+
 __all__ = [
     "ANSWER_SYSTEM",
     "CoNNote",
     "NOTE_EXTRACTION_SYSTEM",
+    "SUBSTRATE_ANSWER_SYSTEM",
+    "SUBSTRATE_NOTE_EXTRACTION_SYSTEM",
     "answer_with_con",
+    "answer_with_substrate_aware_con",
 ]

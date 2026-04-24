@@ -115,6 +115,19 @@ def detect_pass1(
     if old_claim.value.strip().lower() == new_claim.value.strip().lower():
         return None
 
+    # Scope guard: only supersede if values describe the same fact.
+    import re as _re
+    _noise = {"the","a","an","is","was","to","for","and","or","of","in","on","at",
+              "it","my","i","me","we","up","so","no","not","but","with","has","had",
+              "be","do","did","will","been","just","very","really","also","about",
+              "some","from","that","this","more","than","each","during"}
+    old_content = set(_re.findall(r"[a-z0-9]+", old_claim.value.lower())) - _noise
+    new_content = set(_re.findall(r"[a-z0-9]+", new_claim.value.lower())) - _noise
+    if old_content and new_content:
+        jaccard = len(old_content & new_content) / len(old_content | new_content)
+        if jaccard < 0.3:
+            return None
+
     new_speaker = _get_speaker(conn, new_claim.source_turn_id)
     old_speaker = _get_speaker(conn, old_claim.source_turn_id)
     edge_type = _classify_edge(

@@ -578,6 +578,37 @@ def _rrf_ranks(scores: list[float]) -> list[int]:
     return ranks
 
 
+def _tokenize_for_bm25(text: str) -> list[str]:
+    import re
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _bm25_scores(query_tokens: list[str], claims: list[Claim], *, k1: float = 1.2, b: float = 0.75) -> list[float]:
+    if not query_tokens or not claims:
+        return [0.0] * len(claims)
+    docs = [_tokenize_for_bm25(claim_retrieval_text(c)) for c in claims]
+    n = len(docs)
+    avgdl = sum(len(d) for d in docs) / max(n, 1)
+    df: dict[str, int] = {}
+    for qt in set(query_tokens):
+        df[qt] = sum(1 for d in docs if qt in d)
+    scores: list[float] = []
+    for d in docs:
+        score = 0.0
+        dl = len(d)
+        tf_map: dict[str, int] = {}
+        for token in d:
+            tf_map[token] = tf_map.get(token, 0) + 1
+        for qt in query_tokens:
+            if qt not in df or df[qt] == 0:
+                continue
+            idf = math.log((n - df[qt] + 0.5) / (df[qt] + 0.5) + 1.0)
+            tf = tf_map.get(qt, 0)
+            score += idf * tf * (k1 + 1.0) / (tf + k1 * (1.0 - b + b * dl / max(avgdl, 1e-9)))
+        scores.append(score)
+    return scores
+
+
 def retrieve_hybrid(
     conn: sqlite3.Connection,
     *,
@@ -585,35 +616,14 @@ def retrieve_hybrid(
     query: str,
     entity_hint: str | None = None,
     top_k: int = 20,
-    valid_at_ts: int | None = None,  # noqa: ARG001 — reserved for time-travel queries
-    weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    valid_at_ts: int | None = None,  # noqa: ARG001
+    weights: tuple[float, ...] = (1.0, 1.0, 1.0),
     embedding_client: EmbeddingClient | None = None,
+    include_superseded: bool = False,
 ) -> list[tuple[Claim, float]]:
-    """Multi-signal retrieval combining semantic + entity + temporal signals.
+    """Multi-signal retrieval: semantic + entity + temporal + BM25.
 
-    Aligned with **Hindsight TEMPR** (arXiv:2512.12818); fused via
-    **Reciprocal Rank Fusion** (Bruch et al., ACM TOIS 2023,
-    doi:10.1145/3596512) with the canonical RRF constant k = 60.
-
-    Signals:
-
-    - semantic: cosine similarity (query embedding vs claim_text embedding)
-    - entity:   1.0 if `claim_metadata.entity_key` matches `entity_hint` or
-                 appears in the normalised query, else 0.0
-    - temporal: recency boost — newer `valid_from_ts` ranks higher; falls
-                 back to `created_ts` when `valid_from_ts` is NULL
-
-    Fusion: for each signal s, rank the candidates and assign
-    rrf_score = 1 / (k + rank). Final score is the weighted sum:
-    `weights[0]*rrf_sem + weights[1]*rrf_ent + weights[2]*rrf_tmp`.
-
-    Returns: list of (Claim, fused_score), len ≤ top_k, sorted by fused_score
-    descending. Empty substrate or empty query → returns `[]`.
-
-    TODO (v2): cross-encoder rerank pass over the top-K fused candidates
-    (e.g. bge-reranker-v2-m3). Deliberately deferred from this PR to keep
-    the change small and the latency budget intact; see
-    `advisory/validation/implementation_plan.md` §5.
+    Weights tuple: (semantic, entity, temporal[, bm25]). 3-tuple backward-compatible.
     """
     if not query or not query.strip():
         return []
@@ -621,26 +631,25 @@ def retrieve_hybrid(
     effective = embedding_client or EmbeddingClient()
     model_version = effective.model_version
 
-    active = list_active_claims(conn, session_id)
+    if include_superseded:
+        from src.substrate.claims import list_claims_with_lifecycle
+        active = list_claims_with_lifecycle(conn, session_id, "historical_truth")
+    else:
+        active = list_active_claims(conn, session_id)
     if not active:
         return []
 
-    # --- semantic signal: pull embeddings, score against query embedding ---
     ids = tuple(c.claim_id for c in active)
     placeholders = ",".join("?" for _ in ids)
     rows = conn.execute(
         f"SELECT claim_id, embedding, embedding_model_version "
-        f"FROM claim_embeddings WHERE claim_id IN ({placeholders})",
-        ids,
+        f"FROM claim_embeddings WHERE claim_id IN ({placeholders})", ids,
     ).fetchall()
     embedding_by_id: dict[str, tuple[list[float], str]] = {}
     for row in rows:
         try:
             vec = _decode_vector(row["embedding"])
         except ValueError:
-            log.warning(
-                "substrate.retrieve_hybrid_decode_failed", claim_id=row["claim_id"]
-            )
             continue
         embedding_by_id[row["claim_id"]] = (vec, row["embedding_model_version"])
 
@@ -661,47 +670,44 @@ def retrieve_hybrid(
             score = _cosine_fallback(q_vec, vec)
         sem_scores.append(score)
 
-    # --- entity signal: pull claim_metadata.entity_key in one query ---
     meta_rows = conn.execute(
-        f"SELECT claim_id, entity_key FROM claim_metadata WHERE claim_id IN ({placeholders})",
-        ids,
+        f"SELECT claim_id, entity_key FROM claim_metadata WHERE claim_id IN ({placeholders})", ids,
     ).fetchall()
     entity_by_id: dict[str, str] = {r["claim_id"]: r["entity_key"] for r in meta_rows}
 
-    # Normalise the hint + query the same way subjects are normalised.
     from src.substrate.claims import _normalise_subject
-
     hint_norm = _normalise_subject(entity_hint) if entity_hint else ""
     query_norm = query.strip().lower()
 
     ent_scores: list[float] = []
     for c in active:
         ek = entity_by_id.get(c.claim_id, "")
-        match = False
-        if hint_norm and ek == hint_norm:
-            match = True
-        elif _entity_in_query(query_norm, ek):
-            match = True
+        match = (hint_norm and ek == hint_norm) or _entity_in_query(query_norm, ek)
         ent_scores.append(1.0 if match else 0.0)
 
-    # --- temporal signal: pure recency (newer = better) ---
     tmp_scores: list[float] = [float(_claim_recency_ts(c)) for c in active]
+    bm25_raw = _bm25_scores(_tokenize_for_bm25(query), active)
 
-    # --- RRF fusion ---
     sem_ranks = _rrf_ranks(sem_scores)
     ent_ranks = _rrf_ranks(ent_scores)
     tmp_ranks = _rrf_ranks(tmp_scores)
+    bm25_ranks = _rrf_ranks(bm25_raw)
 
-    w_sem, w_ent, w_tmp = weights
+    w_sem = weights[0] if len(weights) > 0 else 1.0
+    w_ent = weights[1] if len(weights) > 1 else 1.0
+    w_tmp = weights[2] if len(weights) > 2 else 1.0
+    w_bm25 = weights[3] if len(weights) > 3 else 0.0
+
     fused: list[tuple[Claim, float]] = []
     for i, c in enumerate(active):
-        rrf_sem = 1.0 / (RRF_K + sem_ranks[i])
-        rrf_ent = 1.0 / (RRF_K + ent_ranks[i])
-        rrf_tmp = 1.0 / (RRF_K + tmp_ranks[i])
-        fused_score = w_sem * rrf_sem + w_ent * rrf_ent + w_tmp * rrf_tmp
+        fused_score = (
+            w_sem / (RRF_K + sem_ranks[i])
+            + w_ent / (RRF_K + ent_ranks[i])
+            + w_tmp / (RRF_K + tmp_ranks[i])
+            + w_bm25 / (RRF_K + bm25_ranks[i])
+        )
         fused.append((c, fused_score))
 
-    # Deterministic tie-break: descending fused score, then claim_id ascending.
     fused.sort(key=lambda x: (-x[1], x[0].claim_id))
     return fused[:top_k]
 
