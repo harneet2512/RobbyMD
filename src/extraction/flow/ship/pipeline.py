@@ -133,7 +133,7 @@ class ShipPipeline:
                     max_speakers=self.max_speakers,
                 )
             if hasattr(out, "speaker_diarization"):
-                return out
+                return out.speaker_diarization
             return out
         except Exception as exc:
             print(f"  diarize error on {audio_path}: {type(exc).__name__}: {exc}")
