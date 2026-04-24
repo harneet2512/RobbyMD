@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
+PIPELINE_SRC = REPO / "src" / "extraction" / "flow" / "ship" / "pipeline.py"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -45,10 +46,28 @@ def _gcp_reachable() -> bool:
         return False
 
 
+def _can_import_pipeline() -> bool:
+    """pipeline.py imports faster_whisper at module level; check availability."""
+    try:
+        import faster_whisper  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 REQUIRES_L4 = pytest.mark.skipif(not _cuda_available(), reason="L4/GPU required")
 REQUIRES_GCP = pytest.mark.skipif(
     not _gcp_reachable(), reason="google-auth + ADC required"
 )
+REQUIRES_PIPELINE = pytest.mark.skipif(
+    not _can_import_pipeline(),
+    reason="faster_whisper not installed (inspection tests read source file directly)",
+)
+
+
+def _read_pipeline_source() -> str:
+    """Read pipeline.py as text for inspection tests that don't need import."""
+    return PIPELINE_SRC.read_text(encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -93,25 +112,29 @@ class TestLayer1GroundTruth:
 # ─────────────────────────────────────────────────────────────
 
 class TestLayer2WhisperConfig:
+    """Pure source-inspection tests; no import of pipeline module needed."""
+
     def test_layer2_medical_hotwords_include_key_terms(self):
         """MEDICAL_HOTWORDS biases high-value medical vocab into beam search."""
-        from src.extraction.flow.ship.pipeline import MEDICAL_HOTWORDS
+        src = _read_pipeline_source()
+        # MEDICAL_HOTWORDS is a module-level string literal
+        m = re.search(r'MEDICAL_HOTWORDS\s*=\s*\((.*?)\)', src, re.DOTALL)
+        assert m, "MEDICAL_HOTWORDS assignment not found"
+        hotwords = m.group(1)
         for term in ["chest pain", "troponin", "Kawasaki", "nitroglycerin", "SpO2"]:
-            assert term in MEDICAL_HOTWORDS, f"missing hero hotword: {term}"
+            assert term in hotwords, f"missing hero hotword: {term}"
 
     def test_layer2_vad_min_silence_500(self):
         """transcribe() passes min_silence_duration_ms=500 to Whisper."""
-        from src.extraction.flow.ship import pipeline as p
-        src = inspect.getsource(p.ShipPipeline.transcribe)
+        src = _read_pipeline_source()
         assert "min_silence_duration_ms" in src
-        assert "500" in src  # as value inside vad_parameters
+        assert 'min_silence_duration_ms": 500' in src or 'min_silence_duration_ms\': 500' in src
 
     def test_layer2_transcribe_uses_large_v3_turbo(self):
         """Init loads the large-v3-turbo faster-whisper model."""
-        from src.extraction.flow.ship import pipeline as p
-        src = inspect.getsource(p.ShipPipeline.__init__)
+        src = _read_pipeline_source()
         assert '"large-v3-turbo"' in src or "'large-v3-turbo'" in src
-        assert "compute_type=\"float16\"" in src or "compute_type='float16'" in src
+        assert 'compute_type="float16"' in src or "compute_type='float16'" in src
 
     @REQUIRES_L4
     def test_layer2_transcribe_returns_segments(self):
@@ -131,27 +154,25 @@ class TestLayer2WhisperConfig:
 # ─────────────────────────────────────────────────────────────
 
 class TestLayer3Diarization:
+    """Pure source-inspection tests; no import needed."""
+
     def test_layer3_init_disables_telemetry(self):
         """pyannote 4.x telemetry must be disabled BEFORE loading."""
-        from src.extraction.flow.ship import pipeline as p
-        src = inspect.getsource(p.ShipPipeline.__init__)
+        src = _read_pipeline_source()
         assert "set_telemetry_metrics" in src
-        # must come before Pipeline.from_pretrained
         tele_idx = src.find("set_telemetry_metrics")
         load_idx = src.find("from_pretrained")
-        assert 0 < tele_idx < load_idx
+        assert 0 < tele_idx < load_idx, "telemetry disable must precede pipeline load"
 
     def test_layer3_diarize_returns_annotation_or_none(self):
         """diarize() unwraps pyannote 4.x DiarizeOutput to Annotation."""
-        from src.extraction.flow.ship import pipeline as p
-        src = inspect.getsource(p.ShipPipeline.diarize)
-        assert "speaker_diarization" in src  # the unwrap
-        assert "return None" in src  # fail-safe path
+        src = _read_pipeline_source()
+        assert "speaker_diarization" in src
+        assert "return None" in src
 
     def test_layer3_cpu_fallback_hardcoded(self):
         """Pyannote runs on CPU because NVRTC 13 is missing on DLVM."""
-        from src.extraction.flow.ship import pipeline as p
-        src = inspect.getsource(p.ShipPipeline.__init__)
+        src = _read_pipeline_source()
         assert 'device("cpu")' in src or "device('cpu')" in src
 
     @REQUIRES_L4
@@ -169,7 +190,10 @@ class TestLayer3Diarization:
 # LAYER 4 — Speaker Assignment
 # ─────────────────────────────────────────────────────────────
 
+@REQUIRES_PIPELINE
 class TestLayer4SpeakerAssignment:
+    """Invokes assign_speakers method on a bare ShipPipeline — requires import."""
+
     def _make_seg(self, start, end, text):
         # faster-whisper Segment is a namedtuple-like; mimic the attributes used
         m = MagicMock()
@@ -426,13 +450,15 @@ class TestLayer8Claims:
         assert "google.auth.default" in src
         assert "cloud-platform" in src
 
-    @REQUIRES_GCP
     def test_layer8_base_url_points_to_vertex_maas(self):
-        """Client's base_url contains us-central1-aiplatform."""
+        """Client's base_url targets Vertex AI MaaS in us-central1."""
         from src.extraction.flow.ship import reasoning
+        assert reasoning._LOCATION == "us-central1"
         src = inspect.getsource(reasoning.init_deepseek)
-        assert "us-central1-aiplatform.googleapis.com" in src
+        # f-string template, not the full host after interpolation
+        assert "-aiplatform.googleapis.com" in src
         assert "endpoints/openapi" in src
+        assert "_LOCATION" in src
 
     def test_layer8_parse_failure_returns_error_dict(self):
         """Unparseable model output returns [{"error": ...}] instead of raising."""
