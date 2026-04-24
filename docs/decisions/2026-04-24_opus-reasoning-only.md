@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+**Superseded** by `docs/decisions/2026-04-24_reasoning-deepseek-r1-maas.md` (same day, ~30 min later). The Opus swap was technically rules-compliant but blocked operationally (no `ANTHROPIC_API_KEY` on the L4, no path to provision one in-session). The reasoning layer was re-swapped to DeepSeek-R1 via Vertex AI MaaS — MIT-licensed weights, already running on Aravind's project, no new credentials needed. The Opus code path is preserved in `opus4.7_usage.md` at repo root for future re-enable if the operational story changes.
 
 ## Context
 

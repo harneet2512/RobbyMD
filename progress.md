@@ -704,3 +704,16 @@ Two other verifier findings not yet actioned:
 - `results.json` top-level still shows default-jiwer `wer_raw_mean: 0.2406`; the normalized 2.71% is only derivable from `per_clip_normalized.jsonl`. Follow-up: add a `*_normalized_mean` field to the aggregate in `run_all.py` so the headline matches the narrative.
 - Fuzzy corrector fires 0 times on the Kokoro test set. The ship WER wins come entirely from (a) Whisper medical hotwords biasing and (b) removing BioMistral's regression. The corrector is present as a safety net for real (non-synthetic) audio with genuine Whisper misrecognitions — not as a contributing mechanism on this benchmark. Progress-md framing should be tightened.
 
+
+### 2026-04-24 later still — Reasoning: Opus 4.7 → DeepSeek-R1 (Vertex MaaS)
+
+Opus 4.7 was rules-compliant but blocked operationally — no `ANTHROPIC_API_KEY` on the L4 and no session-time path to provision one. Re-swapped `src/extraction/flow/ship/reasoning.py` to call **DeepSeek-R1 via Vertex AI MaaS** (`deepseek-ai/deepseek-r1-0528-maas`, `us-central1`, on Aravind's project). MIT-licensed weights, OSI-compliant, no new credentials (metadata-server ADC on the L4). Three-call cascade (claims → differential → SOAP) unchanged; only the transport swapped. `<think>...</think>` chain-of-thought stripping added to `_strip_code_fence`.
+
+- ADR: `docs/decisions/2026-04-24_reasoning-deepseek-r1-maas.md`
+- Superseded ADR: `docs/decisions/2026-04-24_opus-reasoning-only.md` (marked SUPERSEDED in its Status section)
+- Opus code preserved at: `opus4.7_usage.md` at repo root — one file-swap to re-enable if an API key shows up
+- Account guard (`reference_gcp_accounts.md`): active gcloud must be `aravindpersonal1220@gmail.com`
+- Smoke test not yet re-run against DeepSeek — code compiles + imports; will land as `step8_deepseek_smoke.txt` when invoked.
+
+This is the third reasoning-layer swap in one afternoon. Flow: Gemini (prototype, rules-hit) → Opus (compliant, ops-blocked) → DeepSeek-R1 MaaS (compliant, ops-unblocked). All three prompts + JSON shapes identical — only the API transport differs. Pipeline thesis unchanged.
+
