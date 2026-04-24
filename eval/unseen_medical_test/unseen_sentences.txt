@@ -1,0 +1,4 @@
+DOCTOR: The lab results show thrombocytopenia with a platelet count of 45,000 and her erythrocyte sedimentation rate is elevated at 85.
+PATIENT: The other doctor mentioned rhabdomyolysis from the statin and switched me to rosuvastatin, then added ondansetron for the nausea.
+DOCTOR: Given the fever, new murmur, and positive blood cultures, I'm concerned about endocarditis. We should start ceftriaxone and get a transesophageal echocardiogram.
+PATIENT: My daughter had intussusception at nine months and my mother was diagnosed with pheochromocytoma last year, so I worry about genetic conditions.

@@ -1,0 +1,134 @@
+# Fuzzy correction vocabulary for clinical_general predicate pack.
+# One term per line. Used by MedicalCorrector for edit-distance matching
+# against Whisper output. Multi-word terms matched in bigram pass.
+# Lines starting with # are comments.
+#
+# cardiac
+chest pain
+angina
+myocardial infarction
+troponin
+pericarditis
+tamponade
+aortic dissection
+STEMI
+NSTEMI
+arrhythmia
+atrial fibrillation
+tachycardia
+bradycardia
+palpitations
+nitroglycerin
+aspirin
+clopidogrel
+heparin
+enoxaparin
+HEART score
+TIMI
+electrocardiogram
+echocardiogram
+# pulmonary
+pulmonary embolism
+pneumonia
+pneumothorax
+dyspnea
+tachypnea
+pleuritic
+hemoptysis
+bronchospasm
+asthma
+COPD
+Wells criteria
+PERC rule
+D-dimer
+CT angiography
+oxygen saturation
+SpO2
+wheezing
+crackles
+rales
+# GI
+cholecystitis
+appendicitis
+diverticulitis
+pancreatitis
+bowel obstruction
+peritonitis
+Murphy sign
+McBurney point
+guarding
+rebound tenderness
+rigidity
+omeprazole
+pantoprazole
+metoclopramide
+# neuro
+migraine
+subarachnoid hemorrhage
+subdural hematoma
+meningitis
+aphasia
+dysarthria
+photophobia
+phonophobia
+nuchal rigidity
+Kernig sign
+Brudzinski sign
+# vestibular / syncope
+vasovagal
+orthostatic
+presyncope
+syncope
+BPPV
+Dix-Hallpike
+Epley maneuver
+# pediatric
+Kawasaki
+Kawasaki disease
+strawberry tongue
+desquamation
+febrile
+febrile seizure
+immunoglobulin
+IVIG
+acetaminophen
+ibuprofen
+Tylenol
+Motrin
+# vitals / exam
+hypertension
+hypotension
+auscultation
+palpation
+percussion
+# medications
+metformin
+amlodipine
+atorvastatin
+lisinopril
+losartan
+metoprolol
+warfarin
+rivaroxaban
+apixaban
+prednisone
+dexamethasone
+albuterol
+# general clinical
+differential diagnosis
+chief complaint
+history of present illness
+review of systems
+physical examination
+assessment
+plan
+bilateral
+unilateral
+proximal
+distal
+anterior
+posterior
+acute
+chronic
+exacerbation
+remission

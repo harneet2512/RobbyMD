@@ -1,0 +1,49 @@
+# Whisper beam-search biasing terms for clinical_general predicate pack.
+# One term per line. Passed to faster-whisper's hotwords parameter.
+# Lines starting with # are comments.
+chest pain
+dyspnea
+troponin
+aspirin
+nitroglycerin
+myocardial infarction
+angina
+pulmonary embolism
+cholecystitis
+appendicitis
+diverticulitis
+pancreatitis
+migraine
+subarachnoid hemorrhage
+vasovagal
+orthostatic
+BPPV
+palpitations
+tachycardia
+bradycardia
+arrhythmia
+HEART score
+TIMI
+Wells
+PERC
+Kawasaki
+pneumonia
+pneumothorax
+pleuritic
+hemoptysis
+SpO2
+amlodipine
+atorvastatin
+metformin
+lisinopril
+losartan
+acetaminophen
+ibuprofen
+immunoglobulin
+IVIG
+strawberry tongue
+desquamation
+febrile
+echocardiogram
+electrocardiogram
+D-dimer

@@ -1,0 +1,25 @@
+{
+  "description": "Medical terms NOT in hotwords.txt and NOT in correction_vocab.txt. Tests raw Whisper accuracy on unseen vocabulary.",
+  "terms": [
+    {"term": "levothyroxine", "category": "medication"},
+    {"term": "hydroxychloroquine", "category": "medication"},
+    {"term": "esomeprazole", "category": "medication"},
+    {"term": "ondansetron", "category": "medication"},
+    {"term": "ceftriaxone", "category": "antibiotic"},
+    {"term": "azithromycin", "category": "antibiotic"},
+    {"term": "thrombocytopenia", "category": "diagnosis"},
+    {"term": "rhabdomyolysis", "category": "diagnosis"},
+    {"term": "pheochromocytoma", "category": "diagnosis"},
+    {"term": "sarcoidosis", "category": "diagnosis"},
+    {"term": "endocarditis", "category": "diagnosis"},
+    {"term": "anaphylaxis", "category": "emergency"},
+    {"term": "intussusception", "category": "pediatric"},
+    {"term": "nephrolithiasis", "category": "diagnosis"},
+    {"term": "diverticulosis", "category": "GI"},
+    {"term": "cerebrovascular", "category": "neuro"},
+    {"term": "erythrocyte sedimentation rate", "category": "lab"},
+    {"term": "prothrombin time", "category": "lab"},
+    {"term": "hemoglobin A1C", "category": "lab"},
+    {"term": "Glasgow Coma Scale", "category": "scoring"}
+  ]
+}

@@ -2,36 +2,64 @@
 Ship pipeline: Whisper-large-v3-turbo + hotwords + pyannote community-1 +
 fuzzy medical correction.
 
-Replaces variant_a's BioMistral cleanup (which regressed WER +1.6pp) with
-medical-term hotwords biasing at the Whisper decoder plus a zero-VRAM
-post-hoc fuzzy corrector.
+Hotwords and correction vocabulary loaded from predicate packs (default:
+predicate_packs/clinical_general/). Domain-agnostic substrate with pluggable
+clinical vocabulary.
 """
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Optional
 
 from faster_whisper import WhisperModel
 
-from src.extraction.flow.ship.medical_correction import correct_medical_terms
+from src.extraction.flow.ship.medical_correction import MedicalCorrector
 
-MEDICAL_HOTWORDS = (
-    "chest pain dyspnea troponin aspirin nitroglycerin "
-    "myocardial infarction angina pulmonary embolism "
-    "cholecystitis appendicitis diverticulitis pancreatitis "
-    "migraine subarachnoid hemorrhage vasovagal orthostatic "
-    "BPPV palpitations tachycardia bradycardia arrhythmia "
-    "HEART score TIMI Wells PERC Kawasaki pneumonia "
-    "pneumothorax pleuritic hemoptysis SpO2 "
-    "amlodipine atorvastatin metformin lisinopril losartan "
-    "acetaminophen ibuprofen immunoglobulin IVIG "
-    "strawberry tongue desquamation febrile "
-    "echocardiogram electrocardiogram D-dimer"
-)
+
+def load_predicate_pack(pack_name: str = "clinical_general") -> dict:
+    """Load hotwords, correction vocab, and speaker config from a predicate pack."""
+    pack_dir = Path(__file__).resolve().parents[4] / "predicate_packs" / pack_name
+    config = json.loads((pack_dir / "config.json").read_text(encoding="utf-8"))
+
+    hotwords_path = pack_dir / config["hotwords_file"]
+    hotwords = " ".join(
+        line.strip()
+        for line in hotwords_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    )
+
+    correction_vocab_path = pack_dir / config["correction_vocab_file"]
+    correction_vocab = [
+        line.strip()
+        for line in correction_vocab_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+
+    return {
+        "hotwords": hotwords,
+        "correction_vocab": correction_vocab,
+        "min_speakers": config.get("min_speakers", 2),
+        "max_speakers": config.get("max_speakers", 5),
+        "speaker_roles": config.get("speaker_roles", ["DOCTOR", "PATIENT"]),
+    }
 
 
 class ShipPipeline:
-    def __init__(self, hf_token: Optional[str] = None, enable_diarization: bool = True):
+    def __init__(
+        self,
+        hf_token: Optional[str] = None,
+        enable_diarization: bool = True,
+        pack_name: str = "clinical_general",
+    ):
+        pack = load_predicate_pack(pack_name)
+        self.hotwords = pack["hotwords"]
+        self.min_speakers = pack["min_speakers"]
+        self.max_speakers = pack["max_speakers"]
+        self.speaker_roles = pack["speaker_roles"]
+        self.corrector = MedicalCorrector(vocabulary=pack["correction_vocab"])
+
         self.whisper = WhisperModel(
             "large-v3-turbo",
             device="cuda",
@@ -42,10 +70,6 @@ class ShipPipeline:
         self.diar_enabled = False
         if enable_diarization and hf_token:
             try:
-                # pyannote 4.x telemetry calls torchcodec's AudioDecoder on
-                # every pipeline apply, and AudioDecoder isn't importable on
-                # this DLVM image. Disable telemetry before loading to avoid
-                # the NameError during inference.
                 try:
                     from pyannote.audio.telemetry import set_telemetry_metrics
                     set_telemetry_metrics(False)
@@ -63,14 +87,13 @@ class ShipPipeline:
                         use_auth_token=hf_token,
                     )
                 import torch as _torch
-                # torch 2.11+cu130 expects NVRTC 13.0 which isn't on the
-                # DLVM image (ships CUDA 12.9). Pyannote forward compiles
-                # CUDA kernels dynamically and fails at inference time.
-                # Keep diar on CPU; Whisper still uses GPU. Adds ~30-45s
-                # per 90s clip on a 4-vCPU machine — acceptable.
-                self.diar.to(_torch.device("cpu"))
+                try:
+                    self.diar.to(_torch.device("cuda"))
+                    print("pyannote community-1 loaded on CUDA")
+                except Exception:
+                    self.diar.to(_torch.device("cpu"))
+                    print("pyannote community-1 loaded on CPU (CUDA unavailable)")
                 self.diar_enabled = True
-                print("pyannote community-1 loaded on CPU (NVRTC 13 missing for CUDA path)")
             except Exception as exc:
                 print(f"pyannote failed to load: {exc}")
                 print("falling back to alternating-turn heuristic")
@@ -79,7 +102,7 @@ class ShipPipeline:
         segments, info = self.whisper.transcribe(
             audio_path,
             beam_size=5,
-            hotwords=MEDICAL_HOTWORDS,
+            hotwords=self.hotwords,
             word_timestamps=True,
             language="en",
             vad_filter=True,
@@ -91,49 +114,77 @@ class ShipPipeline:
         )
         return list(segments), info
 
-    def diarize(self, audio_path: str):
+    def diarize(self, audio_path: str, force_num_speakers: Optional[int] = None):
         if not self.diar_enabled:
             return None
         try:
-            # Preload via torchaudio. pyannote 4.x still routes through
-            # torchcodec's AudioDecoder internally for metadata lookup —
-            # if that lib is broken, catch here and null out DER for this
-            # clip rather than failing the whole measurement run.
             import torchaudio
             waveform, sample_rate = torchaudio.load(audio_path)
-            out = self.diar(
-                {"waveform": waveform, "sample_rate": sample_rate},
-                num_speakers=2,
-            )
-            # pyannote 4.x returns a DiarizeOutput wrapper; older 3.x
-            # returns the Annotation directly. Normalize to Annotation.
+            if force_num_speakers is not None:
+                out = self.diar(
+                    {"waveform": waveform, "sample_rate": sample_rate},
+                    num_speakers=force_num_speakers,
+                )
+            else:
+                out = self.diar(
+                    {"waveform": waveform, "sample_rate": sample_rate},
+                    min_speakers=self.min_speakers,
+                    max_speakers=self.max_speakers,
+                )
             if hasattr(out, "speaker_diarization"):
-                return out.speaker_diarization
+                return out
             return out
         except Exception as exc:
             print(f"  diarize error on {audio_path}: {type(exc).__name__}: {exc}")
             return None
+
+    def _get_speaker_turns(self, diarization):
+        """Extract speaker turns, preferring exclusive mode (pyannote 4.x)."""
+        try:
+            return [
+                (seg.start, seg.end, spk)
+                for seg, spk in diarization.exclusive_speaker_diarization
+            ]
+        except AttributeError:
+            pass
+        try:
+            return [
+                (turn.start, turn.end, spk)
+                for turn, _, spk in diarization.itertracks(yield_label=True)
+            ]
+        except AttributeError:
+            pass
+        if hasattr(diarization, "speaker_diarization"):
+            ann = diarization.speaker_diarization
+            return [
+                (turn.start, turn.end, spk)
+                for turn, _, spk in ann.itertracks(yield_label=True)
+            ]
+        return []
 
     def assign_speakers(self, whisper_segments, diarization):
         if diarization is None:
             segments = []
             for i, seg in enumerate(whisper_segments):
                 segments.append({
-                    "speaker": "DOCTOR" if i % 2 == 0 else "PATIENT",
+                    "speaker": self.speaker_roles[i % len(self.speaker_roles)],
                     "start": seg.start,
                     "end": seg.end,
                     "text": seg.text.strip(),
                 })
             return segments
 
-        speaker_turns = [
-            (turn.start, turn.end, spk)
-            for turn, _, spk in diarization.itertracks(yield_label=True)
-        ]
+        speaker_turns = self._get_speaker_turns(diarization)
+
         label_map: dict[str, str] = {}
         for _, _, spk in speaker_turns:
             if spk not in label_map:
-                label_map[spk] = "DOCTOR" if len(label_map) == 0 else "PATIENT"
+                idx = len(label_map)
+                label_map[spk] = (
+                    self.speaker_roles[idx]
+                    if idx < len(self.speaker_roles)
+                    else f"SPEAKER_{idx}"
+                )
 
         segments = []
         for seg in whisper_segments:
@@ -154,7 +205,7 @@ class ShipPipeline:
     def correct(self, segments):
         all_corrections = []
         for seg in segments:
-            corrected_text, corrections = correct_medical_terms(seg["text"])
+            corrected_text, corrections = self.corrector.correct(seg["text"])
             seg["raw_text"] = seg["text"]
             seg["text"] = corrected_text
             seg["corrections"] = corrections
