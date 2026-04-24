@@ -1,0 +1,141 @@
+"""
+Fuzzy medical term correction via rapidfuzz (MIT).
+
+Zero-VRAM replacement for the BioMistral-7B-DARE cleanup LLM that regressed
+variant_a by +1.6pp (CI95 [0.0003, 3.2pp]). Edit-distance matching against a
+200-term medical vocabulary that Whisper commonly mishears.
+
+Two passes:
+1. Bigram pass — catches multi-word terms ("chest pain", "pulmonary embolism",
+   "strawberry tongue") before single words eat their parts.
+2. Single-word pass — catches single medical terms on remaining uncorrected
+   words, preserving leading/trailing punctuation.
+"""
+from __future__ import annotations
+
+from typing import List, Tuple
+
+from rapidfuzz import fuzz, process
+
+MEDICAL_VOCABULARY: List[str] = [
+    # cardiac
+    "chest pain", "angina", "myocardial infarction", "troponin", "pericarditis",
+    "tamponade", "aortic dissection", "STEMI", "NSTEMI", "arrhythmia",
+    "atrial fibrillation", "tachycardia", "bradycardia", "palpitations",
+    "nitroglycerin", "aspirin", "clopidogrel", "heparin", "enoxaparin",
+    "HEART score", "TIMI", "electrocardiogram", "echocardiogram",
+    # pulmonary
+    "pulmonary embolism", "pneumonia", "pneumothorax", "dyspnea", "tachypnea",
+    "pleuritic", "hemoptysis", "bronchospasm", "asthma", "COPD",
+    "Wells criteria", "PERC rule", "D-dimer", "CT angiography",
+    "oxygen saturation", "SpO2", "wheezing", "crackles", "rales",
+    # GI
+    "cholecystitis", "appendicitis", "diverticulitis", "pancreatitis",
+    "bowel obstruction", "peritonitis", "Murphy sign", "McBurney point",
+    "guarding", "rebound tenderness", "rigidity",
+    "omeprazole", "pantoprazole", "metoclopramide",
+    # neuro
+    "migraine", "subarachnoid hemorrhage", "subdural hematoma",
+    "meningitis", "aphasia", "dysarthria", "photophobia", "phonophobia",
+    "nuchal rigidity", "Kernig sign", "Brudzinski sign",
+    # vestibular / syncope
+    "vasovagal", "orthostatic", "presyncope", "syncope", "BPPV",
+    "Dix-Hallpike", "Epley maneuver",
+    # pediatric
+    "Kawasaki", "Kawasaki disease", "strawberry tongue", "desquamation",
+    "febrile", "febrile seizure", "immunoglobulin", "IVIG",
+    "acetaminophen", "ibuprofen", "Tylenol", "Motrin",
+    # vitals / exam
+    "hypertension", "hypotension", "auscultation", "palpation", "percussion",
+    # medications
+    "metformin", "amlodipine", "atorvastatin", "lisinopril", "losartan",
+    "metoprolol", "warfarin", "rivaroxaban", "apixaban",
+    "prednisone", "dexamethasone", "albuterol",
+    # general clinical
+    "differential diagnosis", "chief complaint", "history of present illness",
+    "review of systems", "physical examination", "assessment", "plan",
+    "bilateral", "unilateral", "proximal", "distal", "anterior", "posterior",
+    "acute", "chronic", "exacerbation", "remission",
+]
+
+_VOCAB_LOOKUP = {term.lower(): term for term in MEDICAL_VOCABULARY}
+_VOCAB_WORDS = list(_VOCAB_LOOKUP.keys())
+_SINGLE_WORD_VOCAB = [t for t in _VOCAB_WORDS if " " not in t]
+
+
+def correct_medical_terms(text: str, threshold: int = 80) -> Tuple[str, List[dict]]:
+    """Fuzzy-match words/bigrams in text against medical vocabulary.
+
+    Returns (corrected_text, corrections). Corrections are applied only when:
+    - fuzzy score >= threshold (default 80)
+    - the match differs from the input (no-op suppressed)
+    - the input token is >= 4 chars (short common words skipped)
+
+    Bigram pass first so multi-word medical terms match before their
+    constituent words would be single-word-matched in isolation.
+    """
+    words = text.split()
+    if not words:
+        return text, []
+
+    corrections: List[dict] = []
+    corrected_words = list(words)
+    used_indices: set[int] = set()
+
+    # Pass 1 — bigrams
+    for i in range(len(words) - 1):
+        if i in used_indices or (i + 1) in used_indices:
+            continue
+        bigram = f"{words[i]} {words[i + 1]}".lower()
+        if len(bigram) < 6:
+            continue
+        match = process.extractOne(
+            bigram, _VOCAB_WORDS, scorer=fuzz.ratio, score_cutoff=threshold
+        )
+        if match and match[0] != bigram:
+            original_form = _VOCAB_LOOKUP[match[0]]
+            original_bigram = f"{words[i]} {words[i + 1]}"
+            replacement_words = original_form.split()
+            corrected_words[i] = replacement_words[0]
+            corrected_words[i + 1] = replacement_words[1] if len(replacement_words) > 1 else ""
+            used_indices.add(i)
+            used_indices.add(i + 1)
+            corrections.append({
+                "original": original_bigram,
+                "corrected": original_form,
+                "score": match[1],
+                "position": i,
+            })
+
+    # Pass 2 — single words on remaining indices
+    for i in range(len(corrected_words)):
+        if i in used_indices:
+            continue
+        raw = corrected_words[i]
+        stripped = raw.lower().strip(".,;:!?")
+        if len(stripped) < 4:
+            continue
+        match = process.extractOne(
+            stripped, _SINGLE_WORD_VOCAB, scorer=fuzz.ratio, score_cutoff=threshold
+        )
+        if match and match[0] != stripped:
+            original_form = _VOCAB_LOOKUP[match[0]]
+            prefix = ""
+            suffix = ""
+            body = raw
+            while body and not body[0].isalnum():
+                prefix += body[0]
+                body = body[1:]
+            while body and not body[-1].isalnum():
+                suffix = body[-1] + suffix
+                body = body[:-1]
+            corrected_words[i] = prefix + original_form + suffix
+            corrections.append({
+                "original": words[i],
+                "corrected": corrected_words[i],
+                "score": match[1],
+                "position": i,
+            })
+
+    result = " ".join(w for w in corrected_words if w)
+    return result, corrections
