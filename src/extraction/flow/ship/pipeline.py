@@ -63,9 +63,14 @@ class ShipPipeline:
                         use_auth_token=hf_token,
                     )
                 import torch as _torch
-                self.diar.to(_torch.device("cuda"))
+                # torch 2.11+cu130 expects NVRTC 13.0 which isn't on the
+                # DLVM image (ships CUDA 12.9). Pyannote forward compiles
+                # CUDA kernels dynamically and fails at inference time.
+                # Keep diar on CPU; Whisper still uses GPU. Adds ~30-45s
+                # per 90s clip on a 4-vCPU machine — acceptable.
+                self.diar.to(_torch.device("cpu"))
                 self.diar_enabled = True
-                print("pyannote community-1 loaded")
+                print("pyannote community-1 loaded on CPU (NVRTC 13 missing for CUDA path)")
             except Exception as exc:
                 print(f"pyannote failed to load: {exc}")
                 print("falling back to alternating-turn heuristic")
