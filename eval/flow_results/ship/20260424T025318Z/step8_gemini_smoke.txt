@@ -1,0 +1,119 @@
+/home/Lenovo/robbymd/.venv-ship/lib/python3.10/site-packages/google/api_core/_python_version_support.py:273: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+/home/Lenovo/robbymd/.venv-ship/lib/python3.10/site-packages/google/api_core/_python_version_support.py:273: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.cloud.resourcemanager_v3 once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.cloud.resourcemanager_v3 past that date.
+  warnings.warn(message, FutureWarning)
+chest_pain segments: 2
+first segment: {'speaker': 'DOCTOR', 'text': 'good morning mr.'}
+
+=== CLAIMS (first 3) ===
+{
+  "claim_id": "c01",
+  "subject": "chest pressure",
+  "predicate": "presence",
+  "value": "true",
+  "speaker": "PATIENT",
+  "turn_index": 1,
+  "confidence": "high",
+  "status": "active",
+  "supersedes": null,
+  "supersession_reason": null
+}
+{
+  "claim_id": "c02",
+  "subject": "chest pressure",
+  "predicate": "onset",
+  "value": "about two hours ago",
+  "speaker": "PATIENT",
+  "turn_index": 1,
+  "confidence": "high",
+  "status": "active",
+  "supersedes": null,
+  "supersession_reason": null
+}
+{
+  "claim_id": "c03",
+  "subject": "chest pressure",
+  "predicate": "quality",
+  "value": "heavy",
+  "speaker": "PATIENT",
+  "turn_index": 3,
+  "confidence": "high",
+  "status": "active",
+  "supersedes": null,
+  "supersession_reason": null
+}
+
+claims total: 32
+
+=== DIFFERENTIAL (first 2) ===
+{
+  "hypothesis": "Acute Coronary Syndrome (ACS)",
+  "rank": 1,
+  "evidence_for": [
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c09",
+    "c10",
+    "c11",
+    "c12",
+    "c13",
+    "c14",
+    "c18",
+    "c20",
+    "c21",
+    "c27"
+  ],
+  "evidence_against": [],
+  "missing_data": [
+    "ECG results (to differentiate STEMI from NSTEMI/UA)",
+    "Cardiac troponin levels (to differentiate MI from unstable angina)",
+    "Physical exam findings (e.g., heart sounds, signs of heart failure)",
+    "Vital signs (Blood Pressure, Heart Rate, Oxygen Saturation)"
+  ],
+  "confidence": "high",
+  "likelihood_ratio_estimate": ">10"
+}
+{
+  "hypothesis": "Aortic Dissection",
+  "rank": 2,
+  "evidence_for": [
+    "c01",
+    "c02",
+    "c18"
+  ],
+  "evidence_against": [
+    "c03",
+    "c04",
+    "c06",
+    "c07",
+    "c09",
+    "c10"
+  ],
+  "missing_data": [
+    "Blood pressure measurement in both arms",
+    "Chest X-ray for widened mediastinum",
+    "CT angiogram of the chest",
+    "Physical exam for pulse deficits or new murmur of aortic regurgitation"
+  ],
+  "confidence": "low",
+  "likelihood_ratio_estimate": "<0.1"
+}
+
+differential total: 5
+
+=== SOAP NOTE (first 500 chars) ===
+**SOAP NOTE**
+
+**SUBJECTIVE**
+
+**Chief Complaint:** Chest Pressure
+
+**History of Present Illness:**
+The patient presents with chest pressure [c:c01] that started approximately two hours ago [c:c02]. The pressure is described as heavy [c:c03] and dull [c:c04], and explicitly not sharp [c:c05]. The pain radiates to the left arm [c:c06] and jaw [c:c07]. The current severity is rated at 6/10 [c:c08]. Symptoms are exacerbated by walking [c:c09, c:c11] and are alleviated by sitting down [c:c10]. Assoc
+
+=== STEP 8 PASS ===

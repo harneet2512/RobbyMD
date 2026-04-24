@@ -639,12 +639,12 @@ All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
 3. Re-rendered Kokoro audio is *not bit-identical* to variant_a's prior runs (different torch/Kokoro minor versions at render time). Kokoro seed=42 is preserved, but the resulting WAVs differ by a few samples. Variant_a comparison is on reasonable-but-not-perfect like-for-like audio.
 
 
-**Step 8 (Gemini 2.5 Pro reasoning) — BLOCKED on IAM**:
-Smoke test via `src/extraction/flow/ship/reasoning.py::smoke_test` returns:
-```
-403 Permission 'aiplatform.endpoints.predict' denied on resource
-'.../models/gemini-2.5-pro' (or it may not exist)
-[reason: IAM_PERMISSION_DENIED]
-```
-The VM's default compute service account `133222908308-compute@developer.gserviceaccount.com` lacks `roles/aiplatform.user` on Aravind's project, OR the Gemini 2.5 Pro publisher model is not enabled for the project. Reasoning layer code is written, pushed, and import-verified — just the API call is blocked. Resolution: Aravind-side IAM grant or a switch to a project with Gemini 2.5 Pro enabled (e.g. `project-26227097-98fa-4016-a54`).
+**Step 8 (Gemini 2.5 Pro reasoning) — PASS** (resolved in same session):
+Unblocked by granting `roles/aiplatform.user` to `133222908308-compute@developer.gserviceaccount.com` on `project-c9a6fdd8-8d56-4e88-ad6`. Smoke test on `chest_pain`'s corrected transcript produced:
+- **32 claims** extracted with full structure (claim_id, subject, predicate, value, speaker, turn_index, confidence, status, supersedes, supersession_reason)
+- **Differential** ranked #1 Acute Coronary Syndrome with an `evidence_for` chain back to `[c01, c02, c03, c04, c05, c06, c07, c09, ...]`
+- **SOAP note** with inline `[c:XX]` provenance tags on every factual statement, e.g. `"chest pressure [c:c01] that started approximately two hours ago [c:c02] ... exacerbated by walking [c:c09, c:c11] and alleviated by sitting down [c:c10]"`
+- Full output: `eval/flow_results/ship/20260424T025318Z/step8_gemini_smoke.txt`
+
+Caveat: the smoke wrapper naively sentence-split the corrected hypothesis (because Whisper emitted lowercase/no-punct on chest_pain), which only produced 2 speaker-assigned segments fed to Gemini. Gemini still extracted 32 coherent claims from the concatenated text. Production use should pass the structured `segments[]` list from `ShipPipeline.run()` directly rather than re-splitting, so speaker attribution survives.
 
