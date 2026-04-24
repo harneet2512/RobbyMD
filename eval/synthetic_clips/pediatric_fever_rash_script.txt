@@ -1,0 +1,43 @@
+=== SCRIPT: pediatric fever rash ===
+
+DIALOGUE (60–90 seconds when read aloud, ~200–240 words):
+DR: Hi, I'm Doctor Patel. What's going on with Emma today?
+PT: She's had a fever for five days now. It keeps going up and down. The highest was a hundred and three last night.
+DR: Any other symptoms along with the fever?
+PT: She has this rash. It started on her trunk and now it's spread to her arms too. And her lips look really red and cracked.
+DR: When did the rash first show up?
+PT: Thursday, I think. Actually wait, no, it was Friday — Thursday she just had the fever, the rash showed up Friday morning.
+DR: Okay, Friday then. How old is Emma now, and what does she weigh?
+PT: She's fourteen months, and she was about ten kilos at her last check.
+DR: Any trouble with feeding, sleep, or her usual behavior?
+PT: She's been really cranky, won't eat much, and mostly just wants to sleep.
+DR: What have you been giving her for the fever?
+PT: Tylenol. The infant one, a hundred and sixty milligrams per five milliliters. I've been giving her about three milliliters every six hours.
+DR: Let me come back to that dose in a minute — at ten kilos she's probably underdosed. Is she up to date on her vaccinations?
+PT: Yes, everything except the MMR. That one's scheduled for next month.
+DR: Let me take a look at her mouth. I can see those strawberry tongue bumps and the cracked lips you described. With five days of fever, rash on her trunk and extremities, and these oral changes, I want to work her up for Kawasaki disease today.
+
+=== MEDICAL VOCABULARY (biasing-list targets) ===
+- syndromes and criteria: Kawasaki disease, Kawasaki criteria, febrile illness
+- signs: strawberry tongue, cracked lips, polymorphous rash, conjunctival injection, cervical lymphadenopathy, desquamation
+- drugs and dosing: acetaminophen, Tylenol, ibuprofen, immunoglobulin, IVIG, 160 mg per 5 mL, weight-based dosing
+- anatomy: trunk, extremities, oral cavity
+
+=== SUPERSESSION MOMENTS ===
+- Line (parent): "Thursday, I think. Actually wait, no, it was Friday — Thursday she just had the fever, the rash showed up Friday morning." — updates rash_onset from Thursday → Friday and separates fever_onset (earlier) from rash_onset (Friday).
+
+=== EXPECTED CLAIM-EXTRACTION TARGETS ===
+- patient_age: 14 months
+- patient_weight: ~10 kg
+- fever_duration: 5 days
+- fever_max_temp: 103 F
+- rash_location: trunk, extending to extremities (arms)
+- rash_onset: Friday (superseding Thursday)
+- oral_finding: cracked red lips
+- oral_finding: strawberry tongue
+- behavior_change: irritability
+- feeding_change: decreased appetite
+- medication_current: acetaminophen (Tylenol) 160 mg per 5 mL, ~3 mL q6h
+- medication_dosing_concern: underdosed for 10 kg (target ~15 mg/kg/dose ≈ 150 mg ≈ 4.7 mL)
+- vaccinations: up to date except MMR (scheduled next month)
+- differential: Kawasaki disease (≥4 of 5 classic criteria besides fever — rash, oral changes; conjunctival injection, extremity changes, cervical lymphadenopathy to be examined)
