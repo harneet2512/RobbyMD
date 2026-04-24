@@ -93,16 +93,23 @@ def _make_real_reader_fn() -> ReaderFn:
     client, model = make_openai_client("longmemeval_reader")
 
     def _reader(system: str, user: str) -> str:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            temperature=0.0,
-            max_tokens=256,
-        )
-        return (resp.choices[0].message.content or "").strip()
+        for attempt in range(5):
+            try:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=0.0,
+                    max_tokens=256,
+                )
+                return (resp.choices[0].message.content or "").strip()
+            except Exception as exc:
+                if "429" in str(exc) and attempt < 4:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
 
     return _reader
 
