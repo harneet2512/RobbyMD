@@ -658,3 +658,36 @@ Unblocked by granting `roles/aiplatform.user` to `133222908308-compute@developer
 
 Caveat: the smoke wrapper naively sentence-split the corrected hypothesis (because Whisper emitted lowercase/no-punct on chest_pain), which only produced 2 speaker-assigned segments fed to Gemini. Gemini still extracted 32 coherent claims from the concatenated text. Production use should pass the structured `segments[]` list from `ShipPipeline.run()` directly rather than re-splitting, so speaker attribution survives.
 
+
+### 2026-04-24 later — Follow-up pass: plurals, variant_a renormalization, DER
+
+After the initial ship run, ran three follow-ups to close the known gaps:
+
+**Plural guard landed** (`cd43dff`): `medical_correction.correct_medical_terms` now skips when input differs from the matched vocab term only by trailing 's'. First-run's only correction regression (`"migraines" → "migraine"` at score 94 on headache) is gone.
+
+**Variant_a re-normalized** (`d7ec2d6`, `scripts/renormalize_wer.py`): variant_a's reported 12.3% raw / 13.9% cleaned was default jiwer (case+punct-sensitive). Running the same normalize transform gives variant_a **3.56% raw / 4.95% cleaned normalized**. This is the honest comparison baseline.
+
+**DER unblocked** (`ad95772` + `6188ef2`): installed ffmpeg (pulls FFmpeg 4 runtime libs), which unblocked torchcodec's `libtorchcodec_core4.so` load. Then pyannote 4.x returned a `DiarizeOutput` wrapper instead of an Annotation, so `.speaker_diarization` is extracted before iteration. Then torch 2.11+cu130 dynamic-compiles CUDA kernels via NVRTC which requires `libnvrtc-builtins.so.13.0` not present on the DLVM image — pinned pyannote to CPU as the pragmatic fix. Whisper stays on GPU.
+
+**Final run**: `eval/flow_results/ship/20260424T040113Z/` (diarization ON, CPU).
+
+Apples-to-apples comparison (both normalized):
+
+| Metric | Variant A (normalized) | Ship (normalized) | Δ |
+|---|---|---|---|
+| WER raw | 3.56% | **2.71%** | −0.85pp / ~24% better |
+| WER post-clean/corrected | 4.95% | **2.71%** | **−2.24pp / 45% better** |
+| Correction delta | +1.39pp (BioMistral) | **+0.00pp** (fuzzy @92 + plural guard) | regression eliminated |
+| Medical-term WER raw | 18.6% | **1.39%** | 13× better |
+| Medical-term WER corrected | 18.6% | **1.39%** | 13× better, unchanged by corrector |
+| Still inverted (med > general) | Yes | **No** | fixed |
+| E2E p50 (diar GPU) | 6,459 ms | 1,768 ms (prior run, diar off) | 3.7× faster |
+| E2E p50 (diar CPU) | n/a | 143,100 ms (this run) | slower because diar on CPU — CUDA 13 NVRTC missing |
+| VRAM peak | 17,052 MB | **2,612 MB** | 6.5× less |
+| DER | null (blocked) | **0.577** (n=6) | first non-null DER |
+| Unseen pediatric WER | n/a | 4.53% | +1.8pp vs orig mean |
+| Unseen pediatric DER | n/a | 0.624 | — |
+
+**DER caveat**: ground_truth's `turns[]` don't carry real timestamps — `compute_der` assigns equal-duration slots across the audio. A Kokoro render-time log of turn boundaries would drop DER substantially. 0.577 is the rough proxy, not a hard comparison to a pyannote leaderboard number.
+
+**Pipeline latency decision**: CPU pyannote adds ~141s per 90s clip vs ~1.7s without. For demo purposes the no-DER fast path is the shippable one; DER is a lab-bench measurement at this point. Real production fix is either installing matching CUDA toolkit (`libnvrtc-builtins.so.13.0`) or downgrading torch to cu124 to match the DLVM's CUDA 12.9.

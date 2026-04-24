@@ -1,0 +1,7 @@
+{"scenario": "chest_pain", "wer_raw_default": 0.3183673469387755, "wer_raw_normalized": 0.028225806451612902, "wer_post_default": 0.3183673469387755, "wer_post_normalized": 0.028225806451612902}
+{"scenario": "abdominal_pain", "wer_raw_default": 0.34502923976608185, "wer_raw_normalized": 0.0111731843575419, "wer_post_default": 0.34502923976608185, "wer_post_normalized": 0.0111731843575419}
+{"scenario": "dyspnea", "wer_raw_default": 0.1794871794871795, "wer_raw_normalized": 0.02, "wer_post_default": 0.1794871794871795, "wer_post_normalized": 0.02}
+{"scenario": "headache", "wer_raw_default": 0.18719211822660098, "wer_raw_normalized": 0.04265402843601896, "wer_post_default": 0.18719211822660098, "wer_post_normalized": 0.04265402843601896}
+{"scenario": "fatigue_weight_loss", "wer_raw_default": 0.21256038647342995, "wer_raw_normalized": 0.041666666666666664, "wer_post_default": 0.21256038647342995, "wer_post_normalized": 0.041666666666666664}
+{"scenario": "dizziness_syncope", "wer_raw_default": 0.20095693779904306, "wer_raw_normalized": 0.018604651162790697, "wer_post_default": 0.20095693779904306, "wer_post_normalized": 0.018604651162790697}
+{"scenario": "pediatric_fever_rash", "wer_raw_default": 0.3058823529411765, "wer_raw_normalized": 0.045283018867924525, "wer_post_default": 0.3058823529411765, "wer_post_normalized": 0.045283018867924525}
