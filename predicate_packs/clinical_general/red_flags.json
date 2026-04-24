@@ -1,0 +1,38 @@
+{
+  "chest_pain": [
+    "sudden severe worsening of chest pain",
+    "fainting or loss of consciousness",
+    "profuse sweating with chest pain",
+    "pain spreading to jaw, left arm, or back",
+    "sudden shortness of breath",
+    "new one-sided leg swelling",
+    "coughing up blood",
+    "rapid or irregular heartbeat",
+    "severe dizziness or lightheadedness",
+    "chest pain at rest that does not improve"
+  ],
+  "abdominal_pain": [
+    "severe or sudden worsening of abdominal pain",
+    "vomiting blood or coffee-ground material",
+    "blood in stool or black tarry stool",
+    "inability to keep fluids down for more than 24 hours",
+    "high fever with abdominal pain",
+    "abdominal rigidity or guarding"
+  ],
+  "dyspnoea": [
+    "sudden severe shortness of breath at rest",
+    "chest pain with shortness of breath",
+    "coughing up blood",
+    "new one-sided leg swelling",
+    "inability to speak in full sentences due to breathlessness",
+    "bluish discoloration of lips or fingertips"
+  ],
+  "headache": [
+    "sudden severe headache unlike any before",
+    "headache with fever and stiff neck",
+    "headache with vision changes or double vision",
+    "headache after head injury",
+    "progressive worsening headache over days",
+    "headache with weakness or numbness on one side"
+  ]
+}
