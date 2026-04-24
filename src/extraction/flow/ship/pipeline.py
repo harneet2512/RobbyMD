@@ -42,16 +42,25 @@ class ShipPipeline:
         self.diar_enabled = False
         if enable_diarization and hf_token:
             try:
+                # pyannote 4.x telemetry calls torchcodec's AudioDecoder on
+                # every pipeline apply, and AudioDecoder isn't importable on
+                # this DLVM image. Disable telemetry before loading to avoid
+                # the NameError during inference.
+                try:
+                    from pyannote.audio.telemetry import set_telemetry_metrics
+                    set_telemetry_metrics(False)
+                except Exception:
+                    pass
                 from pyannote.audio import Pipeline as DiarPipeline
                 try:
                     self.diar = DiarPipeline.from_pretrained(
                         "pyannote/speaker-diarization-community-1",
-                        use_auth_token=hf_token,
+                        token=hf_token,
                     )
                 except TypeError:
                     self.diar = DiarPipeline.from_pretrained(
                         "pyannote/speaker-diarization-community-1",
-                        token=hf_token,
+                        use_auth_token=hf_token,
                     )
                 import torch as _torch
                 self.diar.to(_torch.device("cuda"))
