@@ -1,0 +1,92 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Hi, I'm Doctor Patel. What's going on with Emma today?",
+    "start_s": 0.0,
+    "end_s": 4.275
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "She's had a fever for five days now. It keeps going up and down. The highest was a hundred and three last night.",
+    "start_s": 4.575,
+    "end_s": 11.775
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any other symptoms along with the fever?",
+    "start_s": 12.075,
+    "end_s": 15.325
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "She has this rash. It started on her trunk and now it's spread to her arms too. And her lips look really red and cracked.",
+    "start_s": 15.625,
+    "end_s": 23.525
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "When did the rash first show up?",
+    "start_s": 23.825,
+    "end_s": 26.275
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Thursday, I think. Actually wait, no, it was Friday \u2014 Thursday she just had the fever, the rash showed up Friday morning.",
+    "start_s": 26.575,
+    "end_s": 34.675
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Okay, Friday then. How old is Emma now, and what does she weigh?",
+    "start_s": 34.975,
+    "end_s": 39.75
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "She's fourteen months, and she was about ten kilos at her last check.",
+    "start_s": 40.05,
+    "end_s": 44.7
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any trouble with feeding, sleep, or her usual behavior?",
+    "start_s": 45.0,
+    "end_s": 49.575
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "She's been really cranky, won't eat much, and mostly just wants to sleep.",
+    "start_s": 49.875,
+    "end_s": 54.725
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "What have you been giving her for the fever?",
+    "start_s": 55.025,
+    "end_s": 57.9
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Tylenol. The infant one, a hundred and sixty milligrams per five milliliters. I've been giving her about three milliliters every six hours.",
+    "start_s": 58.2,
+    "end_s": 67.85
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Let me come back to that dose in a minute \u2014 at ten kilos she's probably underdosed. Is she up to date on her vaccinations?",
+    "start_s": 68.15,
+    "end_s": 76.775
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Yes, everything except the MMR. That one's scheduled for next month.",
+    "start_s": 77.075,
+    "end_s": 82.25
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Let me take a look at her mouth. I can see those strawberry tongue bumps and the cracked lips you described. With five days of fever, rash on her trunk and extremities, and these oral changes, I want to work her up for Kawasaki disease today.",
+    "start_s": 82.55,
+    "end_s": 98.75
+  }
+]

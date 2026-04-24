@@ -1,0 +1,104 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Good afternoon, Ms. Smith. Tell me what brought you in today.",
+    "start_s": 0.0,
+    "end_s": 4.325
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I've had this pain in my belly since last night. It's getting worse.",
+    "start_s": 4.625,
+    "end_s": 9.1
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Where exactly is the pain? Can you point to it?",
+    "start_s": 9.4,
+    "end_s": 13.05
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "It started around my belly button, but now it's more on the lower right side.",
+    "start_s": 13.35,
+    "end_s": 18.45
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "On a scale of one to ten, how bad is it right now?",
+    "start_s": 18.75,
+    "end_s": 22.8
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Maybe a seven. It's sharp, and it hurts more when I move or cough.",
+    "start_s": 23.1,
+    "end_s": 27.95
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any nausea, vomiting, or fever?",
+    "start_s": 28.25,
+    "end_s": 31.275
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I threw up once this morning. I feel warm but I didn't check my temperature.",
+    "start_s": 31.575,
+    "end_s": 36.8
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "You said it started last night \u2014 what time exactly?",
+    "start_s": 37.1,
+    "end_s": 41.05
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Actually, thinking back, it was more like yesterday afternoon, around three. Not last night.",
+    "start_s": 41.35,
+    "end_s": 47.925
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Understood. Any change in appetite or bowel movements?",
+    "start_s": 48.225,
+    "end_s": 52.475
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I haven't wanted to eat anything. No diarrhea.",
+    "start_s": 52.775,
+    "end_s": 56.25
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any medications you take regularly?",
+    "start_s": 56.55,
+    "end_s": 59.725
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Just ibuprofen for headaches, and a multivitamin. Nothing prescription.",
+    "start_s": 60.025,
+    "end_s": 65.5
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any prior surgeries?",
+    "start_s": 65.8,
+    "end_s": 68.025
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No, never.",
+    "start_s": 68.325,
+    "end_s": 70.05
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "I'm going to examine your abdomen now. I'll press gently; tell me where it hurts most.",
+    "start_s": 70.35,
+    "end_s": 76.475
+  }
+]

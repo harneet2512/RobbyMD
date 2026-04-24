@@ -1,0 +1,116 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Hello, Ms. Smith. Tell me what happened.",
+    "start_s": 0.0,
+    "end_s": 3.2
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I passed out this morning. I was standing in the kitchen and the next thing I knew I was on the floor.",
+    "start_s": 3.5,
+    "end_s": 9.825
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any warning before you passed out?",
+    "start_s": 10.125,
+    "end_s": 12.825
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I felt lightheaded, a bit sweaty, and my vision went gray around the edges.",
+    "start_s": 13.125,
+    "end_s": 18.6
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "How long were you out?",
+    "start_s": 18.9,
+    "end_s": 20.875
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "My husband said maybe ten seconds. I came to quickly.",
+    "start_s": 21.175,
+    "end_s": 25.3
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any chest pain, palpitations, or shortness of breath before it happened?",
+    "start_s": 25.6,
+    "end_s": 31.15
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No chest pain. My heart felt like it was racing for a second, but it was quick.",
+    "start_s": 31.45,
+    "end_s": 36.775
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Did you bite your tongue or lose bladder control?",
+    "start_s": 37.075,
+    "end_s": 40.675
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No, nothing like that.",
+    "start_s": 40.975,
+    "end_s": 43.075
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "You said your heart was racing \u2014 was that before or after you felt lightheaded?",
+    "start_s": 43.375,
+    "end_s": 48.8
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Actually, thinking about it, the racing came first. Then the lightheaded feeling, then I went down.",
+    "start_s": 49.1,
+    "end_s": 55.625
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Okay, that's important. Any similar episodes before?",
+    "start_s": 55.925,
+    "end_s": 60.55
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I've felt dizzy when I stand up quickly, but I've never passed out before.",
+    "start_s": 60.85,
+    "end_s": 65.825
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any recent illness, fluid loss, or changes in medication?",
+    "start_s": 66.125,
+    "end_s": 71.075
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I had a stomach bug two days ago, some diarrhea. I haven't been drinking much water.",
+    "start_s": 71.375,
+    "end_s": 77.3
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "What medications do you take?",
+    "start_s": 77.6,
+    "end_s": 80.15
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I'm on metoprolol and hydrochlorothiazide for blood pressure. And a baby aspirin.",
+    "start_s": 80.45,
+    "end_s": 86.35
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "I'd like to check orthostatic vitals and get an EKG.",
+    "start_s": 86.65,
+    "end_s": 91.2
+  }
+]

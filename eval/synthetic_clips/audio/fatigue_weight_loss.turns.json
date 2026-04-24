@@ -1,0 +1,116 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Good morning, Mr. Smith. What brings you in?",
+    "start_s": 0.0,
+    "end_s": 3.675
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I've been really tired for months now. And I think I'm losing weight without trying.",
+    "start_s": 3.975,
+    "end_s": 9.3
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "How much weight, and over what period?",
+    "start_s": 9.6,
+    "end_s": 12.45
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Maybe fifteen pounds over the last three months. My clothes are loose.",
+    "start_s": 12.75,
+    "end_s": 17.55
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any change in appetite?",
+    "start_s": 17.85,
+    "end_s": 20.125
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Actually, my appetite is okay \u2014 sometimes I feel hungrier than usual, but the weight keeps coming off.",
+    "start_s": 20.425,
+    "end_s": 27.6
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any night sweats or fevers?",
+    "start_s": 27.9,
+    "end_s": 30.475
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I wake up damp sometimes, yeah. Not every night.",
+    "start_s": 30.775,
+    "end_s": 34.675
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "How's your mood been? Sleep?",
+    "start_s": 34.975,
+    "end_s": 37.375
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Sleep is okay. Mood, I guess I've been down, but I think it's because I feel so tired all the time.",
+    "start_s": 37.675,
+    "end_s": 44.575
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "You said fifteen pounds \u2014 are you sure about that number?",
+    "start_s": 44.875,
+    "end_s": 49.125
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Let me think. It might be closer to twenty. I was 185, and I weighed myself this morning at 165.",
+    "start_s": 49.425,
+    "end_s": 58.175
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any bowel changes, blood in stool, or urinary changes?",
+    "start_s": 58.475,
+    "end_s": 63.1
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I go to the bathroom more than I used to. I'm thirsty all the time.",
+    "start_s": 63.4,
+    "end_s": 68.025
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any lumps, or a history of cancer in the family?",
+    "start_s": 68.325,
+    "end_s": 72.225
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No lumps I've noticed. My mother had breast cancer at sixty.",
+    "start_s": 72.525,
+    "end_s": 77.075
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any medications?",
+    "start_s": 77.375,
+    "end_s": 79.375
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I take metformin for pre-diabetes, and levothyroxine for my thyroid.",
+    "start_s": 79.675,
+    "end_s": 84.9
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "I'd like to get some labs \u2014 a CBC, TSH, metabolic panel, and hemoglobin A1c.",
+    "start_s": 85.2,
+    "end_s": 92.7
+  }
+]

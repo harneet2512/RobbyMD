@@ -1,0 +1,116 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Hello, Mr. Smith. What's going on today?",
+    "start_s": 0.0,
+    "end_s": 3.5
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I've been short of breath. It came on pretty suddenly.",
+    "start_s": 3.8,
+    "end_s": 7.475
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "When did it start?",
+    "start_s": 7.775,
+    "end_s": 9.65
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "This morning, maybe around eight. I was just sitting at my desk.",
+    "start_s": 9.95,
+    "end_s": 14.375
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any chest pain with it?",
+    "start_s": 14.675,
+    "end_s": 16.85
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "A little. It's sharp, and it's worse when I take a deep breath.",
+    "start_s": 17.15,
+    "end_s": 21.525
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any cough, fever, or leg swelling?",
+    "start_s": 21.825,
+    "end_s": 24.675
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No cough, no fever. But my right calf has been sore for a few days.",
+    "start_s": 24.975,
+    "end_s": 30.025
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Have you traveled recently or been immobile for long periods?",
+    "start_s": 30.325,
+    "end_s": 34.975
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I flew back from Europe last week. It was a long flight, maybe nine hours.",
+    "start_s": 35.275,
+    "end_s": 40.6
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "You said it came on this morning \u2014 was it really sudden, or did it build up?",
+    "start_s": 40.9,
+    "end_s": 46.075
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Actually, now that I think about it, I noticed it a bit yesterday evening too. It just got much worse this morning.",
+    "start_s": 46.375,
+    "end_s": 53.8
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Got it. Any history of asthma, heart problems, or clots?",
+    "start_s": 54.1,
+    "end_s": 58.5
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No asthma. My father had a DVT, I think.",
+    "start_s": 58.8,
+    "end_s": 62.5
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Medications?",
+    "start_s": 62.8,
+    "end_s": 64.675
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I take lisinopril for blood pressure, and I'm on a daily aspirin.",
+    "start_s": 64.975,
+    "end_s": 69.8
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any smoking history?",
+    "start_s": 70.1,
+    "end_s": 72.25
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I quit about ten years ago. Smoked for twenty years before that.",
+    "start_s": 72.55,
+    "end_s": 77.125
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "I want to check your oxygen saturation and listen to your lungs.",
+    "start_s": 77.425,
+    "end_s": 82.375
+  }
+]

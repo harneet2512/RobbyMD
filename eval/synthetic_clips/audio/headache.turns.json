@@ -1,0 +1,128 @@
+[
+  {
+    "speaker": "DOCTOR",
+    "text": "Hi, Ms. Smith. What brings you in today?",
+    "start_s": 0.0,
+    "end_s": 3.35
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I've got a really bad headache. I've never had one like this.",
+    "start_s": 3.65,
+    "end_s": 7.675
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "When did it start?",
+    "start_s": 7.975,
+    "end_s": 9.85
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "About two hours ago. It hit me all at once, like something exploded in my head.",
+    "start_s": 10.15,
+    "end_s": 15.375
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Where is the pain?",
+    "start_s": 15.675,
+    "end_s": 17.6
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "All over, but mostly the back of my head and my neck feels stiff.",
+    "start_s": 17.9,
+    "end_s": 22.55
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "On a scale of one to ten?",
+    "start_s": 22.85,
+    "end_s": 25.325
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "A ten. It's the worst headache of my life.",
+    "start_s": 25.625,
+    "end_s": 28.95
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any nausea, vomiting, or vision changes?",
+    "start_s": 29.25,
+    "end_s": 32.975
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I feel sick to my stomach, and bright light really bothers me.",
+    "start_s": 33.275,
+    "end_s": 37.625
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any weakness, numbness, or trouble speaking?",
+    "start_s": 37.925,
+    "end_s": 41.425
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "No, nothing like that.",
+    "start_s": 41.725,
+    "end_s": 43.825
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "You said this started two hours ago \u2014 was it sudden or gradual?",
+    "start_s": 44.125,
+    "end_s": 48.95
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "Actually, it's been closer to an hour. I was trying to wait it out before coming in.",
+    "start_s": 49.25,
+    "end_s": 54.775
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Okay. Any history of migraines?",
+    "start_s": 55.075,
+    "end_s": 58.075
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I get headaches sometimes, but they're never like this. This is different.",
+    "start_s": 58.375,
+    "end_s": 63.0
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any medications?",
+    "start_s": 63.3,
+    "end_s": 65.3
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "I took two acetaminophen about thirty minutes ago. No relief. I'm also on sumatriptan for my usual migraines, but I haven't taken it today.",
+    "start_s": 65.6,
+    "end_s": 75.65
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "Any family history of aneurysm or stroke?",
+    "start_s": 75.95,
+    "end_s": 79.525
+  },
+  {
+    "speaker": "PATIENT",
+    "text": "My aunt had a brain bleed in her fifties.",
+    "start_s": 79.825,
+    "end_s": 82.825
+  },
+  {
+    "speaker": "DOCTOR",
+    "text": "I'm going to examine your neck and do a neurologic exam now.",
+    "start_s": 83.125,
+    "end_s": 87.9
+  }
+]
