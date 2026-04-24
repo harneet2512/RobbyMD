@@ -61,9 +61,14 @@ MEDICAL_VOCABULARY: List[str] = [
 _VOCAB_LOOKUP = {term.lower(): term for term in MEDICAL_VOCABULARY}
 _VOCAB_WORDS = list(_VOCAB_LOOKUP.keys())
 _SINGLE_WORD_VOCAB = [t for t in _VOCAB_WORDS if " " not in t]
+_MULTI_WORD_VOCAB = [t for t in _VOCAB_WORDS if " " in t]
 
 
-def correct_medical_terms(text: str, threshold: int = 80) -> Tuple[str, List[dict]]:
+def _normalize_token(s: str) -> str:
+    return s.lower().strip(".,;:!?\"'()[]")
+
+
+def correct_medical_terms(text: str, threshold: int = 92) -> Tuple[str, List[dict]]:
     """Fuzzy-match words/bigrams in text against medical vocabulary.
 
     Returns (corrected_text, corrections). Corrections are applied only when:
@@ -82,22 +87,25 @@ def correct_medical_terms(text: str, threshold: int = 80) -> Tuple[str, List[dic
     corrected_words = list(words)
     used_indices: set[int] = set()
 
-    # Pass 1 — bigrams
+    # Pass 1 — bigrams. Only match against multi-word vocab so a bigram
+    # like "on amlodipine" doesn't get replaced with the single-word
+    # "amlodipine" (which would silently delete the "on" token).
     for i in range(len(words) - 1):
         if i in used_indices or (i + 1) in used_indices:
             continue
-        bigram = f"{words[i]} {words[i + 1]}".lower()
+        bigram = _normalize_token(f"{words[i]} {words[i + 1]}")
         if len(bigram) < 6:
             continue
         match = process.extractOne(
-            bigram, _VOCAB_WORDS, scorer=fuzz.ratio, score_cutoff=threshold
+            bigram, _MULTI_WORD_VOCAB, scorer=fuzz.ratio, score_cutoff=threshold
         )
         if match and match[0] != bigram:
             original_form = _VOCAB_LOOKUP[match[0]]
             original_bigram = f"{words[i]} {words[i + 1]}"
             replacement_words = original_form.split()
+            # Multi-word vocab always has >= 2 words, so both slots fill.
             corrected_words[i] = replacement_words[0]
-            corrected_words[i + 1] = replacement_words[1] if len(replacement_words) > 1 else ""
+            corrected_words[i + 1] = " ".join(replacement_words[1:])
             used_indices.add(i)
             used_indices.add(i + 1)
             corrections.append({

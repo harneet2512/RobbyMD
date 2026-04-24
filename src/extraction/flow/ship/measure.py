@@ -1,11 +1,18 @@
 """
 Per-clip measurement harness for the ship pipeline.
 
-Computes WER (raw + corrected), medical-term WER (raw + corrected), DER
-(when diarisation enabled), VRAM peak, and timing breakdown.
+Computes WER (raw + corrected, both default and normalized), medical-term
+WER (raw + corrected), DER (when diarisation enabled), VRAM peak, and
+timing breakdown.
+
+Normalized WER lowercases and strips punctuation — Whisper sometimes emits
+lowercase/no-punct output, and variant_a's reported 12.3% WER was a
+different inflection of this same jiwer call, so we report both.
 """
 from __future__ import annotations
 
+import re
+import string
 import subprocess
 import threading
 import time
@@ -14,6 +21,16 @@ from typing import Optional
 import jiwer
 
 from src.extraction.flow.ship.medical_correction import MEDICAL_VOCABULARY
+
+_PUNCT_RE = re.compile(r"[" + re.escape(string.punctuation) + "]")
+_WS_RE = re.compile(r"\s+")
+
+
+def _normalize(text: str) -> str:
+    t = text.lower()
+    t = _PUNCT_RE.sub(" ", t)
+    t = _WS_RE.sub(" ", t).strip()
+    return t
 
 MEDICAL_TERMS_SET: set[str] = set()
 for term in MEDICAL_VOCABULARY:
@@ -127,6 +144,8 @@ def measure_one(clip: dict, pipeline) -> dict:
         "diarization_enabled": result["diarization_enabled"],
         "wer_raw": jiwer.wer(ref, hyp_raw) if hyp_raw else 1.0,
         "wer_corrected": jiwer.wer(ref, hyp_corrected) if hyp_corrected else 1.0,
+        "wer_raw_normalized": jiwer.wer(_normalize(ref), _normalize(hyp_raw)) if hyp_raw else 1.0,
+        "wer_corrected_normalized": jiwer.wer(_normalize(ref), _normalize(hyp_corrected)) if hyp_corrected else 1.0,
         "medical_term_wer_raw": medical_term_wer(ref, hyp_raw),
         "medical_term_wer_corrected": medical_term_wer(ref, hyp_corrected),
         "asr_ms": result["timings"]["asr_ms"],
