@@ -620,7 +620,17 @@ All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
 | Unseen pediatric WER (normalized) | n/a | **4.5%** | +1.8pp vs original mean |
 | Unseen pediatric medical-term WER | n/a | 0.0% | — |
 
-**Interpretation of the default-jiwer WER gap**: variant_a's 12.3% and ship's 24.1% are *not* comparable because the default `jiwer.wer(ref, hyp)` call is case- and punctuation-sensitive, and faster-whisper 1.2.1 under `hotwords + VAD min_silence=500ms` emits lowercase/no-punct output on 3 of 6 clips (`chest_pain`, `abdominal_pain`, `dizziness_syncope`). The per-token errors are almost entirely `"Good"` vs `"good"` and missing commas, not transcription content. Normalized WER strips that style artifact and gives 2.7% for the ship pipeline — a **4.5× improvement** over variant_a at the content level. Variant_a's measurement should be re-run with the normalized column for fair comparison; both numbers are correct for their respective callsites.
+**Interpretation of the default-jiwer WER gap**: variant_a's 12.3% and ship's 24.1% are *not* comparable because the default `jiwer.wer(ref, hyp)` call is case- and punctuation-sensitive, and faster-whisper 1.2.1 under `hotwords + VAD min_silence=500ms` emits lowercase/no-punct output on 3 of 6 clips (`chest_pain`, `abdominal_pain`, `dizziness_syncope`). The per-token errors are largely `"Good"` vs `"good"` and missing commas, not transcription content. Normalized WER strips that style artifact.
+
+**Re-normalized variant_a for fair comparison** (via `scripts/renormalize_wer.py` on variant_a's existing `eval/flow_results/variant_a/20260423T194716Z/per_clip_metrics.jsonl`):
+
+| Metric | Variant A default | Variant A normalized | Ship normalized | Δ (ship vs variant_a norm) |
+|---|---|---|---|---|
+| WER raw | 12.3% | **3.56%** | **2.71%** | **−0.85pp / ~24% better** |
+| WER post-clean | 13.9% | 4.95% | **2.86%** | −2.09pp / ~42% better |
+| Correction delta | +1.61pp | +1.39pp | **+0.16pp** | **10× less regression** |
+
+Ship still beats variant_a apples-to-apples, but by a narrower margin than the default-jiwer numbers suggested. The 4.5× headline (12.3% → 2.7%) was an artifact of variant_a's *own* emissions being case-consistent enough that default jiwer inflated the gap; normalized-vs-normalized is the honest comparison. The other dimensions (medical-term WER 18.6% → 1.4% = 13× better, VRAM 6.5× less, latency 3.7× faster, correction-regression 10× smaller) don't depend on jiwer normalization and stand intact.
 
 **Ship hypothesis outcome**:
 - ✅ Whisper `hotwords` biasing drops medical-term raw WER from 18.6% → 1.4% (primary win)

@@ -1,0 +1,6 @@
+{"scenario": "chest_pain", "wer_raw_default": 0.08571428571428572, "wer_raw_normalized": 0.04838709677419355, "wer_post_default": 0.09387755102040816, "wer_post_normalized": 0.05241935483870968}
+{"scenario": "abdominal_pain", "wer_raw_default": 0.07602339181286549, "wer_raw_normalized": 0.027932960893854747, "wer_post_default": 0.08187134502923976, "wer_post_normalized": 0.027932960893854747}
+{"scenario": "dyspnea", "wer_raw_default": 0.05641025641025641, "wer_raw_normalized": 0.025, "wer_post_default": 0.05641025641025641, "wer_post_normalized": 0.025}
+{"scenario": "headache", "wer_raw_default": 0.22167487684729065, "wer_raw_normalized": 0.04739336492890995, "wer_post_default": 0.26108374384236455, "wer_post_normalized": 0.08530805687203792}
+{"scenario": "fatigue_weight_loss", "wer_raw_default": 0.11594202898550725, "wer_raw_normalized": 0.05555555555555555, "wer_post_default": 0.14492753623188406, "wer_post_normalized": 0.08333333333333333}
+{"scenario": "dizziness_syncope", "wer_raw_default": 0.18181818181818182, "wer_raw_normalized": 0.009302325581395349, "wer_post_default": 0.19617224880382775, "wer_post_normalized": 0.023255813953488372}
