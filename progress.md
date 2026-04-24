@@ -638,3 +638,13 @@ All 13 Bundle-1 steps landed. Final main tip: `e973e87`.
 2. `medical_correction.MEDICAL_VOCABULARY` lacks plural forms — `migraines → migraine` demonstrates the failure mode. Adding inflected forms or plural-tolerant matching would fix the `headache` med-WER outlier.
 3. Re-rendered Kokoro audio is *not bit-identical* to variant_a's prior runs (different torch/Kokoro minor versions at render time). Kokoro seed=42 is preserved, but the resulting WAVs differ by a few samples. Variant_a comparison is on reasonable-but-not-perfect like-for-like audio.
 
+
+**Step 8 (Gemini 2.5 Pro reasoning) — BLOCKED on IAM**:
+Smoke test via `src/extraction/flow/ship/reasoning.py::smoke_test` returns:
+```
+403 Permission 'aiplatform.endpoints.predict' denied on resource
+'.../models/gemini-2.5-pro' (or it may not exist)
+[reason: IAM_PERMISSION_DENIED]
+```
+The VM's default compute service account `133222908308-compute@developer.gserviceaccount.com` lacks `roles/aiplatform.user` on Aravind's project, OR the Gemini 2.5 Pro publisher model is not enabled for the project. Reasoning layer code is written, pushed, and import-verified — just the API call is blocked. Resolution: Aravind-side IAM grant or a switch to a project with Gemini 2.5 Pro enabled (e.g. `project-26227097-98fa-4016-a54`).
+
