@@ -89,15 +89,20 @@ class ShipPipeline:
     def diarize(self, audio_path: str):
         if not self.diar_enabled:
             return None
-        # Preload via torchaudio so pyannote 4.x skips torchcodec's
-        # AudioDecoder path (not importable on this DLVM image). Same
-        # workaround variant_a uses.
-        import torchaudio
-        waveform, sample_rate = torchaudio.load(audio_path)
-        return self.diar(
-            {"waveform": waveform, "sample_rate": sample_rate},
-            num_speakers=2,
-        )
+        try:
+            # Preload via torchaudio. pyannote 4.x still routes through
+            # torchcodec's AudioDecoder internally for metadata lookup —
+            # if that lib is broken, catch here and null out DER for this
+            # clip rather than failing the whole measurement run.
+            import torchaudio
+            waveform, sample_rate = torchaudio.load(audio_path)
+            return self.diar(
+                {"waveform": waveform, "sample_rate": sample_rate},
+                num_speakers=2,
+            )
+        except Exception as exc:
+            print(f"  diarize error on {audio_path}: {type(exc).__name__}: {exc}")
+            return None
 
     def assign_speakers(self, whisper_segments, diarization):
         if diarization is None:
