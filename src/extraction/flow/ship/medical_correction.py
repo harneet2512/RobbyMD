@@ -68,16 +68,27 @@ def _normalize_token(s: str) -> str:
     return s.lower().strip(".,;:!?\"'()[]")
 
 
-def correct_medical_terms(text: str, threshold: int = 92) -> Tuple[str, List[dict]]:
+def correct_medical_terms(text: str, threshold: int = 88) -> Tuple[str, List[dict]]:
     """Fuzzy-match words/bigrams in text against medical vocabulary.
 
     Returns (corrected_text, corrections). Corrections are applied only when:
-    - fuzzy score >= threshold (default 80)
+    - fuzzy score >= threshold (default 88 — tuned to catch mangled terms
+      like 'addorvastatin' → 'atorvastatin' (ratio 88.0) while suppressing
+      false matches like 'giving' → 'IVIG' (ratio 80.0). See test_layer5.)
     - the match differs from the input (no-op suppressed)
     - the input token is >= 4 chars (short common words skipped)
+    - plural guard: input differs from match only by trailing 's' → skip
 
-    Bigram pass first so multi-word medical terms match before their
-    constituent words would be single-word-matched in isolation.
+    Bigram pass first, against _MULTI_WORD_VOCAB only, so multi-word medical
+    terms match before their constituent words would be single-word-matched
+    in isolation (and so a bigram like 'on amlodipine' doesn't collapse to
+    'amlodipine' and silently drop 'on').
+
+    This corrector is a SAFETY NET for real audio with genuine Whisper
+    misrecognitions, not a contributor on clean synthetic TTS. On Kokoro
+    test data with medical-hotwords biasing at the Whisper decoder, raw
+    medical-term WER is already ~1.4%; the corrector fires rarely and
+    contributes minimally to ship's WER win over variant_a.
     """
     words = text.split()
     if not words:

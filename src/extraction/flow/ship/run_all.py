@@ -97,9 +97,16 @@ def main() -> None:
         "original_6": {},
         "unseen_pediatric": {},
         "vs_variant_a": {
+            # Default jiwer (case+punct sensitive) numbers, as variant_a reported.
             "variant_a_wer_raw_mean": 0.1229,
             "variant_a_wer_cleaned_mean": 0.1390,
             "variant_a_cleaned_minus_raw_pp": 0.0161,
+            # Normalized (lowercase + strip punct) — the fair apples-to-apples
+            # baseline. Computed via scripts/renormalize_wer.py on
+            # eval/flow_results/variant_a/20260423T194716Z/per_clip_metrics.jsonl.
+            "variant_a_wer_raw_normalized_mean": 0.0356,
+            "variant_a_wer_cleaned_normalized_mean": 0.0495,
+            "variant_a_cleaned_minus_raw_pp_normalized": 0.0139,
             "variant_a_medical_term_wer_mean": 0.1861,
             "variant_a_e2e_p50_ms": 6459,
             "variant_a_vram_peak_mb": 17052,
@@ -112,6 +119,8 @@ def main() -> None:
     if original:
         wer_raw = [m["wer_raw"] for m in original]
         wer_corr = [m["wer_corrected"] for m in original]
+        wer_raw_n = [m.get("wer_raw_normalized", m["wer_raw"]) for m in original]
+        wer_corr_n = [m.get("wer_corrected_normalized", m["wer_corrected"]) for m in original]
         mwer_raw = [m["medical_term_wer_raw"] for m in original]
         mwer_corr = [m["medical_term_wer_corrected"] for m in original]
         e2e = [m["e2e_ms"] for m in original]
@@ -127,6 +136,16 @@ def main() -> None:
             "wer_corrected_mean": _safe_mean(wer_corr),
             "wer_corrected_stdev": _safe_stdev(wer_corr),
             "correction_delta_pp": _safe_mean([c - r for c, r in zip(wer_corr, wer_raw)]),
+            # Normalized WER (lowercase + strip punct) — the fair
+            # apples-to-apples comparison vs variant_a, since faster-whisper
+            # emits case-inconsistent output under hotwords+VAD on some clips.
+            "wer_raw_normalized_mean": _safe_mean(wer_raw_n),
+            "wer_raw_normalized_stdev": _safe_stdev(wer_raw_n),
+            "wer_corrected_normalized_mean": _safe_mean(wer_corr_n),
+            "wer_corrected_normalized_stdev": _safe_stdev(wer_corr_n),
+            "correction_delta_pp_normalized": _safe_mean(
+                [c - r for c, r in zip(wer_corr_n, wer_raw_n)]
+            ),
             "medical_term_wer_raw_mean": _safe_mean(mwer_raw),
             "medical_term_wer_corrected_mean": _safe_mean(mwer_corr),
             "medical_term_correction_delta_pp": _safe_mean(
@@ -177,16 +196,17 @@ def main() -> None:
     if agg["original_6"]:
         o6 = agg["original_6"]
         print(f"Original 6 clips:", flush=True)
-        print(f"  WER raw:            {o6['wer_raw_mean']:.1%} (was 12.3%)", flush=True)
-        print(f"  WER corrected:      {o6['wer_corrected_mean']:.1%} (was 13.9%)", flush=True)
-        print(f"  Correction delta:   {o6['correction_delta_pp']:+.1%}pp", flush=True)
-        print(f"  Med-term WER raw:   {o6['medical_term_wer_raw_mean']:.1%} (was 18.6%)", flush=True)
-        print(f"  Med-term corrected: {o6['medical_term_wer_corrected_mean']:.1%}", flush=True)
-        print(f"  Still inverted:     {o6['still_inverted']}", flush=True)
-        print(f"  E2E p50:            {o6['e2e_ms_p50']:.0f}ms (was 6459ms)", flush=True)
-        print(f"  VRAM peak:          {o6['vram_peak_mb_max']}MB (was 17052MB)", flush=True)
-        print(f"  DER mean:           {o6['der_mean']} (n={o6['der_n']})", flush=True)
-        print(f"  Total corrections:  {o6['total_corrections_made']}", flush=True)
+        print(f"  WER raw (default):      {o6['wer_raw_mean']:.1%} [case+punct sensitive]", flush=True)
+        print(f"  WER raw (normalized):   {o6['wer_raw_normalized_mean']:.1%} [vs variant_a 3.56%]", flush=True)
+        print(f"  WER corrected (norm):   {o6['wer_corrected_normalized_mean']:.1%} [vs variant_a 4.95%]", flush=True)
+        print(f"  Correction delta norm:  {o6['correction_delta_pp_normalized']:+.2%}pp [vs variant_a +1.39pp]", flush=True)
+        print(f"  Med-term WER raw:       {o6['medical_term_wer_raw_mean']:.1%} [vs variant_a 18.6%]", flush=True)
+        print(f"  Med-term corrected:     {o6['medical_term_wer_corrected_mean']:.1%}", flush=True)
+        print(f"  Still inverted:         {o6['still_inverted']}", flush=True)
+        print(f"  E2E p50:                {o6['e2e_ms_p50']:.0f}ms [vs variant_a 6459ms]", flush=True)
+        print(f"  VRAM peak:              {o6['vram_peak_mb_max']}MB [vs variant_a 17052MB]", flush=True)
+        print(f"  DER mean:               {o6['der_mean']} (n={o6['der_n']})", flush=True)
+        print(f"  Total corrections:      {o6['total_corrections_made']}", flush=True)
     if unseen:
         u = agg["unseen_pediatric"]
         print(f"\nUnseen pediatric:", flush=True)

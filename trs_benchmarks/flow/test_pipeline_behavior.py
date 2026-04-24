@@ -271,11 +271,27 @@ class TestLayer4SpeakerAssignment:
 # ─────────────────────────────────────────────────────────────
 
 class TestLayer5FuzzyCorrection:
-    def test_layer5_threshold_is_92(self):
-        """Default threshold in correct_medical_terms is 92 (post-tuning)."""
+    def test_layer5_threshold_is_88(self):
+        """Default threshold is 88 — tuned to catch addorvastatin (88.0)
+        and nitroglycrin (96.0) while suppressing 'the pain'->'heparin'
+        (72.7) and 'giving'->'IVIG' (80.0). See verifier finding #3."""
         from src.extraction.flow.ship.medical_correction import correct_medical_terms
         sig = inspect.signature(correct_medical_terms)
-        assert sig.parameters["threshold"].default == 92
+        assert sig.parameters["threshold"].default == 88
+
+    def test_layer5_catches_addorvastatin(self):
+        """Threshold 88 catches 'addorvastatin' (Whisper mis-hearing)."""
+        from src.extraction.flow.ship.medical_correction import correct_medical_terms
+        out, fixes = correct_medical_terms("patient on addorvastatin daily")
+        assert "atorvastatin" in out
+        assert any(f["corrected"] == "atorvastatin" for f in fixes)
+
+    def test_layer5_catches_nitroglycrin(self):
+        """Missing-e variant of nitroglycerin gets corrected."""
+        from src.extraction.flow.ship.medical_correction import correct_medical_terms
+        out, fixes = correct_medical_terms("administered nitroglycrin sublingually")
+        assert "nitroglycerin" in out
+        assert any(f["corrected"] == "nitroglycerin" for f in fixes)
 
     def test_layer5_plural_guard_migraines(self):
         """migraines must NOT get corrected to migraine (grammatical plural)."""
@@ -416,11 +432,22 @@ class TestLayer7Aggregation:
         for key in ("variant_a_wer_raw_mean", "variant_a_medical_term_wer_mean"):
             assert key in agg["vs_variant_a"]
 
-    @pytest.mark.xfail(reason="results.json lacks top-level wer_raw_normalized_mean (verifier finding #2)")
-    def test_layer7_results_json_missing_normalized_mean_KNOWN_GAP(self, latest_results):
+    def test_layer7_results_json_has_normalized_mean(self, latest_results):
+        """Verifier finding #2 was: top-level aggregate lacks normalized WER.
+        Closed by adding wer_raw_normalized_mean + wer_corrected_normalized_mean
+        to the original_6 aggregate. NOTE: this only passes on runs produced
+        AFTER the fix committed alongside this test. Older runs will xfail.
+        """
         results_path, _ = latest_results
         agg = json.loads(results_path.read_text())
-        assert "wer_raw_normalized_mean" in agg.get("original_6", {})
+        o6 = agg.get("original_6", {})
+        if "wer_raw_normalized_mean" not in o6:
+            pytest.xfail(
+                f"latest run ({results_path.parent.name}) predates the "
+                "normalized_mean aggregate fix; regenerate via run_all to pick it up"
+            )
+        assert "wer_raw_normalized_mean" in o6
+        assert "wer_corrected_normalized_mean" in o6
 
 
 # ─────────────────────────────────────────────────────────────
