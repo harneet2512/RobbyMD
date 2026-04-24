@@ -5,5 +5,5 @@
   "correction_vocab_file": "correction_vocab.txt",
   "min_speakers": 2,
   "max_speakers": 5,
-  "speaker_roles": ["DOCTOR", "PATIENT", "NURSE", "FAMILY", "OTHER"]
+  "speaker_roles": ["DOCTOR", "PATIENT"]
 }
