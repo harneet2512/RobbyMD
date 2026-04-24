@@ -127,6 +127,13 @@ def correct_medical_terms(text: str, threshold: int = 92) -> Tuple[str, List[dic
             stripped, _SINGLE_WORD_VOCAB, scorer=fuzz.ratio, score_cutoff=threshold
         )
         if match and match[0] != stripped:
+            # Plural guard: if input differs from match only by trailing 's',
+            # treat as grammatically-correct plural of a vocab term and skip.
+            # Prevents 'migraines' -> 'migraine', 'headaches' -> 'headache', etc.
+            if stripped.endswith("s") and stripped[:-1] == match[0]:
+                continue
+            if match[0].endswith("s") and match[0][:-1] == stripped:
+                continue
             original_form = _VOCAB_LOOKUP[match[0]]
             prefix = ""
             suffix = ""
