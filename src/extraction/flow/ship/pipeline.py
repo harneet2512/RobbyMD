@@ -87,24 +87,14 @@ class ShipPipeline:
                         use_auth_token=hf_token,
                     )
                 import torch as _torch
-                import torchaudio as _ta
-                # Try CUDA with a smoke-test forward pass. NVRTC 13 errors
-                # only surface at inference time (not .to(cuda)), so we
-                # generate a 1-second silent tensor and run it through the
-                # pipeline to trigger any JIT compilation failures early.
-                _smoke_ok = False
-                try:
-                    self.diar.to(_torch.device("cuda"))
-                    _silence = _torch.zeros(1, 16000)
-                    self.diar({"waveform": _silence, "sample_rate": 16000}, num_speakers=1)
-                    _smoke_ok = True
-                    print("pyannote community-1 loaded on CUDA (smoke pass)")
-                except Exception as _cuda_exc:
-                    print(f"pyannote CUDA smoke failed: {type(_cuda_exc).__name__}: {str(_cuda_exc)[:100]}")
-                if not _smoke_ok:
-                    self.diar.to(_torch.device("cpu"))
-                    print("pyannote community-1 loaded on CPU (CUDA fallback)")
+                # Force CPU. NVRTC 13 smoke-test passes on short tensors
+                # but fails on real audio — different JIT code paths for
+                # different lengths. CUDA pyannote on this DLVM (torch
+                # 2.11+cu130 vs CUDA 12.9) is unfixable without a toolkit
+                # upgrade. CPU adds ~2min/clip but produces DER 0.280.
+                self.diar.to(_torch.device("cpu"))
                 self.diar_enabled = True
+                print("pyannote community-1 loaded on CPU")
             except Exception as exc:
                 print(f"pyannote failed to load: {exc}")
                 print("falling back to alternating-turn heuristic")
