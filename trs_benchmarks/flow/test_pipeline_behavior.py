@@ -377,6 +377,75 @@ class TestLayer6Measurement:
         from src.extraction.flow.ship.measure import compute_der
         assert compute_der(None, [{"speaker": "DOCTOR", "text": "x"}], 10.0) is None
 
+    def test_layer6_compute_der_prefers_sidecar(self, tmp_path):
+        """When {audio_path}.turns.json exists with real start_s/end_s,
+        compute_der builds ground-truth Annotation from it — not the
+        equal-duration-slot proxy. Requires pyannote.metrics, so skips
+        gracefully when unavailable.
+        """
+        pytest.importorskip("pyannote.metrics")
+        from src.extraction.flow.ship.measure import compute_der
+
+        # Fake audio path + sidecar with real timestamps.
+        fake_wav = tmp_path / "clip.wav"
+        fake_wav.write_bytes(b"")  # existence needed for `sidecar.exists()`
+        sidecar = fake_wav.with_suffix(".turns.json")
+        sidecar.write_text(json.dumps([
+            {"speaker": "DOCTOR", "text": "hi", "start_s": 0.0, "end_s": 1.5},
+            {"speaker": "PATIENT", "text": "hello", "start_s": 1.8, "end_s": 3.2},
+        ]), encoding="utf-8")
+
+        class FakeSeg:
+            def __init__(self, s, e):
+                self.start = s
+                self.end = e
+
+        class FakeAnn:
+            def __init__(self, tracks):
+                self._tracks = tracks
+
+            def itertracks(self, yield_label=True):
+                return iter(self._tracks)
+
+        # Hypothesis perfectly matches REAL timestamps → near-zero DER.
+        hyp = FakeAnn([
+            (FakeSeg(0.0, 1.5), None, "A"),
+            (FakeSeg(1.8, 3.2), None, "B"),
+        ])
+        der = compute_der(hyp, [], 5.0, audio_path=str(fake_wav))
+        assert der is not None
+        # Real path should give near-zero; proxy would give ~0.5+ because
+        # the 2nd equal slot would span 2.5-5.0 instead of 1.8-3.2.
+        assert der < 0.2, f"DER={der} — real sidecar path should be near 0"
+
+    def test_layer6_compute_der_fallback_without_sidecar(self, tmp_path):
+        """Without a sidecar, compute_der still works (proxy path)."""
+        pytest.importorskip("pyannote.metrics")
+        from src.extraction.flow.ship.measure import compute_der
+
+        fake_wav = tmp_path / "nosidecar.wav"
+        fake_wav.write_bytes(b"")
+
+        class FakeSeg:
+            def __init__(self, s, e):
+                self.start = s
+                self.end = e
+
+        class FakeAnn:
+            def __init__(self, tracks):
+                self._tracks = tracks
+
+            def itertracks(self, yield_label=True):
+                return iter(self._tracks)
+
+        hyp = FakeAnn([
+            (FakeSeg(0.0, 5.0), None, "A"),
+            (FakeSeg(5.0, 10.0), None, "B"),
+        ])
+        gt_turns = [{"speaker": "DOCTOR", "text": "a"}, {"speaker": "PATIENT", "text": "b"}]
+        der = compute_der(hyp, gt_turns, 10.0, audio_path=str(fake_wav))
+        assert der is not None  # proxy path still returns a number
+
 
 # ─────────────────────────────────────────────────────────────
 # LAYER 7 — Aggregation & Reporting

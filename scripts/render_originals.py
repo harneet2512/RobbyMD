@@ -10,6 +10,7 @@ Run from repo root with .venv-ship active:
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -59,6 +60,7 @@ def _render_one(pipe: KPipeline, scenario: str) -> Path:
         raise RuntimeError(f"no DR/PT lines in {script_path}")
 
     tmp_paths: list[Path] = []
+    turn_durations_s: list[float] = []
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
         for i, (role, text) in enumerate(turns):
@@ -72,6 +74,7 @@ def _render_one(pipe: KPipeline, scenario: str) -> Path:
             tmp = td_path / f"{scenario}_{i:03d}.wav"
             sf.write(tmp, combined, SAMPLE_RATE)
             tmp_paths.append(tmp)
+            turn_durations_s.append(len(combined) / SAMPLE_RATE)
 
         silence = AudioSegment.silent(duration=INTER_TURN_SILENCE_MS, frame_rate=SAMPLE_RATE)
         combined_audio = AudioSegment.empty()
@@ -84,7 +87,35 @@ def _render_one(pipe: KPipeline, scenario: str) -> Path:
         out_path = AUDIO_DIR / f"{scenario}.wav"
         combined_audio.export(out_path, format="wav")
         print(f"rendered {scenario}: {out_path} ({len(combined_audio) / 1000:.1f}s, {len(turns)} turns)")
-        return out_path
+
+    # Emit per-turn timing sidecar so measure.compute_der can build a real
+    # ground-truth Annotation instead of the equal-duration-slot proxy.
+    _write_turn_sidecar(out_path, turns, turn_durations_s)
+    return out_path
+
+
+def _write_turn_sidecar(
+    out_path: Path,
+    turns: list[tuple[str, str]],
+    turn_durations_s: list[float],
+) -> None:
+    """Write {scenario}.turns.json alongside the wav with real per-turn times."""
+    inter_silence_s = INTER_TURN_SILENCE_MS / 1000.0
+    timeline: list[dict] = []
+    t = 0.0
+    for (role, text), dur in zip(turns, turn_durations_s):
+        start_s = t
+        end_s = t + dur
+        timeline.append({
+            "speaker": role,  # DOCTOR or PATIENT (normalized in _role)
+            "text": text,
+            "start_s": round(start_s, 3),
+            "end_s": round(end_s, 3),
+        })
+        t = end_s + inter_silence_s
+    sidecar = out_path.with_suffix(".turns.json")
+    sidecar.write_text(json.dumps(timeline, indent=2), encoding="utf-8")
+    print(f"  sidecar: {sidecar.name} ({len(timeline)} turns, total {timeline[-1]['end_s']:.1f}s)")
 
 
 def main() -> int:

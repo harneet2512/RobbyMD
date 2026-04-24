@@ -10,6 +10,7 @@ Run from repo root with the .venv-ship virtualenv active:
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -64,6 +65,7 @@ def main() -> int:
     pipe = KPipeline(lang_code="a", device="cpu")
 
     tmp_paths: list[Path] = []
+    turn_durations_s: list[float] = []
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
         for i, (role, text) in enumerate(turns):
@@ -78,6 +80,7 @@ def main() -> int:
             combined = np.concatenate(audio_chunks)
             sf.write(tmp, combined, SAMPLE_RATE)
             tmp_paths.append(tmp)
+            turn_durations_s.append(len(combined) / SAMPLE_RATE)
 
         silence = AudioSegment.silent(duration=INTER_TURN_SILENCE_MS, frame_rate=SAMPLE_RATE)
         combined_audio = AudioSegment.empty()
@@ -90,6 +93,23 @@ def main() -> int:
         out_path = AUDIO_DIR / f"{SCENARIO}.wav"
         combined_audio.export(out_path, format="wav")
         print(f"rendered {SCENARIO}: {out_path} ({len(combined_audio) / 1000:.1f}s, {len(turns)} turns)")
+
+    # Emit per-turn timing sidecar so measure.compute_der can build a real
+    # ground-truth Annotation instead of the equal-duration-slot proxy.
+    inter_silence_s = INTER_TURN_SILENCE_MS / 1000.0
+    timeline: list[dict] = []
+    t = 0.0
+    for (role, text), dur in zip(turns, turn_durations_s):
+        timeline.append({
+            "speaker": role,
+            "text": text,
+            "start_s": round(t, 3),
+            "end_s": round(t + dur, 3),
+        })
+        t = t + dur + inter_silence_s
+    sidecar = out_path.with_suffix(".turns.json")
+    sidecar.write_text(json.dumps(timeline, indent=2), encoding="utf-8")
+    print(f"  sidecar: {sidecar.name} ({len(timeline)} turns)")
     return 0
 
 

@@ -21,10 +21,15 @@ Companion doc: `trs_benchmarks/ARCHITECTURE.md` covers MedXpertQA + LongMemEval 
 │   Plumbing: run_all iterates clips → measure_one per clip    │
 │   Fitting: N/A — raw input, no transformation                │
 │   Logging: per_clip_metrics.jsonl captures per-clip result   │
-│   KNOWN ISSUE: turns lack per-turn timestamps. DER uses      │
-│           equal-duration slots across audio_duration as a    │
-│           proxy ground truth, which systematically inflates  │
-│           DER. See LAYER 6 known issue.                      │
+│   KNOWN GAP (code-ready, awaiting re-render):                │
+│     ground_truth_ship.jsonl has only {speaker, text} per     │
+│     turn. For real DER, the render scripts now emit a        │
+│     {scenario}.turns.json sidecar next to each .wav with     │
+│     per-turn {start_s, end_s}. LAYER 6 compute_der prefers   │
+│     sidecar timestamps when present and falls back to        │
+│     equal-duration slots when absent. Current disk state     │
+│     still has no sidecars — they land on the next L4         │
+│     re-render (Kokoro on-CPU).                               │
 │   TEST: test_layer1_ground_truth_schema,                     │
 │         test_layer1_seven_clips_present,                     │
 │         test_layer1_turns_lack_timestamps_known_gap          │
@@ -215,18 +220,26 @@ Companion doc: `trs_benchmarks/ARCHITECTURE.md` covers MedXpertQA + LongMemEval 
 │       chars from MEDICAL_VOCABULARY). If ref has no medical  │
 │       words → return 0.0. If ref has medical words but hyp   │
 │       has none → return 1.0.                                 │
-│     - compute_der: builds pyannote Annotation from ground-   │
-│       truth turns using equal-duration slots (audio_duration │
-│       / n_turns). Computes DER via                           │
-│       pyannote.metrics.DiarizationErrorRate.                 │
+│     - compute_der: prefers a {audio_path}.turns.json sidecar │
+│       with real {start_s, end_s} per turn (emitted by the    │
+│       render scripts). Falls back to equal-duration slots    │
+│       (audio_duration / n_turns) only when the sidecar is    │
+│       missing or malformed. Uses                             │
+│       pyannote.metrics.DiarizationErrorRate either way.      │
 │   Logging: one row per clip written to                       │
 │           per_clip_metrics.jsonl by run_all.                 │
-│   KNOWN ISSUES:                                              │
-│     - DER ground truth uses equal-duration slots because     │
-│       ground_truth_ship.jsonl lacks per-turn timestamps.     │
-│       This systematically inflates DER (final run 0.577      │
-│       mean is a rough proxy). Real DER needs Kokoro render-  │
-│       time boundary logs.                                    │
+│   DER STATUS:                                                │
+│     - Code path for real DER is WIRED (sidecar-preferred).   │
+│       compute_der accepts audio_path, checks for             │
+│       {audio_path}.turns.json, uses real timestamps if       │
+│       present. Unit tests cover both branches                │
+│       (test_layer6_compute_der_prefers_sidecar +             │
+│       _fallback_without_sidecar).                            │
+│     - On-disk state still has no sidecars — next L4          │
+│       re-render (scripts/render_originals.py +               │
+│       scripts/render_pediatric.py) will emit them and the    │
+│       following measurement run will produce real DER.       │
+│     - Until then, DER stays at 0.577 (equal-duration proxy). │
 │     - vram_peak_mb starts threaded poll at measure_one       │
 │       entry — may undercount if Whisper init happened        │
 │       before the sampler started. Not a problem for ship     │
@@ -438,6 +451,8 @@ Tests that require L4 GPU or Vertex AI credentials are marked with `@pytest.mark
 | test_layer6_medical_term_wer_one_when_hyp_empty_med | L6 | ref has med words, hyp has none → return 1.0 | pure |
 | test_layer6_medical_terms_set_min_4_chars | L6 | MEDICAL_TERMS_SET excludes short words like "vlt" but includes "chest" | pure |
 | test_layer6_compute_der_none_passthrough | L6 | compute_der(None, turns, duration) returns None | pure |
+| test_layer6_compute_der_prefers_sidecar | L6 | When {audio}.turns.json exists, compute_der uses real timestamps (near-zero DER on perfect match) | needs pyannote.metrics |
+| test_layer6_compute_der_fallback_without_sidecar | L6 | Without sidecar, proxy path still returns a DER number | needs pyannote.metrics |
 | test_layer7_aggregate_splits_pediatric_from_original | L7 | original_6 excludes pediatric_fever_rash | pure |
 | test_layer7_writes_timestamped_dir | L7 | Output dir name matches %Y%m%dT%H%M%SZ | pure (regex inspection) |
 | test_layer7_per_clip_jsonl_one_row_per_clip | L7 | Existing results file has exactly 7 lines | pure |

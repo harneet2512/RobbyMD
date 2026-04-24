@@ -91,25 +91,56 @@ def medical_term_wer(reference: str, hypothesis: str) -> float:
     return jiwer.wer(" ".join(ref_medical), " ".join(hyp_medical))
 
 
-def compute_der(diarization_raw, ground_truth_turns: list, audio_duration: float) -> Optional[float]:
+def compute_der(
+    diarization_raw,
+    ground_truth_turns: list,
+    audio_duration: float,
+    audio_path: Optional[str] = None,
+) -> Optional[float]:
     """Compute DER from pyannote diarization against ground-truth turn list.
 
-    Ground-truth turns are assigned equal-duration segments spanning the
-    audio (we don't have per-turn timestamps in the ground truth).
+    Preferred path: if `{audio_path}.turns.json` sidecar exists with real
+    per-turn `start_s`/`end_s` timestamps (written by the render scripts),
+    use those directly — yields a faithful DER number.
+
+    Fallback: assign ground-truth turns equal-duration slots across
+    `audio_duration`. This is a proxy that systematically inflates DER
+    because turns in reality are not uniformly spaced.
+
+    Returns None when diarization is missing or when the pyannote.metrics
+    path throws.
     """
     if diarization_raw is None:
         return None
     try:
+        import json as _json
+        from pathlib import Path as _Path
         from pyannote.metrics.diarization import DiarizationErrorRate
         from pyannote.core import Annotation, Segment
 
+        # Prefer sidecar timestamps when available — real ground truth.
+        real_turns = None
+        if audio_path is not None:
+            sidecar = _Path(audio_path).with_suffix(".turns.json")
+            if sidecar.exists():
+                try:
+                    payload = _json.loads(sidecar.read_text(encoding="utf-8"))
+                    if payload and all("start_s" in t and "end_s" in t for t in payload):
+                        real_turns = payload
+                except Exception:
+                    real_turns = None  # fall through to proxy
+
         gt = Annotation()
-        n = len(ground_truth_turns)
-        if n == 0:
-            return None
-        seg_dur = audio_duration / n
-        for i, turn in enumerate(ground_truth_turns):
-            gt[Segment(i * seg_dur, (i + 1) * seg_dur)] = turn["speaker"]
+        if real_turns is not None:
+            for t in real_turns:
+                gt[Segment(float(t["start_s"]), float(t["end_s"]))] = t["speaker"]
+        else:
+            n = len(ground_truth_turns)
+            if n == 0:
+                return None
+            seg_dur = audio_duration / n
+            for i, turn in enumerate(ground_truth_turns):
+                gt[Segment(i * seg_dur, (i + 1) * seg_dur)] = turn["speaker"]
 
         hyp = Annotation()
         for turn, _, spk in diarization_raw.itertracks(yield_label=True):
@@ -133,6 +164,7 @@ def measure_one(clip: dict, pipeline) -> dict:
         result["diarization_raw"],
         clip["turns"],
         result["audio_duration_sec"],
+        audio_path=clip["audio_path"],
     )
 
     return {
