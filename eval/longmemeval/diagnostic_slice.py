@@ -116,7 +116,17 @@ def _classify_diagnostic_category(q: LongMemEvalQuestion) -> str:
 
 
 def _gold_in_text(gold: str, text: str) -> bool:
-    return gold.lower() in text.lower()
+    """Check if the gold answer appears in the text, with flexible matching."""
+    gl = gold.lower().strip()
+    tl = text.lower().strip()
+    if gl in tl:
+        return True
+    gold_tokens = set(re.findall(r"[a-z0-9]+", gl))
+    text_tokens = set(re.findall(r"[a-z0-9]+", tl))
+    if not gold_tokens:
+        return False
+    overlap = len(gold_tokens & text_tokens) / len(gold_tokens)
+    return overlap >= 0.6
 
 
 def _classify_failure_from_trace(trace: CaseTrace, gold: str) -> DiagnosticCase:

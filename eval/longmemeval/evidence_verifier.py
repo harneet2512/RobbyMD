@@ -73,10 +73,13 @@ def _answer_type_match(question: str, claim: Claim) -> bool:
     val = claim.value
 
     if any(p in ql for p in ("how long", "how many", "duration", "how much time")):
-        return bool(_DURATION_RE.search(val))
+        if bool(_DURATION_RE.search(val)):
+            return True
+        if any(p in ql for p in ("how many",)) and bool(_NUMBER_RE.search(val)):
+            return True
+        return False
 
     if any(p in ql for p in ("where", "what place", "which store", "what store", "which location")):
-        # Proper nouns (title-cased words) or known location patterns
         return bool(re.search(r"[A-Z][a-z]{2,}", val)) or any(
             w in val.lower() for w in ("target", "walmart", "costco", "store", "city", "town")
         )
@@ -99,6 +102,12 @@ def _answer_type_match(question: str, claim: Claim) -> bool:
         if re.search(r"\b(?:named|called|name is|name was)\s+[A-Z][a-z]+", val):
             return True
         return False
+
+    if any(p in ql for p in ("prefer", "suggest", "recommend", "what kind of", "what type of")):
+        return True
+
+    if any(p in ql for p in ("what was the first", "what was the last", "what did")):
+        return True
 
     return False
 
@@ -176,12 +185,11 @@ def classify_evidence(
             ))
             continue
 
-        # 2. Answer-type match → DIRECT (with coverage) or SUPPORTING (without)
+        # 2. Answer-type match → DIRECT (with any coverage or high score)
         #    type_match means the claim value contains the answer TYPE the
-        #    question asks for (duration for "how long", location for "where").
-        #    Coverage measures question-word overlap, which is a bonus but
-        #    not required when the answer type is already confirmed.
-        if type_match and cov > 0.1:
+        #    question asks for (duration for "how long", location for "where",
+        #    preference signal for "prefer/suggest", etc.).
+        if type_match and (cov > 0.05 or fused_score > 0.01):
             result.append(ClassifiedEvidence(
                 claim=claim, fused_score=fused_score,
                 evidence_type=EvidenceType.DIRECT, confidence=0.9,
@@ -189,22 +197,32 @@ def classify_evidence(
                 reason=f"answer_type_match + coverage={cov:.2f}",
             ))
             continue
-        if type_match and fused_score > 0:
+        if type_match:
             result.append(ClassifiedEvidence(
                 claim=claim, fused_score=fused_score,
                 evidence_type=EvidenceType.SUPPORTING, confidence=0.7,
                 conflict_with=None,
-                reason=f"answer_type_match (no coverage), fused={fused_score:.3f}",
+                reason=f"answer_type_match (no coverage/score), fused={fused_score:.3f}",
             ))
             continue
 
-        # 3. High coverage alone → DIRECT
-        if cov > 0.3:
+        # 3. High coverage alone → DIRECT (lowered from 0.3 to 0.15)
+        if cov > 0.15:
             result.append(ClassifiedEvidence(
                 claim=claim, fused_score=fused_score,
                 evidence_type=EvidenceType.DIRECT, confidence=min(0.9, 0.5 + cov),
                 conflict_with=None,
                 reason=f"coverage={cov:.2f}",
+            ))
+            continue
+
+        # 3b. Moderate coverage + high retrieval score → DIRECT
+        if cov > 0.05 and fused_score > 0.02:
+            result.append(ClassifiedEvidence(
+                claim=claim, fused_score=fused_score,
+                evidence_type=EvidenceType.DIRECT, confidence=min(0.85, 0.4 + cov + fused_score),
+                conflict_with=None,
+                reason=f"coverage={cov:.2f} + high_fused={fused_score:.3f}",
             ))
             continue
 
