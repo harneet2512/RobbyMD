@@ -1,0 +1,82 @@
+[
+  {
+    "custom_id": "case-0",
+    "index": 0,
+    "gold": "E",
+    "predicted": "C",
+    "correct": false,
+    "raw": "C"
+  },
+  {
+    "custom_id": "case-1",
+    "index": 1,
+    "gold": "E",
+    "predicted": "G",
+    "correct": false,
+    "raw": "G"
+  },
+  {
+    "custom_id": "case-2",
+    "index": 2,
+    "gold": "C",
+    "predicted": "C",
+    "correct": true,
+    "raw": "C"
+  },
+  {
+    "custom_id": "case-3",
+    "index": 3,
+    "gold": "I",
+    "predicted": "I",
+    "correct": true,
+    "raw": "I"
+  },
+  {
+    "custom_id": "case-4",
+    "index": 4,
+    "gold": "J",
+    "predicted": "B",
+    "correct": false,
+    "raw": "B"
+  },
+  {
+    "custom_id": "case-5",
+    "index": 5,
+    "gold": "C",
+    "predicted": "C",
+    "correct": true,
+    "raw": "C"
+  },
+  {
+    "custom_id": "case-6",
+    "index": 6,
+    "gold": "H",
+    "predicted": "H",
+    "correct": true,
+    "raw": "H"
+  },
+  {
+    "custom_id": "case-7",
+    "index": 7,
+    "gold": "F",
+    "predicted": "H",
+    "correct": false,
+    "raw": "H"
+  },
+  {
+    "custom_id": "case-8",
+    "index": 8,
+    "gold": "H",
+    "predicted": "H",
+    "correct": true,
+    "raw": "H"
+  },
+  {
+    "custom_id": "case-9",
+    "index": 9,
+    "gold": "B",
+    "predicted": "G",
+    "correct": false,
+    "raw": "G"
+  }
+]

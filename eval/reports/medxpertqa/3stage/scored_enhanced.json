@@ -1,0 +1,172 @@
+[
+  {
+    "custom_id": "case-0",
+    "index": 0,
+    "gold": "E",
+    "predicted": "C",
+    "correct": false,
+    "raw": "C",
+    "gold_survived": true,
+    "survivors": [
+      "A",
+      "C",
+      "D",
+      "E",
+      "G",
+      "H"
+    ]
+  },
+  {
+    "custom_id": "case-1",
+    "index": 1,
+    "gold": "E",
+    "predicted": "E",
+    "correct": true,
+    "raw": "E",
+    "gold_survived": true,
+    "survivors": [
+      "A",
+      "C",
+      "D",
+      "E",
+      "G",
+      "H"
+    ]
+  },
+  {
+    "custom_id": "case-2",
+    "index": 2,
+    "gold": "C",
+    "predicted": "E",
+    "correct": false,
+    "raw": "E",
+    "gold_survived": true,
+    "survivors": [
+      "A",
+      "C",
+      "D",
+      "E",
+      "F",
+      "H"
+    ]
+  },
+  {
+    "custom_id": "case-3",
+    "index": 3,
+    "gold": "I",
+    "predicted": "I",
+    "correct": true,
+    "raw": "I",
+    "gold_survived": true,
+    "survivors": [
+      "C",
+      "D",
+      "E",
+      "G",
+      "I",
+      "J"
+    ]
+  },
+  {
+    "custom_id": "case-4",
+    "index": 4,
+    "gold": "J",
+    "predicted": "C",
+    "correct": false,
+    "raw": "C",
+    "gold_survived": false,
+    "survivors": [
+      "A",
+      "C",
+      "D",
+      "E",
+      "G",
+      "H"
+    ]
+  },
+  {
+    "custom_id": "case-5",
+    "index": 5,
+    "gold": "C",
+    "predicted": "C",
+    "correct": true,
+    "raw": "C",
+    "gold_survived": true,
+    "survivors": [
+      "C",
+      "D",
+      "F",
+      "G",
+      "H",
+      "J"
+    ]
+  },
+  {
+    "custom_id": "case-6",
+    "index": 6,
+    "gold": "H",
+    "predicted": "F",
+    "correct": false,
+    "raw": "F",
+    "gold_survived": false,
+    "survivors": [
+      "A",
+      "C",
+      "E",
+      "F",
+      "G",
+      "J"
+    ]
+  },
+  {
+    "custom_id": "case-7",
+    "index": 7,
+    "gold": "F",
+    "predicted": "H",
+    "correct": false,
+    "raw": "H",
+    "gold_survived": false,
+    "survivors": [
+      "A",
+      "C",
+      "D",
+      "E",
+      "G",
+      "H"
+    ]
+  },
+  {
+    "custom_id": "case-8",
+    "index": 8,
+    "gold": "H",
+    "predicted": "H",
+    "correct": true,
+    "raw": "H",
+    "gold_survived": true,
+    "survivors": [
+      "B",
+      "D",
+      "E",
+      "G",
+      "H",
+      "J"
+    ]
+  },
+  {
+    "custom_id": "case-9",
+    "index": 9,
+    "gold": "B",
+    "predicted": "G",
+    "correct": false,
+    "raw": "G",
+    "gold_survived": false,
+    "survivors": [
+      "A",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H"
+    ]
+  }
+]
