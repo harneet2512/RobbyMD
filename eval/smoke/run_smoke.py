@@ -676,6 +676,8 @@ def _call_longmemeval_baseline(
     return text, latency_ms, tokens
 
 
+# STALE: Legacy E5 + top-K path. Not the canonical hybrid retrieval.
+# Canonical path: eval/longmemeval/pipeline.py::run_substrate_case()
 def _call_longmemeval_substrate(
     case_payload: object,
     reader: str,
@@ -760,6 +762,8 @@ def _call_longmemeval_substrate(
     return text, ingest_latency_ms + latency_ms, tokens, stats
 
 
+# STALE: Pre-RRF retrieval + CoN reader. Uses retrieve_relevant_claims (not retrieve_hybrid).
+# Canonical path: eval/longmemeval/pipeline.py::run_substrate_case()
 def _call_longmemeval_substrate_retrieval_con(
     case_payload: object,
     reader_env: dict[str, str],

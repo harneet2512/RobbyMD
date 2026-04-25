@@ -827,6 +827,104 @@ def retrieve_event_tuples(
     return [(et, s) for s, et in top]
 
 
+# --- event-frame retrieval ---------------------------------------------------
+
+
+def backfill_event_frame_embeddings(
+    conn: sqlite3.Connection,
+    session_id: str,
+    *,
+    client: EmbeddingClient | None = None,
+) -> int:
+    """Embed every event frame in `session_id` that is not already embedded."""
+    from src.substrate.event_frames import list_event_frames
+
+    effective = client or EmbeddingClient()
+    frames = list_event_frames(conn, session_id)
+    if not frames:
+        return 0
+
+    existing = set()
+    for f in frames:
+        row = conn.execute(
+            "SELECT embedding_model_version FROM event_frame_embeddings WHERE event_id = ?",
+            (f.event_id,),
+        ).fetchone()
+        if row is not None and row["embedding_model_version"] == effective.model_version:
+            existing.add(f.event_id)
+
+    missing = [f for f in frames if f.event_id not in existing]
+    if not missing:
+        return 0
+
+    texts = [f.frame_text() for f in missing]
+    try:
+        vectors = effective.embed(texts)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("substrate.event_frame_embed_failed", error=repr(exc)[:200])
+        return 0
+
+    now = int(time.time())
+    for frame, vec in zip(missing, vectors, strict=True):
+        conn.execute(
+            "INSERT OR REPLACE INTO event_frame_embeddings "
+            "(event_id, embedding, embedding_model_version, embedded_at_unix) "
+            "VALUES (?, ?, ?, ?)",
+            (frame.event_id, _encode_vector(vec), effective.model_version, now),
+        )
+    return len(missing)
+
+
+def retrieve_event_frames(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str,
+    query: str,
+    top_k: int = 8,
+    embedding_client: EmbeddingClient | None = None,
+) -> list[tuple["EventFrame", float]]:
+    """Retrieve event frames ranked by query-frame cosine similarity."""
+    from src.substrate.event_frames import EventFrame, list_event_frames
+
+    if not query or not query.strip():
+        return []
+
+    effective = embedding_client or EmbeddingClient()
+    frames = list_event_frames(conn, session_id)
+    if not frames:
+        return []
+
+    rows = conn.execute(
+        "SELECT event_id, embedding, embedding_model_version FROM event_frame_embeddings "
+        "WHERE event_id IN ({})".format(",".join("?" for _ in frames)),
+        [f.event_id for f in frames],
+    ).fetchall()
+
+    embedding_by_id: dict[str, list[float]] = {}
+    for row in rows:
+        if row["embedding_model_version"] != effective.model_version:
+            continue
+        try:
+            embedding_by_id[row["event_id"]] = _decode_vector(row["embedding"])
+        except ValueError:
+            continue
+
+    q_vec = effective.embed([query])[0]
+
+    scored: list[tuple[float, EventFrame]] = []
+    for f in frames:
+        vec = embedding_by_id.get(f.event_id)
+        if vec is None:
+            continue
+        score = _cosine_normalised(q_vec, vec)
+        if not (-1.01 <= score <= 1.01):
+            score = _cosine_fallback(q_vec, vec)
+        scored.append((score, f))
+
+    scored.sort(key=lambda x: (-x[0], x[1].event_id))
+    return [(f, s) for s, f in scored[:top_k]]
+
+
 __all__ = [
     "BGE_M3_EMBED_DIM",
     "BGE_M3_MODEL_ID",
@@ -837,8 +935,10 @@ __all__ = [
     "EmbeddingClient",
     "RankedClaim",
     "backfill_embeddings",
+    "backfill_event_frame_embeddings",
     "claim_retrieval_text",
     "embed_and_store",
+    "retrieve_event_frames",
     "retrieve_event_tuples",
     "retrieve_hybrid",
     "retrieve_relevant_claims",

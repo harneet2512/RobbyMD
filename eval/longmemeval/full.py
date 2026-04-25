@@ -1,5 +1,10 @@
 """LongMemEval-S full variant — Opus 4.7 + substrate-backed retrieval.
 
+# STALE: This module uses SubstrateStub and falls back to baseline.
+# The canonical substrate runtime path is:
+#   eval/longmemeval/pipeline.py::run_substrate_case()
+# Do not add new logic here. Wire through the canonical path instead.
+
 Each question's `haystack_sessions` is written to the substrate; the
 retrieval layer is queried for the top-k relevant claims given the question;
 Opus 4.7 answers with those claims as context (not the full haystack).

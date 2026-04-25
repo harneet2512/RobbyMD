@@ -9,8 +9,13 @@ Usage:
 """
 from __future__ import annotations
 
+import hashlib
+import os
+import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from eval.longmemeval.adapter import LongMemEvalQuestion
@@ -41,7 +46,92 @@ from src.substrate.claims import (
     list_claims_with_lifecycle,
     list_supersession_pairs,
 )
-from src.substrate.retrieval import EmbeddingClient, backfill_embeddings, retrieve_hybrid
+from src.substrate.claims import get_claim
+from src.substrate.retrieval import (
+    EmbeddingClient,
+    backfill_embeddings,
+    backfill_event_frame_embeddings,
+    retrieve_event_frames,
+    retrieve_hybrid,
+)
+
+
+_CRITICAL_FILES: tuple[str, ...] = (
+    "eval/longmemeval/pipeline.py",
+    "eval/longmemeval/context.py",
+    "eval/longmemeval/evidence_verifier.py",
+    "eval/longmemeval/question_router.py",
+    "eval/longmemeval/token_budget.py",
+    "src/substrate/retrieval.py",
+    "src/substrate/claims.py",
+    "src/substrate/supersession.py",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RunManifest:
+    """Captures code + environment state at the start of a batch run."""
+
+    git_hash: str
+    git_dirty: bool
+    file_hashes: dict[str, str]
+    model_id: str
+    timestamp_utc: str
+    active_pack: str
+    python_version: str
+
+
+def _sha256_file(path: str | Path) -> str:
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+    except FileNotFoundError:
+        return "MISSING"
+    return h.hexdigest()
+
+
+def build_run_manifest(model_id: str = "") -> RunManifest:
+    """Snapshot code state for reproducibility."""
+    try:
+        git_hash = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+    except Exception:
+        git_hash = "unknown"
+
+    try:
+        git_dirty = subprocess.run(
+            ["git", "diff", "--quiet"],
+            capture_output=True, timeout=5,
+        ).returncode != 0
+    except Exception:
+        git_dirty = True
+
+    file_hashes = {f: _sha256_file(f) for f in _CRITICAL_FILES}
+
+    return RunManifest(
+        git_hash=git_hash,
+        git_dirty=git_dirty,
+        file_hashes=file_hashes,
+        model_id=model_id,
+        timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        active_pack=os.environ.get("ACTIVE_PACK", ""),
+        python_version=sys.version.split()[0],
+    )
+
+
+def verify_manifest(manifest: RunManifest) -> None:
+    """Abort if critical files changed since the manifest was built."""
+    for fpath, expected_hash in manifest.file_hashes.items():
+        current = _sha256_file(fpath)
+        if current != expected_hash:
+            raise RuntimeError(
+                f"Code changed mid-run: {fpath} hash changed "
+                f"({expected_hash[:12]}... → {current[:12]}...)"
+            )
 
 
 @dataclass
@@ -98,6 +188,18 @@ class CaseTrace:
     session_neighbor_triggered: bool = False
     neighbor_claims_added: int = 0
     neighbor_claims_kept: int = 0
+
+    # Event frames
+    event_frames_assembled: int = 0
+    event_frames_retrieved: int = 0
+    event_source_claim_ids: list[str] = field(default_factory=list)
+    answer_source_path: str = ""
+
+    # Token efficiency
+    claim_count_in_bundle: int = 0
+    event_count_in_bundle: int = 0
+    direct_evidence_tokens: int = 0
+    supporting_evidence_tokens: int = 0
 
     # Answer
     answer: str = ""
@@ -233,6 +335,10 @@ def run_substrate_case(
     effective_client = embedding_client or EmbeddingClient()
     backfill_embeddings(conn, q.question_id, client=effective_client)
 
+    # ── Step 3b: Embed event frames ────────────────────────────────
+    trace.event_frames_assembled = stats.event_frames_assembled
+    backfill_event_frame_embeddings(conn, q.question_id, client=effective_client)
+
     all_claims = list_claims_with_lifecycle(
         conn, q.question_id, strategy.retrieval_mode.value
     )
@@ -293,6 +399,33 @@ def run_substrate_case(
         ),
     )
     candidates = [(item["claim"], float(item["fused_score"])) for item in ordered[:strategy.top_k_candidates]]
+
+    # ── Step 4b: Event-frame retrieval (parallel source) ───────────
+    slot = infer_question_slot(q.question)
+    if slot:
+        event_results = retrieve_event_frames(
+            conn, session_id=q.question_id, query=q.question,
+            top_k=8, embedding_client=effective_client,
+        )
+        trace.event_frames_retrieved = len(event_results)
+        event_claim_ids: set[str] = set()
+        for frame, frame_score in event_results:
+            for claim_id in frame.supporting_claim_ids:
+                if claim_id in selected:
+                    continue
+                claim_obj = get_claim(conn, claim_id)
+                if claim_obj is None:
+                    continue
+                coverage = _claim_coverage_score(question_tokens, claim_obj)
+                selected[claim_id] = {
+                    "claim": claim_obj, "fused_score": frame_score * 1.3,
+                    "query_hits": 1, "best_query_variant": "[event_frame]",
+                    "coverage": coverage, "best_rank": 1,
+                }
+                candidates.append((claim_obj, frame_score * 1.3))
+                event_claim_ids.add(claim_id)
+        trace.event_source_claim_ids = list(event_claim_ids)
+
     trace.retrieved_candidates = len(candidates)
 
     # ── Step 5: Verify evidence ─────────────────────────────────────
@@ -311,7 +444,6 @@ def run_substrate_case(
         elif t == "irrelevant": trace.verified_irrelevant += 1
 
     # ── Step 5b: Event-neighbor expansion if DIRECT is slot-incomplete ──
-    slot = infer_question_slot(q.question)
     trace.slot_type = slot
     direct_claims = [e for e in classified if e.evidence_type.value == "direct"]
 
@@ -400,6 +532,28 @@ def run_substrate_case(
     trace.dropped = len(budgeted.dropped_claim_ids)
     trace.bundle_tokens = budgeted.final_token_estimate
     trace.budget_retried = budgeted.retried
+
+    # Token efficiency tracking
+    trace.claim_count_in_bundle = len(budgeted.evidence)
+    event_ids_in_bundle = set()
+    for ev in budgeted.evidence:
+        if ev.claim.claim_id in trace.event_source_claim_ids:
+            event_ids_in_bundle.add(ev.claim.claim_id)
+        if ev.evidence_type.value == "direct":
+            trace.direct_evidence_tokens += len(ev.claim.value) // 4
+        elif ev.evidence_type.value == "supporting":
+            trace.supporting_evidence_tokens += len(ev.claim.value) // 4
+    trace.event_count_in_bundle = len(event_ids_in_bundle)
+
+    # Determine answer source path
+    has_event = any(ev.claim.claim_id in trace.event_source_claim_ids for ev in budgeted.evidence)
+    has_claim = any(ev.claim.claim_id not in trace.event_source_claim_ids for ev in budgeted.evidence)
+    if has_event and has_claim:
+        trace.answer_source_path = "both"
+    elif has_event:
+        trace.answer_source_path = "event_frame"
+    elif has_claim:
+        trace.answer_source_path = "claim"
 
     # ── Step 8: Build structured bundle ─────────────────────────────
     evidence_list: list[RetrievedEvidence] = []

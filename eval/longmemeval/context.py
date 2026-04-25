@@ -91,6 +91,7 @@ class IngestionStats:
     active_claim_count: int = 0
     admitted_turn_count: int = 0
     empty_extraction_turn_count: int = 0
+    event_frames_assembled: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -339,6 +340,10 @@ def ingest_longmemeval_case(
                     empty_extractions += 1
 
     active = list_active_claims(conn, q.question_id)
+
+    from src.substrate.event_frames import assemble_event_frames
+    event_frames = assemble_event_frames(conn, q.question_id)
+
     stats = IngestionStats(
         claims_written_count=claims_written,
         supersessions_fired_count=supersessions_fired,
@@ -347,6 +352,7 @@ def ingest_longmemeval_case(
         active_claim_count=len(active),
         admitted_turn_count=admitted_turns,
         empty_extraction_turn_count=empty_extractions,
+        event_frames_assembled=len(event_frames),
     )
     return conn, stats
 
@@ -379,6 +385,8 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
 
 
+# STALE: Superseded by eval/longmemeval/pipeline.py::run_substrate_case()
+# which adds verifier, budget, structured bundle, expansion, and sufficiency layers.
 def build_longmemeval_context(
     q: LongMemEvalQuestion,
     conn: Any,

@@ -299,6 +299,39 @@ CREATE TABLE IF NOT EXISTS claim_metadata (
 );
 CREATE INDEX IF NOT EXISTS idx_claim_metadata_entity ON claim_metadata(entity_key);
 CREATE INDEX IF NOT EXISTS idx_claim_metadata_temporal ON claim_metadata(temporal_bin);
+
+-- Event frames: compositional view over co-referent claims.
+-- Claims remain the atomic provenance unit. Frames group claims that
+-- describe the same event (purchase, commute, etc.) into multi-slot records.
+CREATE TABLE IF NOT EXISTS event_frames (
+    event_id             TEXT PRIMARY KEY,
+    event_type           TEXT NOT NULL,
+    participants         TEXT NOT NULL,
+    item                 TEXT,
+    location             TEXT,
+    time_expr            TEXT,
+    amount               TEXT,
+    supporting_claim_ids TEXT NOT NULL,
+    source_turn_ids      TEXT NOT NULL,
+    session_id           TEXT NOT NULL,
+    confidence           REAL NOT NULL,
+    missing_slots        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_frames_session ON event_frames(session_id);
+
+CREATE TABLE IF NOT EXISTS event_frame_claims (
+    event_id  TEXT NOT NULL REFERENCES event_frames(event_id) ON DELETE CASCADE,
+    claim_id  TEXT NOT NULL REFERENCES claims(claim_id) ON DELETE CASCADE,
+    slot_role TEXT NOT NULL,
+    PRIMARY KEY (event_id, claim_id)
+);
+
+CREATE TABLE IF NOT EXISTS event_frame_embeddings (
+    event_id                TEXT PRIMARY KEY REFERENCES event_frames(event_id) ON DELETE CASCADE,
+    embedding               BLOB NOT NULL,
+    embedding_model_version TEXT NOT NULL,
+    embedded_at_unix        INTEGER NOT NULL
+);
 """
 
 

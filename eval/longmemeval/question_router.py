@@ -35,6 +35,7 @@ class RetrievalStrategy:
     confidence_threshold: float
     temporal_boost: bool
     update_boost: bool
+    prefer_event_frames: bool = False
 
 
 # ── routing table ────────────────────────────────────────────────────────
