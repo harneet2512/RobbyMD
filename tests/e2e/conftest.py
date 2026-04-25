@@ -36,6 +36,8 @@ from eval.longmemeval.evidence_verifier import (
 from eval.longmemeval.pipeline import (
     CaseTrace,
     ReaderFn,
+    _event_relevant_direct_claims,
+    _is_slot_relevant_neighbor,
     direct_claims_satisfy_slot,
     infer_question_slot,
 )
@@ -375,16 +377,26 @@ def run_instrumented_pipeline(
         1 for e in classified if e.evidence_type.value == "conflict"
     )
 
-    # ── Step 6b: Session-neighbor expansion ────────────────────────
+    # ── Step 6b: Event-neighbor expansion ─────────────────────────
     slot = infer_question_slot(q.question)
     direct_claims = [e for e in classified if e.evidence_type.value == "direct"]
 
-    if slot and direct_claims and not direct_claims_satisfy_slot(direct_claims, slot):
-        direct_turn_ids = {e.claim.source_turn_id for e in direct_claims}
+    slot_satisfied = True
+    if slot and direct_claims:
+        event_relevant = _event_relevant_direct_claims(direct_claims, question_tokens)
+        if event_relevant:
+            slot_satisfied = direct_claims_satisfy_slot(event_relevant, slot)
+        else:
+            slot_satisfied = direct_claims_satisfy_slot(direct_claims, slot)
+
+    if slot and direct_claims and not slot_satisfied:
+        event_relevant = _event_relevant_direct_claims(direct_claims, question_tokens)
+        anchor_claims = event_relevant if event_relevant else direct_claims
+        anchor_turn_ids = {e.claim.source_turn_id for e in anchor_claims}
         existing_ids = {c.claim_id for c, _ in candidates}
         neighbor_claims: list[tuple[Claim, float]] = []
 
-        for dtid in direct_turn_ids:
+        for dtid in anchor_turn_ids:
             turn_row = conn.execute(
                 "SELECT ts FROM turns WHERE turn_id = ?", (dtid,)
             ).fetchone()
@@ -399,14 +411,16 @@ def run_instrumented_pipeline(
                 idx_pos = turn_ids_ordered.index(dtid)
             except ValueError:
                 continue
-            window_start = max(0, idx_pos - 5)
-            window_end = min(len(turn_ids_ordered), idx_pos + 6)
+            window_start = max(0, idx_pos - 3)
+            window_end = min(len(turn_ids_ordered), idx_pos + 4)
             neighbor_turn_ids = set(turn_ids_ordered[window_start:window_end])
 
             for claim in list_active_claims(conn, q.question_id):
                 if claim.claim_id in existing_ids:
                     continue
-                if claim.source_turn_id in neighbor_turn_ids:
+                if claim.source_turn_id not in neighbor_turn_ids:
+                    continue
+                if _is_slot_relevant_neighbor(claim.value, slot):
                     neighbor_claims.append((claim, 0.01))
                     existing_ids.add(claim.claim_id)
 
@@ -419,7 +433,6 @@ def run_instrumented_pipeline(
                 supersession_pair_claim_ids=pair_claim_ids,
             )
             kept = filter_evidence(classified)
-            # Re-check gold classification after expansion
             gold_classifications = [e for e in classified if is_gold(e.claim.value)]
             if gold_classifications:
                 tracker.classification = gold_classifications[0].evidence_type.value

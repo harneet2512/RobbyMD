@@ -142,29 +142,62 @@ _DAY_MONTH_NAMES = _re.compile(
 )
 
 
+def _claim_value_satisfies_slot(val: str, slot: str) -> bool:
+    """Check if a single claim value contains the answer type for the slot."""
+    if slot == "location":
+        for m in _re.finditer(r"[A-Z][a-z]{2,}", val):
+            if not _DAY_MONTH_NAMES.match(m.group()):
+                return True
+        if any(w in val.lower() for w in ("target", "walmart", "costco", "store", "city")):
+            return True
+        return False
+    if slot == "duration":
+        return bool(_DURATION_RE.search(val))
+    if slot == "time":
+        return bool(_TIME_SIGNALS.search(val))
+    if slot == "person":
+        return bool(_re.search(r"[A-Z][a-z]+\s+[A-Z][a-z]+", val))
+    if slot == "degree":
+        return any(w in val.lower() for w in ("degree", "bachelor", "master", "administration", "engineering"))
+    if slot == "name":
+        return bool(_re.search(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", val)) or bool(
+            _re.search(r"\b(?:named|called|name is|name was)\s+[A-Z][a-z]+", val)
+        )
+    return False
+
+
+def _event_relevant_direct_claims(
+    direct_claims: list, question_tokens: set[str],
+) -> list:
+    """Filter DIRECT claims to those whose value overlaps with the question event."""
+    relevant = []
+    for ev in direct_claims:
+        claim_tokens = set(_re.findall(r"[a-z0-9]+", ev.claim.value.lower()))
+        overlap = question_tokens & claim_tokens
+        if len(overlap) >= 2:
+            relevant.append(ev)
+    return relevant
+
+
 def direct_claims_satisfy_slot(direct_claims: list, slot: str) -> bool:
     """Check if any DIRECT claim's value contains the answer type for the slot."""
     for ev in direct_claims:
-        val = ev.claim.value
-        if slot == "location":
-            # Look for proper nouns that are NOT day/month names
-            for m in _re.finditer(r"[A-Z][a-z]{2,}", val):
-                if not _DAY_MONTH_NAMES.match(m.group()):
-                    return True
-            if any(w in val.lower() for w in ("target", "walmart", "costco", "store", "city")):
-                return True
-            continue
-        if slot == "duration" and _DURATION_RE.search(val):
-            return True
-        if slot == "time" and _TIME_SIGNALS.search(val):
-            return True
-        if slot == "person" and _re.search(r"[A-Z][a-z]+\s+[A-Z][a-z]+", val):
-            return True
-        if slot == "degree" and any(w in val.lower() for w in ("degree", "bachelor", "master", "administration", "engineering")):
-            return True
-        if slot == "name" and _re.search(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", val):
+        if _claim_value_satisfies_slot(ev.claim.value, slot):
             return True
     return False
+
+
+def _is_slot_relevant_neighbor(val: str, slot: str) -> bool:
+    """Check if a neighbor claim value could fill the missing slot."""
+    if slot == "location":
+        if _re.search(r"[A-Z][a-z]{2,}", val) and not _DAY_MONTH_NAMES.search(val.split()[0] if val else ""):
+            return True
+        if _re.search(r"\b(?:at|from|in)\s+[A-Z]", val):
+            return True
+        if any(w in val.lower() for w in ("target", "walmart", "costco", "store", "shop", "market")):
+            return True
+        return False
+    return _claim_value_satisfies_slot(val, slot)
 
 
 def run_substrate_case(
@@ -277,31 +310,40 @@ def run_substrate_case(
         elif t == "background": trace.verified_background += 1
         elif t == "irrelevant": trace.verified_irrelevant += 1
 
-    # ── Step 5b: Session-neighbor expansion if DIRECT is slot-incomplete ──
+    # ── Step 5b: Event-neighbor expansion if DIRECT is slot-incomplete ──
     slot = infer_question_slot(q.question)
     trace.slot_type = slot
     direct_claims = [e for e in classified if e.evidence_type.value == "direct"]
 
     if slot and direct_claims:
-        trace.direct_slot_satisfied = direct_claims_satisfy_slot(direct_claims, slot)
+        # Only check event-relevant DIRECT claims for slot satisfaction.
+        # A DIRECT claim about an unrelated event (e.g. "cat tower from Petco")
+        # must not block expansion for the asked event (e.g. coupon redemption).
+        event_relevant = _event_relevant_direct_claims(direct_claims, question_tokens)
+        if event_relevant:
+            trace.direct_slot_satisfied = direct_claims_satisfy_slot(event_relevant, slot)
+        else:
+            trace.direct_slot_satisfied = direct_claims_satisfy_slot(direct_claims, slot)
     elif not slot:
-        trace.direct_slot_satisfied = True  # no slot to check
+        trace.direct_slot_satisfied = True
 
     if slot and direct_claims and not trace.direct_slot_satisfied:
-        # Expand: find claims from the same session near the DIRECT claim's source turn
-        direct_turn_ids = {e.claim.source_turn_id for e in direct_claims}
-        # Get turn timestamps to find neighbors
+        # Event-neighbor expansion: retrieve claims from ±3 turns around
+        # the event-relevant DIRECT claim's source turn. Only keep neighbors
+        # that are slot-relevant (for location: proper nouns, store names).
+        event_relevant = _event_relevant_direct_claims(direct_claims, question_tokens)
+        anchor_claims = event_relevant if event_relevant else direct_claims
+        anchor_turn_ids = {e.claim.source_turn_id for e in anchor_claims}
+
         neighbor_claims: list[tuple[Any, float]] = []
         existing_ids = {c.claim_id for c, _ in candidates}
 
-        for dtid in direct_turn_ids:
+        for dtid in anchor_turn_ids:
             turn_row = conn.execute(
                 "SELECT ts FROM turns WHERE turn_id = ?", (dtid,)
             ).fetchone()
             if turn_row is None:
                 continue
-            direct_ts = turn_row["ts"]
-            # Find turns within ±5 positions (by ordering) in the same session
             nearby_turns = conn.execute(
                 "SELECT turn_id FROM turns WHERE session_id = ?"
                 " ORDER BY ts ASC", (q.question_id,)
@@ -311,15 +353,16 @@ def run_substrate_case(
                 idx = turn_ids_ordered.index(dtid)
             except ValueError:
                 continue
-            window_start = max(0, idx - 5)
-            window_end = min(len(turn_ids_ordered), idx + 6)
+            window_start = max(0, idx - 3)
+            window_end = min(len(turn_ids_ordered), idx + 4)
             neighbor_turn_ids = set(turn_ids_ordered[window_start:window_end])
 
-            # Find active claims from those turns not already in candidates
             for claim in list_active_claims(conn, q.question_id):
                 if claim.claim_id in existing_ids:
                     continue
-                if claim.source_turn_id in neighbor_turn_ids:
+                if claim.source_turn_id not in neighbor_turn_ids:
+                    continue
+                if _is_slot_relevant_neighbor(claim.value, slot):
                     neighbor_claims.append((claim, 0.01))
                     existing_ids.add(claim.claim_id)
 
@@ -327,7 +370,6 @@ def run_substrate_case(
             trace.session_neighbor_triggered = True
             trace.neighbor_claims_added = len(neighbor_claims)
 
-            # Re-verify the expanded set
             expanded_candidates = candidates + neighbor_claims
             classified = classify_evidence(
                 q.question, q.question_type, expanded_candidates,
@@ -335,7 +377,6 @@ def run_substrate_case(
             )
             kept = filter_evidence(classified)
 
-            # Recount verifier labels
             trace.verified_direct = sum(1 for e in classified if e.evidence_type.value == "direct")
             trace.verified_supporting = sum(1 for e in classified if e.evidence_type.value == "supporting")
             trace.verified_conflict = sum(1 for e in classified if e.evidence_type.value == "conflict")
