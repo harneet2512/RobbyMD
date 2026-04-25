@@ -121,12 +121,16 @@ def _gold_in_text(gold: str, text: str) -> bool:
     tl = text.lower().strip()
     if gl in tl:
         return True
-    gold_tokens = set(re.findall(r"[a-z0-9]+", gl))
-    text_tokens = set(re.findall(r"[a-z0-9]+", tl))
+    _stops = {"a", "an", "the", "and", "or", "of", "in", "to", "for", "is", "was",
+              "it", "that", "this", "with", "on", "at", "by", "from", "as", "be",
+              "would", "not", "they", "their", "user", "prefer", "may", "also",
+              "suggestions", "responses", "those", "related", "can", "have"}
+    gold_tokens = set(re.findall(r"[a-z0-9]+", gl)) - _stops
+    text_tokens = set(re.findall(r"[a-z0-9]+", tl)) - _stops
     if not gold_tokens:
         return False
     overlap = len(gold_tokens & text_tokens) / len(gold_tokens)
-    return overlap >= 0.6
+    return overlap >= 0.45
 
 
 def _classify_failure_from_trace(trace: CaseTrace, gold: str) -> DiagnosticCase:

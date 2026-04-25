@@ -595,8 +595,11 @@ def run_substrate_case(
     elif reader_fn is not None:
         system = (
             "You answer LongMemEval questions using ONLY the structured evidence "
-            "bundle below. Use the DIRECT_EVIDENCE section first. If the evidence "
-            'does not contain the answer, reply exactly: "I don\'t know".'
+            "bundle below. Use the DIRECT_EVIDENCE section first. Synthesize your "
+            "answer from the evidence — combine relevant claims to form a complete "
+            "response. If the evidence contains relevant information, use it to "
+            "answer even if no single claim states the full answer verbatim. "
+            'Only reply "I don\'t know" if the evidence is truly unrelated to the question.'
         )
         trace.answer = reader_fn(system, f"{structured_text}\n\nQuestion: {q.question}")
     else:
