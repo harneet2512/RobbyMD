@@ -1,0 +1,68 @@
+{
+  "n_cases": 20,
+  "overall_accuracy": 0.65,
+  "per_category_accuracy": {
+    "information_extraction": 0.5,
+    "event_slot_fill": 0.75,
+    "temporal_reasoning": 0.75,
+    "knowledge_update": 0.75,
+    "multi_session_reasoning": 0.5
+  },
+  "per_category_failure_breakdown": {
+    "information_extraction": {
+      "reader_failure": 2
+    },
+    "event_slot_fill": {
+      "bundling_failure": 1
+    },
+    "temporal_reasoning": {
+      "reader_failure": 1
+    },
+    "knowledge_update": {
+      "bundling_failure": 1
+    },
+    "multi_session_reasoning": {
+      "reader_failure": 2
+    }
+  },
+  "top_3_bottlenecks": [
+    {
+      "failure_type": "reader_failure",
+      "count": 5,
+      "example_case_ids": [
+        "06878be2",
+        "0edc2aef",
+        "gpt4_2655b836"
+      ]
+    },
+    {
+      "failure_type": "bundling_failure",
+      "count": 2,
+      "example_case_ids": [
+        "e3fc4d6e",
+        "830ce83f"
+      ]
+    }
+  ],
+  "claim_vs_event_source": {
+    "information_extraction": {
+      "claim": 4
+    },
+    "event_slot_fill": {
+      "claim": 4
+    },
+    "temporal_reasoning": {
+      "claim": 4
+    },
+    "knowledge_update": {
+      "claim": 4
+    },
+    "multi_session_reasoning": {
+      "claim": 4
+    }
+  },
+  "token_efficiency": {
+    "mean_bundle_tokens": 348.55,
+    "tokens_per_correct_answer": 337.38461538461536
+  }
+}
