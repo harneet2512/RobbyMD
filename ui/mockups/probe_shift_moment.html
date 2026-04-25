@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probe — The Shift Moment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --paper: #F0ECE3;
+    --ink: #1a1917;
+    --ink-muted: #6b6860;
+    --ink-faint: #a8a298;
+    --ink-ghost: #cdc7bb;
+    --copper: #8B5E3C;
+    --copper-faint: rgba(139, 94, 60, 0.12);
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .composition {
+    width: 1100px;
+    max-width: 90vw;
+    display: flex;
+    gap: 60px;
+    padding: 48px 0;
+  }
+
+  /* ========== LEFT: The Conversation ========== */
+  .conversation {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .turn {
+    margin-bottom: 28px;
+  }
+
+  .turn-meta {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.01em;
+    display: flex;
+    gap: 12px;
+  }
+  .speaker {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .time {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+  }
+
+  .turn-text {
+    font-size: 16.5px;
+    line-height: 1.72;
+    font-weight: 400;
+    color: var(--ink);
+  }
+
+  /* Attestations — inline claims */
+  .attestation {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink-muted);
+    line-height: 1.5;
+    padding: 6px 0 2px 20px;
+    margin-top: 4px;
+    position: relative;
+  }
+  .attestation::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 11px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transition: background 0.6s ease;
+  }
+
+  /* Superseded attestation */
+  .attestation.superseded {
+    font-weight: 300;
+    color: var(--ink-ghost);
+    transition: font-weight 0.8s ease, color 0.8s ease;
+  }
+  .attestation.superseded::before {
+    background: var(--ink-ghost);
+  }
+
+  /* New attestation (appears on shift) */
+  .attestation.entering {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  .attestation.entered {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  /* The shift moment — extra breath */
+  .shift-space {
+    height: 0;
+    transition: height 0.8s ease;
+    overflow: hidden;
+  }
+  .shift-space.open {
+    height: 32px;
+  }
+
+  /* Why line — appears after shift */
+  .shift-reason {
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    padding: 0 0 0 20px;
+    border-left: 1.5px solid var(--copper-faint);
+    margin: 12px 0 28px 0;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.3s;
+  }
+  .shift-reason.visible {
+    opacity: 1;
+  }
+
+  /* The utterance that causes the shift */
+  .shift-utterance {
+    display: inline;
+  }
+  .shift-utterance.active {
+    color: var(--ink);
+  }
+
+  /* Correction text */
+  .correction-old {
+    transition: color 0.8s ease, font-weight 0.8s ease;
+  }
+  .correction-old.faded {
+    color: var(--ink-ghost);
+    font-weight: 300;
+  }
+  .correction-new {
+    opacity: 0;
+  }
+  .correction-new.visible {
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+
+  /* ========== RIGHT: The Instrument ========== */
+  .instrument {
+    width: 200px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding-top: 40px;
+  }
+
+  .diagnosis {
+    font-size: 19px;
+    line-height: 1.8;
+    color: var(--ink);
+    transition: font-weight 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                color 0.8s ease,
+                letter-spacing 0.8s ease;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .diagnosis .pct {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-faint);
+    margin-left: 8px;
+    transition: color 0.8s ease;
+    display: inline-block;
+    min-width: 30px;
+    text-align: right;
+  }
+
+  /* Provenance trace — on hover of attestation */
+  .attestation:hover {
+    color: var(--copper);
+    cursor: default;
+  }
+  .attestation:hover::before {
+    background: var(--copper);
+  }
+
+  /* Phase label */
+  .phase-label {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-faint);
+    letter-spacing: 0.06em;
+    transition: opacity 0.5s ease;
+  }
+
+  /* Replay button */
+  .replay {
+    position: fixed;
+    bottom: 20px;
+    right: 24px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+    background: none;
+    border: 1px solid var(--ink-ghost);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.5s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .replay:hover {
+    color: var(--ink-muted);
+    border-color: var(--ink-muted);
+  }
+  .replay.visible {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<div class="composition">
+
+  <!-- THE CONVERSATION -->
+  <div class="conversation">
+
+    <div class="turn">
+      <div class="turn-meta"><span class="speaker">Dr. Chen</span><span class="time">00:00:12</span></div>
+      <div class="turn-text">Good morning. What brings you in today?</div>
+    </div>
+
+    <div class="turn">
+      <div class="turn-meta"><span class="speaker">Patient</span><span class="time">00:00:18</span></div>
+      <div class="turn-text">I've been having this chest pain for about three days. It's mostly on the left side, kind of a sharp, stabbing feeling.</div>
+      <div class="attestation">chest pain, left-sided, sharp/stabbing quality</div>
+      <div class="attestation">duration approximately three days</div>
+    </div>
+
+    <div class="turn">
+      <div class="turn-meta"><span class="speaker">Dr. Chen</span><span class="time">00:00:35</span></div>
+      <div class="turn-text">Can you describe when it happens? Is it constant or does it come and go?</div>
+    </div>
+
+    <div class="turn">
+      <div class="turn-meta"><span class="speaker">Patient</span><span class="time">00:00:42</span></div>
+      <div class="turn-text">It gets worse when I take a deep breath or when I cough. It's not constant — comes and goes.</div>
+      <div class="attestation">pleuritic: worse with deep inspiration and cough</div>
+      <div class="attestation">intermittent pattern</div>
+    </div>
+
+    <div class="turn">
+      <div class="turn-meta"><span class="speaker">Dr. Chen</span><span class="time">00:01:05</span></div>
+      <div class="turn-text">Any shortness of breath, fever, or recent illness?</div>
+    </div>
+
+    <!-- THE SHIFT MOMENT -->
+    <div class="turn" id="shift-turn">
+      <div class="turn-meta"><span class="speaker">Patient</span><span class="time">00:01:12</span></div>
+      <div class="turn-text">Yeah, I had a <span class="shift-utterance" id="uri-text">cold about a week ago</span>. <span class="correction-old" id="old-fever">No fever though</span><span class="correction-new" id="correction"> — actually wait, I did have a low-grade fever two nights ago, maybe 100.2.</span></div>
+      <div class="attestation" id="att-uri">recent upper respiratory infection, approximately one week ago</div>
+      <div class="attestation" id="att-fever-old">denies fever</div>
+      <div class="attestation entering" id="att-fever-new">low-grade fever 100.2°F, two nights ago</div>
+    </div>
+
+    <div class="shift-space" id="shift-space"></div>
+
+    <div class="shift-reason" id="shift-reason">
+      Patient corrected fever denial. URI + fever + pleuritic pain triad now present — classic pleuritis presentation. Pulmonary branch gained eight points.
+    </div>
+
+  </div>
+
+  <!-- THE INSTRUMENT -->
+  <div class="instrument">
+    <div class="diagnosis" id="dx-pulmonary" style="font-weight: 500;">
+      Pulmonary<span class="pct" id="pct-pulmonary">34%</span>
+    </div>
+    <div class="diagnosis" id="dx-cardiac" style="font-weight: 480;">
+      Cardiac<span class="pct" id="pct-cardiac">30%</span>
+    </div>
+    <div class="diagnosis" id="dx-msk" style="font-weight: 420;">
+      MSK<span class="pct" id="pct-msk">26%</span>
+    </div>
+    <div class="diagnosis" id="dx-gi" style="font-weight: 250;">
+      GI<span class="pct" id="pct-gi">10%</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="phase-label" id="phase-label">waiting</div>
+<button class="replay" id="replay-btn" onclick="runSequence()">replay</button>
+
+<script>
+function runSequence() {
+  // Reset
+  document.getElementById('replay-btn').classList.remove('visible');
+  document.getElementById('correction').classList.remove('visible');
+  document.getElementById('old-fever').classList.remove('faded');
+  document.getElementById('att-fever-old').classList.remove('superseded');
+  document.getElementById('att-fever-new').classList.remove('entered');
+  document.getElementById('att-fever-new').classList.add('entering');
+  document.getElementById('shift-space').classList.remove('open');
+  document.getElementById('shift-reason').classList.remove('visible');
+
+  // Reset weights
+  setWeight('dx-pulmonary', 500, '34%');
+  setWeight('dx-cardiac', 480, '30%');
+  setWeight('dx-msk', 420, '26%');
+  setWeight('dx-gi', 250, '10%');
+
+  document.getElementById('phase-label').textContent = 'the conversation gathers';
+  document.getElementById('phase-label').style.opacity = '1';
+
+  // Phase 1 (t=2s): The correction appears
+  setTimeout(() => {
+    document.getElementById('phase-label').textContent = 'the patient corrects';
+    document.getElementById('correction').classList.add('visible');
+  }, 2000);
+
+  // Phase 2 (t=3.5s): Old claim fades, new claim appears
+  setTimeout(() => {
+    document.getElementById('old-fever').classList.add('faded');
+    document.getElementById('att-fever-old').classList.add('superseded');
+  }, 3500);
+
+  setTimeout(() => {
+    document.getElementById('att-fever-new').classList.remove('entering');
+    document.getElementById('att-fever-new').classList.add('entered');
+  }, 4000);
+
+  // Phase 3 (t=5s): THE SHIFT — weights redistribute
+  setTimeout(() => {
+    document.getElementById('phase-label').textContent = 'belief shifts';
+
+    setWeight('dx-pulmonary', 820, '42%');
+    setWeight('dx-cardiac', 460, '28%');
+    setWeight('dx-msk', 370, '22%');
+    setWeight('dx-gi', 220, '8%');
+
+    document.getElementById('shift-space').classList.add('open');
+  }, 5000);
+
+  // Phase 4 (t=7s): The reason appears
+  setTimeout(() => {
+    document.getElementById('shift-reason').classList.add('visible');
+    document.getElementById('phase-label').textContent = '';
+    document.getElementById('phase-label').style.opacity = '0';
+  }, 7000);
+
+  // Show replay
+  setTimeout(() => {
+    document.getElementById('replay-btn').classList.add('visible');
+  }, 8500);
+}
+
+function setWeight(id, weight, pct) {
+  const el = document.getElementById(id);
+  el.style.fontWeight = weight;
+  const pctEl = document.getElementById(id.replace('dx-', 'pct-'));
+  if (pctEl) pctEl.textContent = pct;
+}
+
+// Auto-play on load
+window.addEventListener('load', () => {
+  setTimeout(runSequence, 800);
+});
+</script>
+
+</body>
+</html>

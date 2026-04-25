@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout D — Premium Motion</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-primary: #09090b;
+    --bg-secondary: #0f0f14;
+    --bg-card: #131318;
+    --bg-card-hover: #1a1a22;
+    --border: rgba(255,255,255,0.06);
+    --border-active: rgba(255,255,255,0.12);
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #52525b;
+    --accent: #f59e0b;
+    --accent-glow: rgba(245, 158, 11, 0.15);
+    --green: #22c55e;
+    --green-glow: rgba(34, 197, 94, 0.12);
+    --red: #ef4444;
+    --red-glow: rgba(239, 68, 68, 0.1);
+    --blue: #60a5fa;
+    --blue-glow: rgba(96, 165, 250, 0.1);
+    --cyan: #22d3ee;
+    --purple: #a78bfa;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Disclaimer — ultra minimal */
+  .disclaimer {
+    padding: 8px 24px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
+  }
+  .disclaimer strong { color: var(--accent); font-weight: 600; }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ==========================================
+     LEFT ZONE — Transcript (55%)
+     ========================================== */
+  .transcript-zone {
+    width: 55%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+
+  .zone-header {
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    backdrop-filter: blur(12px);
+    background: rgba(9, 9, 11, 0.8);
+    z-index: 2;
+  }
+  .zone-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--red); }
+    50% { opacity: 0.4; box-shadow: 0 0 2px var(--red); }
+  }
+  .turn-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .transcript-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    scroll-behavior: smooth;
+  }
+  .transcript-scroll::-webkit-scrollbar { width: 4px; }
+  .transcript-scroll::-webkit-scrollbar-track { background: transparent; }
+  .transcript-scroll::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+  /* Individual turns */
+  .turn {
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: turnIn 0.4s ease forwards;
+  }
+  .turn:nth-child(1) { animation-delay: 0.1s; }
+  .turn:nth-child(2) { animation-delay: 0.25s; }
+  .turn:nth-child(3) { animation-delay: 0.4s; }
+  .turn:nth-child(4) { animation-delay: 0.55s; }
+  .turn:nth-child(5) { animation-delay: 0.7s; }
+  .turn:nth-child(6) { animation-delay: 0.85s; }
+  .turn:nth-child(7) { animation-delay: 1.0s; }
+  .turn:nth-child(8) { animation-delay: 1.15s; }
+  .turn:nth-child(9) { animation-delay: 1.3s; }
+  .turn:nth-child(10) { animation-delay: 1.45s; }
+
+  @keyframes turnIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .turn-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .turn-speaker {
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .turn-speaker.physician { color: var(--blue); }
+  .turn-speaker.patient { color: var(--purple); }
+  .turn-time { font-variant-numeric: tabular-nums; }
+
+  .turn-text {
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  .hl {
+    background: var(--accent-glow);
+    border-bottom: 1.5px solid var(--accent);
+    padding: 1px 3px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .hl:hover {
+    background: rgba(245, 158, 11, 0.3);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  .ss {
+    background: var(--red-glow);
+    border-bottom: 1.5px dashed var(--red);
+    text-decoration: line-through;
+    color: var(--text-muted);
+    padding: 1px 3px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+  }
+
+  /* ==========================================
+     RIGHT ZONE — Stacked panels (45%)
+     ========================================== */
+  .context-zone {
+    width: 45%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+  }
+
+  /* Differential — always visible at top */
+  .diff-section {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .diff-branches { display: flex; flex-direction: column; gap: 10px; }
+
+  .diff-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    animation: fadeSlideRight 0.5s ease forwards;
+  }
+  .diff-row:nth-child(1) { animation-delay: 0.6s; }
+  .diff-row:nth-child(2) { animation-delay: 0.75s; }
+  .diff-row:nth-child(3) { animation-delay: 0.9s; }
+  .diff-row:nth-child(4) { animation-delay: 1.05s; }
+  @keyframes fadeSlideRight {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .diff-name {
+    width: 80px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .diff-bar-wrap { flex: 1; position: relative; }
+  .diff-track {
+    height: 6px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .diff-fill {
+    height: 100%;
+    border-radius: 3px;
+    animation: barGrow 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: left;
+  }
+  @keyframes barGrow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  .fill-pulmonary { background: linear-gradient(90deg, var(--green), #4ade80); box-shadow: 0 0 12px var(--green-glow); }
+  .fill-cardiac { background: linear-gradient(90deg, var(--accent), #fbbf24); box-shadow: 0 0 12px var(--accent-glow); }
+  .fill-msk { background: linear-gradient(90deg, var(--blue), #93c5fd); box-shadow: 0 0 12px var(--blue-glow); }
+  .fill-gi { background: linear-gradient(90deg, #3f3f46, #52525b); }
+
+  .diff-pct {
+    width: 40px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .pct-pulmonary { color: var(--green); }
+  .pct-cardiac { color: var(--accent); }
+  .pct-msk { color: var(--blue); }
+  .pct-gi { color: var(--text-muted); }
+
+  .diff-features {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    padding-left: 92px;
+  }
+  .feat-present { color: rgba(34, 197, 94, 0.7); }
+  .feat-absent { color: rgba(239, 68, 68, 0.6); }
+
+  /* Claims — scrollable middle */
+  .claims-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .claims-section::-webkit-scrollbar { width: 3px; }
+  .claims-section::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+  .claim-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    opacity: 0;
+    animation: claimIn 0.35s ease forwards;
+  }
+  .claim-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-active);
+    transform: translateX(2px);
+  }
+  .claim-card.active { border-left: 2.5px solid var(--green); }
+  .claim-card.superseded {
+    border-left: 2.5px solid var(--red);
+    opacity: 0.35 !important;
+  }
+
+  @keyframes claimIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .claim-card:nth-child(1) { animation-delay: 0.3s; }
+  .claim-card:nth-child(2) { animation-delay: 0.38s; }
+  .claim-card:nth-child(3) { animation-delay: 0.46s; }
+  .claim-card:nth-child(4) { animation-delay: 0.54s; }
+  .claim-card:nth-child(5) { animation-delay: 0.62s; }
+  .claim-card:nth-child(6) { animation-delay: 0.70s; }
+  .claim-card:nth-child(7) { animation-delay: 0.78s; }
+  .claim-card:nth-child(8) { animation-delay: 0.86s; }
+  .claim-card:nth-child(9) { animation-delay: 0.94s; }
+  .claim-card:nth-child(10) { animation-delay: 1.02s; }
+  .claim-card:nth-child(11) { animation-delay: 1.10s; }
+
+  .claim-subject { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
+  .claim-detail { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-active { background: var(--green-glow); color: var(--green); }
+  .badge-superseded { background: var(--red-glow); color: var(--red); }
+
+  /* SOAP — bottom pinned */
+  .soap-section {
+    flex-shrink: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .soap-section::-webkit-scrollbar { width: 3px; }
+  .soap-section::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+  .soap-row { margin-bottom: 10px; }
+  .soap-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 3px;
+  }
+  .soap-text {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+  }
+  .prov {
+    color: var(--blue);
+    font-size: 9px;
+    vertical-align: super;
+    cursor: pointer;
+    transition: color 0.15s;
+    font-weight: 600;
+  }
+  .prov:hover { color: var(--cyan); }
+  .soap-pending { color: var(--text-muted); font-style: italic; }
+
+  /* Aux strip — bottom */
+  .aux-strip {
+    flex-shrink: 0;
+    padding: 12px 20px;
+    display: flex;
+    gap: 20px;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border);
+  }
+  .aux-block { flex: 1; }
+  .aux-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .aux-text {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .next-q {
+    color: var(--cyan);
+    font-weight: 500;
+  }
+
+  /* Supersession animation */
+  .supersession-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--red);
+    animation: arrowPulse 1.5s ease infinite;
+  }
+  @keyframes arrowPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* Subtle grid background */
+  .transcript-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .transcript-scroll { position: relative; z-index: 1; }
+  .zone-header { position: relative; z-index: 2; }
+
+  /* Glow accent on the divider */
+  .transcript-zone::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 30%;
+    height: 40%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, var(--accent-glow), var(--accent), var(--accent-glow), transparent);
+    opacity: 0.4;
+    z-index: 3;
+  }
+
+  .layout-label {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    background: var(--accent);
+    color: #000;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 4px;
+    z-index: 100;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+
+<div class="disclaimer"><strong>Research prototype</strong> — not a medical device. Synthetic data. The physician makes every clinical decision.</div>
+
+<div class="main">
+  <!-- LEFT: Transcript -->
+  <div class="transcript-zone">
+    <div class="zone-header">
+      <div class="zone-title">Transcript</div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="turn-count">10 turns</div>
+        <div class="live-indicator"><div class="live-dot"></div> Live</div>
+      </div>
+    </div>
+    <div class="transcript-scroll">
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span class="turn-time">00:00:12</span></div>
+        <div class="turn-text">Good morning. What brings you in today?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span class="turn-time">00:00:18</span></div>
+        <div class="turn-text">I've been having this <span class="hl">chest pain for about three days</span>. It's mostly on the <span class="hl">left side</span>, kind of a <span class="hl">sharp, stabbing feeling</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span class="turn-time">00:00:35</span></div>
+        <div class="turn-text">Can you describe when it happens? Is it constant or does it come and go?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span class="turn-time">00:00:42</span></div>
+        <div class="turn-text">It <span class="hl">gets worse when I take a deep breath</span> or when I <span class="hl">cough</span>. It's not constant — <span class="hl">comes and goes</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span class="turn-time">00:01:05</span></div>
+        <div class="turn-text">Any shortness of breath, fever, or recent illness?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span class="turn-time">00:01:12</span></div>
+        <div class="turn-text">Yeah, I had a <span class="hl">cold about a week ago</span>. <span class="ss">No fever though</span> — actually wait, I did have a <span class="hl">low-grade fever two nights ago, maybe 100.2</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span class="turn-time">00:01:30</span></div>
+        <div class="turn-text">That's helpful. Any history of blood clots in your family?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span class="turn-time">00:01:38</span></div>
+        <div class="turn-text"><span class="hl">No family history of blood clots</span>. But my <span class="hl">mother had a heart attack at 58</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span class="turn-time">00:01:55</span></div>
+        <div class="turn-text">Are you on any medications currently?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span class="turn-time">00:02:02</span></div>
+        <div class="turn-text">Just <span class="hl">ibuprofen for the pain</span> — it <span class="hl">helps a little</span>. And I take <span class="hl">lisinopril for blood pressure</span>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Stacked panels -->
+  <div class="context-zone">
+    <!-- Differentials — pinned top -->
+    <div class="diff-section">
+      <div class="section-label">Differential Diagnosis</div>
+      <div class="diff-branches">
+        <div>
+          <div class="diff-row">
+            <div class="diff-name">Pulmonary</div>
+            <div class="diff-bar-wrap"><div class="diff-track"><div class="diff-fill fill-pulmonary" style="width: 42%"></div></div></div>
+            <div class="diff-pct pct-pulmonary">42%</div>
+          </div>
+          <div class="diff-features"><span class="feat-present">pleuritic</span> · <span class="feat-present">URI</span> · <span class="feat-present">fever</span> · <span class="feat-present">cough</span></div>
+        </div>
+        <div>
+          <div class="diff-row">
+            <div class="diff-name">Cardiac</div>
+            <div class="diff-bar-wrap"><div class="diff-track"><div class="diff-fill fill-cardiac" style="width: 28%"></div></div></div>
+            <div class="diff-pct pct-cardiac">28%</div>
+          </div>
+          <div class="diff-features"><span class="feat-present">left-sided</span> · <span class="feat-present">FHx MI</span> · <span class="feat-present">HTN</span> · <span class="feat-absent">no crushing</span></div>
+        </div>
+        <div>
+          <div class="diff-row">
+            <div class="diff-name">MSK</div>
+            <div class="diff-bar-wrap"><div class="diff-track"><div class="diff-fill fill-msk" style="width: 22%"></div></div></div>
+            <div class="diff-pct pct-msk">22%</div>
+          </div>
+          <div class="diff-features"><span class="feat-present">sharp</span> · <span class="feat-present">movement</span> · <span class="feat-present">NSAID resp</span></div>
+        </div>
+        <div>
+          <div class="diff-row">
+            <div class="diff-name">GI</div>
+            <div class="diff-bar-wrap"><div class="diff-track"><div class="diff-fill fill-gi" style="width: 8%"></div></div></div>
+            <div class="diff-pct pct-gi">8%</div>
+          </div>
+          <div class="diff-features"><span class="feat-absent">no epigastric</span> · <span class="feat-absent">no meal-related</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claims — scrollable middle -->
+    <div class="claims-section">
+      <div class="section-label">Claims <span style="color: var(--text-muted); font-weight: 500;">(11)</span></div>
+      <div class="claim-card active"><div class="claim-subject">Chest pain — left-sided, sharp, stabbing</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 2 · 0.94</div></div>
+      <div class="claim-card active"><div class="claim-subject">Duration ~3 days</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 2 · 0.91</div></div>
+      <div class="claim-card active"><div class="claim-subject">Worse with deep breath and cough</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 4 · 0.96</div></div>
+      <div class="claim-card active"><div class="claim-subject">Intermittent pattern</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 4 · 0.88</div></div>
+      <div class="claim-card active"><div class="claim-subject">Recent URI ~1 week ago</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 6 · 0.90</div></div>
+      <div class="claim-card superseded"><div class="claim-subject">Denies fever <span class="supersession-arrow">→ corrected</span></div><div class="claim-detail"><span class="badge badge-superseded">Superseded</span> Turn 6</div></div>
+      <div class="claim-card active"><div class="claim-subject">Low-grade fever 100.2°F, 2 nights ago</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 6 · 0.93</div></div>
+      <div class="claim-card active"><div class="claim-subject">No family Hx blood clots</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 8 · 0.95</div></div>
+      <div class="claim-card active"><div class="claim-subject">Mother — MI at age 58</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 8 · 0.92</div></div>
+      <div class="claim-card active"><div class="claim-subject">Current meds: ibuprofen PRN, lisinopril</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 10 · 0.97</div></div>
+      <div class="claim-card active"><div class="claim-subject">Ibuprofen provides partial relief</div><div class="claim-detail"><span class="badge badge-active">Active</span> Turn 10 · 0.85</div></div>
+    </div>
+
+    <!-- SOAP — pinned bottom -->
+    <div class="soap-section">
+      <div class="section-label">SOAP Note</div>
+      <div class="soap-row">
+        <div class="soap-label">Subjective</div>
+        <div class="soap-text">Patient presents with 3-day history of left-sided chest pain, sharp/stabbing quality.<span class="prov">[T2]</span> Pleuritic — worse with deep inspiration and cough, intermittent.<span class="prov">[T4]</span> Recent URI ~1 week ago<span class="prov">[T6]</span>, low-grade fever 100.2°F 2 nights ago.<span class="prov">[T6]</span> Ibuprofen partial relief.<span class="prov">[T10]</span></div>
+      </div>
+      <div class="soap-row">
+        <div class="soap-label">PMH / Medications</div>
+        <div class="soap-text">HTN (lisinopril).<span class="prov">[T10]</span> FHx: maternal MI at 58<span class="prov">[T8]</span>, no VTE.<span class="prov">[T8]</span></div>
+      </div>
+      <div class="soap-row">
+        <div class="soap-label">Assessment</div>
+        <div class="soap-text soap-pending">Forming — awaiting objective findings...</div>
+      </div>
+    </div>
+
+    <!-- Aux — bottom strip -->
+    <div class="aux-strip">
+      <div class="aux-block">
+        <div class="aux-label">Why this changed</div>
+        <div class="aux-text">Patient corrected fever denial → URI + fever + pleuritic triad. Pulmonary branch +8pp.</div>
+      </div>
+      <div class="aux-block">
+        <div class="aux-label">Next best question</div>
+        <div class="aux-text"><span class="next-q">"Any recent long travel or immobility?"</span><br>PE vs pleuritis — Wells criteria.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout-label">LAYOUT D — PREMIUM</div>
+
+</body>
+</html>

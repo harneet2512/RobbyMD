@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout A — Two-Zone (Transcript + Context Panel)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #0a0a0c; color: #e4e4e7; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  .disclaimer { background: #1a1a2e; border-bottom: 1px solid #2a2a3e; padding: 6px 20px; font-size: 11px; color: #71717a; text-align: center; letter-spacing: 0.03em; flex-shrink: 0; }
+  .disclaimer strong { color: #f59e0b; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* LEFT — Transcript */
+  .transcript-zone { width: 55%; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; }
+  .zone-header { padding: 14px 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; border-bottom: 1px solid #1e1e2e; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .zone-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .transcript-scroll { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .turn { margin-bottom: 16px; }
+  .turn-meta { font-size: 11px; color: #52525b; margin-bottom: 4px; display: flex; gap: 10px; }
+  .turn-speaker { font-weight: 600; }
+  .turn-speaker.physician { color: #60a5fa; }
+  .turn-speaker.patient { color: #a78bfa; }
+  .turn-text { font-size: 14px; line-height: 1.65; color: #d4d4d8; }
+  .turn-text .claim-highlight { background: rgba(245, 158, 11, 0.15); border-bottom: 2px solid #f59e0b; padding: 0 2px; border-radius: 2px; cursor: pointer; }
+  .turn-text .claim-highlight:hover { background: rgba(245, 158, 11, 0.3); }
+  .turn-text .claim-superseded { background: rgba(239, 68, 68, 0.1); border-bottom: 2px dashed #ef4444; text-decoration: line-through; color: #71717a; padding: 0 2px; border-radius: 2px; }
+
+  /* RIGHT — Context panel with tabs */
+  .context-zone { width: 45%; display: flex; flex-direction: column; }
+  .tab-bar { display: flex; border-bottom: 1px solid #1e1e2e; flex-shrink: 0; }
+  .tab { padding: 12px 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #52525b; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: #a1a1aa; }
+  .tab.active { color: #f59e0b; border-bottom-color: #f59e0b; }
+  .tab-content { flex: 1; overflow-y: auto; padding: 16px 20px; display: none; }
+  .tab-content.active { display: block; }
+
+  /* Claims */
+  .claim-card { background: #111118; border: 1px solid #1e1e2e; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s; }
+  .claim-card:hover { border-color: #f59e0b44; }
+  .claim-card.superseded { opacity: 0.45; border-left: 3px solid #ef4444; }
+  .claim-card.active { border-left: 3px solid #22c55e; }
+  .claim-subject { font-size: 13px; font-weight: 600; color: #e4e4e7; }
+  .claim-detail { font-size: 12px; color: #71717a; margin-top: 4px; }
+  .claim-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge-active { background: #052e16; color: #22c55e; }
+  .badge-superseded { background: #1c0a0a; color: #ef4444; }
+  .badge-confirmed { background: #0c2d48; color: #38bdf8; }
+
+  /* Differential */
+  .branch-group { margin-bottom: 20px; }
+  .branch-title { font-size: 13px; font-weight: 700; color: #e4e4e7; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .branch-score { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .score-high { background: #052e16; color: #22c55e; }
+  .score-mid { background: #1a1a0a; color: #eab308; }
+  .score-low { background: #1c0a0a; color: #ef4444; }
+  .feature-row { display: flex; align-items: center; padding: 6px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 2px; }
+  .feature-row:hover { background: #1a1a2e; }
+  .feature-name { flex: 1; color: #a1a1aa; }
+  .feature-lr { font-weight: 600; font-size: 11px; min-width: 50px; text-align: right; }
+  .lr-positive { color: #22c55e; }
+  .lr-negative { color: #ef4444; }
+  .lr-neutral { color: #52525b; }
+  .feature-state { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+  .state-present { background: #22c55e; }
+  .state-absent { background: #ef4444; }
+  .state-unasked { background: #3f3f46; }
+
+  /* SOAP */
+  .soap-section { margin-bottom: 16px; }
+  .soap-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #f59e0b; margin-bottom: 6px; }
+  .soap-text { font-size: 13px; line-height: 1.7; color: #d4d4d8; }
+  .soap-text .prov { color: #60a5fa; cursor: pointer; font-size: 10px; vertical-align: super; }
+  .soap-text .prov:hover { text-decoration: underline; }
+
+  /* Aux strip */
+  .aux-strip { border-top: 1px solid #1e1e2e; padding: 10px 20px; display: flex; gap: 24px; font-size: 12px; color: #71717a; flex-shrink: 0; background: #0d0d12; }
+  .aux-strip .aux-label { font-weight: 600; color: #52525b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .aux-strip .aux-block { flex: 1; }
+  .aux-strip .next-q { color: #38bdf8; font-weight: 500; }
+
+  .layout-label { position: fixed; bottom: 12px; right: 12px; background: #f59e0b; color: #000; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; z-index: 100; }
+</style>
+</head>
+<body>
+
+<div class="disclaimer"><strong>Research prototype</strong> — not a medical device. Synthetic data. The physician makes every clinical decision.</div>
+
+<div class="main">
+  <!-- LEFT: Transcript -->
+  <div class="transcript-zone">
+    <div class="zone-header"><div class="dot"></div> Live Transcript</div>
+    <div class="transcript-scroll">
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:00:12</span></div>
+        <div class="turn-text">Good morning. What brings you in today?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:00:18</span></div>
+        <div class="turn-text">I've been having this <span class="claim-highlight">chest pain for about three days</span>. It's mostly on the <span class="claim-highlight">left side</span>, kind of a <span class="claim-highlight">sharp, stabbing feeling</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:00:35</span></div>
+        <div class="turn-text">Can you describe when it happens? Is it constant or does it come and go?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:00:42</span></div>
+        <div class="turn-text">It <span class="claim-highlight">gets worse when I take a deep breath</span> or when I <span class="claim-highlight">cough</span>. It's not constant — <span class="claim-highlight">comes and goes</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:05</span></div>
+        <div class="turn-text">Any shortness of breath, fever, or recent illness?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:01:12</span></div>
+        <div class="turn-text">Yeah, I had a <span class="claim-highlight">cold about a week ago</span>. <span class="claim-superseded">No fever though</span> — actually wait, I did have a <span class="claim-highlight">low-grade fever two nights ago, maybe 100.2</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:30</span></div>
+        <div class="turn-text">That's helpful. Any history of blood clots in your family?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:01:38</span></div>
+        <div class="turn-text"><span class="claim-highlight">No family history of blood clots</span>. But my <span class="claim-highlight">mother had a heart attack at 58</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:55</span></div>
+        <div class="turn-text">Are you on any medications currently?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:02:02</span></div>
+        <div class="turn-text">Just <span class="claim-highlight">ibuprofen for the pain</span> — it <span class="claim-highlight">helps a little</span>. And I take <span class="claim-highlight">lisinopril for blood pressure</span>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Context Panel -->
+  <div class="context-zone">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('differential')">Differentials</div>
+      <div class="tab" onclick="switchTab('claims')">Claims</div>
+      <div class="tab" onclick="switchTab('soap')">SOAP Note</div>
+    </div>
+
+    <!-- Differential Tab -->
+    <div class="tab-content active" id="tab-differential">
+      <div class="branch-group">
+        <div class="branch-title">Pulmonary <span class="branch-score score-high">42%</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Pleuritic chest pain</span><span class="feature-lr lr-positive">LR+ 3.2</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Recent URI</span><span class="feature-lr lr-positive">LR+ 2.1</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Pain worse with cough</span><span class="feature-lr lr-positive">LR+ 2.8</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Low-grade fever</span><span class="feature-lr lr-positive">LR+ 1.8</span></div>
+        <div class="feature-row"><div class="feature-state state-unasked"></div><span class="feature-name">Tachycardia</span><span class="feature-lr lr-neutral">—</span></div>
+        <div class="feature-row"><div class="feature-state state-unasked"></div><span class="feature-name">Decreased breath sounds</span><span class="feature-lr lr-neutral">—</span></div>
+      </div>
+      <div class="branch-group">
+        <div class="branch-title">Cardiac <span class="branch-score score-mid">28%</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Left-sided chest pain</span><span class="feature-lr lr-positive">LR+ 1.4</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Family Hx MI &lt;60</span><span class="feature-lr lr-positive">LR+ 1.7</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Hypertension (on lisinopril)</span><span class="feature-lr lr-positive">LR+ 1.3</span></div>
+        <div class="feature-row"><div class="feature-state state-absent"></div><span class="feature-name">Crushing/pressure quality</span><span class="feature-lr lr-negative">LR− 0.3</span></div>
+        <div class="feature-row"><div class="feature-state state-unasked"></div><span class="feature-name">Exertional component</span><span class="feature-lr lr-neutral">—</span></div>
+      </div>
+      <div class="branch-group">
+        <div class="branch-title">MSK <span class="branch-score score-mid">22%</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Sharp/stabbing quality</span><span class="feature-lr lr-positive">LR+ 2.4</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">Reproducible with movement</span><span class="feature-lr lr-positive">LR+ 3.6</span></div>
+        <div class="feature-row"><div class="feature-state state-present"></div><span class="feature-name">NSAID responsive</span><span class="feature-lr lr-positive">LR+ 1.9</span></div>
+        <div class="feature-row"><div class="feature-state state-unasked"></div><span class="feature-name">Palpation tenderness</span><span class="feature-lr lr-neutral">—</span></div>
+      </div>
+      <div class="branch-group">
+        <div class="branch-title">GI <span class="branch-score score-low">8%</span></div>
+        <div class="feature-row"><div class="feature-state state-absent"></div><span class="feature-name">Epigastric location</span><span class="feature-lr lr-negative">LR− 0.4</span></div>
+        <div class="feature-row"><div class="feature-state state-absent"></div><span class="feature-name">Meal-related onset</span><span class="feature-lr lr-negative">LR− 0.5</span></div>
+        <div class="feature-row"><div class="feature-state state-unasked"></div><span class="feature-name">Acid taste / regurgitation</span><span class="feature-lr lr-neutral">—</span></div>
+      </div>
+    </div>
+
+    <!-- Claims Tab -->
+    <div class="tab-content" id="tab-claims">
+      <div class="claim-card active"><div class="claim-subject">Chest pain — left-sided, sharp, stabbing</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 2 · Conf 0.94</div></div>
+      <div class="claim-card active"><div class="claim-subject">Duration: ~3 days</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 2 · Conf 0.91</div></div>
+      <div class="claim-card active"><div class="claim-subject">Pain worse with deep breath and cough</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 4 · Conf 0.96</div></div>
+      <div class="claim-card active"><div class="claim-subject">Intermittent pattern</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 4 · Conf 0.88</div></div>
+      <div class="claim-card active"><div class="claim-subject">Recent URI ~1 week ago</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 6 · Conf 0.90</div></div>
+      <div class="claim-card superseded"><div class="claim-subject">Denies fever</div><div class="claim-detail"><span class="claim-badge badge-superseded">Superseded</span> · Turn 6 → Turn 6 · Patient corrected</div></div>
+      <div class="claim-card active"><div class="claim-subject">Low-grade fever 100.2°F, 2 nights ago</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 6 · Conf 0.93</div></div>
+      <div class="claim-card active"><div class="claim-subject">No family Hx blood clots</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 8 · Conf 0.95</div></div>
+      <div class="claim-card active"><div class="claim-subject">Mother — MI at age 58</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 8 · Conf 0.92</div></div>
+      <div class="claim-card active"><div class="claim-subject">Current meds: ibuprofen PRN, lisinopril</div><div class="claim-detail"><span class="claim-badge badge-confirmed">Confirmed</span> · Turn 10 · Conf 0.97</div></div>
+      <div class="claim-card active"><div class="claim-subject">Ibuprofen provides partial relief</div><div class="claim-detail"><span class="claim-badge badge-active">Active</span> · Turn 10 · Conf 0.85</div></div>
+    </div>
+
+    <!-- SOAP Tab -->
+    <div class="tab-content" id="tab-soap">
+      <div class="soap-section">
+        <div class="soap-label">Subjective</div>
+        <div class="soap-text">
+          Patient is a [age/sex not yet stated] presenting with 3-day history of left-sided chest pain, described as sharp and stabbing in quality.<span class="prov">[T2]</span> Pain is pleuritic, worsening with deep inspiration and cough, and is intermittent in pattern.<span class="prov">[T4]</span> Patient reports a recent upper respiratory infection approximately 1 week prior to presentation<span class="prov">[T6]</span> and a low-grade fever (100.2°F) 2 nights ago.<span class="prov">[T6]</span> Ibuprofen provides partial symptomatic relief.<span class="prov">[T10]</span>
+        </div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">PMH / Medications</div>
+        <div class="soap-text">
+          Hypertension (on lisinopril).<span class="prov">[T10]</span> Family history notable for maternal MI at age 58.<span class="prov">[T8]</span> No family history of venous thromboembolism.<span class="prov">[T8]</span>
+        </div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Assessment</div>
+        <div class="soap-text" style="color: #71717a; font-style: italic;">Forming — awaiting objective findings...</div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Plan</div>
+        <div class="soap-text" style="color: #71717a; font-style: italic;">Pending assessment...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="aux-strip">
+  <div class="aux-block">
+    <div class="aux-label">Why this changed</div>
+    Patient corrected fever denial → low-grade fever confirmed. Pulmonary branch gained +8pp (pleuritis + URI + fever triad).
+  </div>
+  <div class="aux-block">
+    <div class="aux-label">Next best question</div>
+    <span class="next-q">"Any recent long travel or periods of immobility?"</span> — Would shift PE vs pleuritis distinction (Wells criteria).
+  </div>
+</div>
+
+<div class="layout-label">LAYOUT A — Two-Zone</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`#tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

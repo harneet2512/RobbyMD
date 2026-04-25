@@ -1,0 +1,126 @@
+.container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.fadeMask {
+  position: sticky;
+  top: 0;
+  height: var(--fade-mask-height);
+  background: linear-gradient(
+    to bottom,
+    var(--surface) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+  margin-bottom: calc(-1 * var(--fade-mask-height));
+}
+
+.column {
+  max-width: var(--trace-measure);
+  margin: 0 auto;
+  padding: 100px 0 60vh 0;
+}
+
+/* --- every line in the trace ------------------------------------------ */
+
+.line {
+  display: flex;
+  align-items: first baseline;
+  gap: 16px;
+  line-height: var(--trace-line-height);
+  min-height: var(--trace-line-height);
+  cursor: pointer;
+  padding: 0 0 0 0;
+}
+
+.line:hover {
+  background: rgba(242, 242, 239, 0.015);
+}
+
+/* --- timestamp gutter ------------------------------------------------- */
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--size-timestamp);
+  color: var(--text-secondary);
+  width: var(--trace-gutter);
+  flex-shrink: 0;
+  text-align: right;
+  user-select: none;
+}
+
+/* --- claim body: the authored line ------------------------------------ */
+
+.body {
+  font-family: var(--font-sans);
+  font-size: var(--size-body);
+  font-weight: var(--weight-normal);
+  color: var(--text-primary);
+  flex: 1;
+}
+
+/* --- low confidence: 70% opacity until confirmed ---------------------- */
+
+.lowConf {
+  opacity: 0.7;
+}
+
+/* --- superseded: strikethrough draws left to right --------------------- */
+
+.superseded .body {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-tertiary);
+  text-decoration-thickness: 1px;
+}
+
+.supersessionMark {
+  color: var(--text-secondary);
+}
+
+/* --- physician decision: glyph + hypothesis + initials ---------------- */
+
+.glyph {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.initials {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-emphasis);
+}
+
+/* --- verifier question: prose, slightly subdued ----------------------- */
+
+.verifierBody {
+  font-family: var(--font-sans);
+  font-size: var(--size-body);
+  font-weight: var(--weight-normal);
+  color: var(--text-secondary);
+  font-style: italic;
+  flex: 1;
+}
+
+/* --- ranking shift: secondary color ----------------------------------- */
+
+.rankingBody {
+  font-family: var(--font-sans);
+  font-size: var(--size-body);
+  font-weight: var(--weight-normal);
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* --- ASR gap: dim monospace ------------------------------------------- */
+
+.gapBody {
+  font-family: var(--font-mono);
+  font-size: var(--size-timestamp);
+  color: var(--text-tertiary);
+  flex: 1;
+}

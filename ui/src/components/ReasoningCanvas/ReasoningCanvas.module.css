@@ -1,0 +1,762 @@
+/* ── canvas ── */
+
+.canvas {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 30% 35%, rgba(127, 184, 196, 0.04) 0%, transparent 60%),
+    #0b0d0d;
+  color: #d8dedd;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ── disclaimer bar ── */
+
+.disclaimerBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  background: rgba(127, 184, 196, 0.05);
+  border-bottom: 1px solid rgba(127, 184, 196, 0.1);
+  color: rgba(127, 184, 196, 0.7);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── system line ── */
+
+.systemLine {
+  position: absolute;
+  top: 38px;
+  left: 40px;
+  width: calc(100% - 80px);
+  height: 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  color: #6f7b7a;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.systemName {
+  color: #7fb8c4;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 660;
+  letter-spacing: -0.01em;
+}
+
+.systemState {
+  margin-left: auto;
+  color: #556362;
+}
+
+/* ── conversation / evidence spine ── */
+
+.conversation {
+  position: absolute;
+  left: 5vw;
+  top: 11vh;
+  width: 38vw;
+  min-width: 390px;
+  max-width: 610px;
+  height: 78vh;
+  overflow-y: auto;
+  padding: 28px 16px 28px 54px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(127, 184, 196, 0.15) transparent;
+}
+
+.conversation::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 22px;
+  width: 3px;
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    rgba(127, 184, 196, 0.3),
+    rgba(127, 184, 196, 0.12) 80%,
+    transparent
+  );
+  border-radius: 1.5px;
+}
+
+.conversation::after {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+  width: max-content;
+  margin-left: -54px;
+  margin-bottom: 20px;
+  padding: 2px 10px 2px 0;
+  content: "EVIDENCE SPINE";
+  background: #0b0d0d;
+  color: rgba(127, 184, 196, 0.55);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+}
+
+.conversation::-webkit-scrollbar,
+.soap::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation::-webkit-scrollbar-thumb,
+.soap::-webkit-scrollbar-thumb {
+  background: rgba(127, 184, 196, 0.15);
+  border-radius: 3px;
+}
+
+.conversation::-webkit-scrollbar-track,
+.soap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── turn ── */
+
+.turn {
+  position: relative;
+  margin-bottom: 18px;
+  transition: opacity 160ms linear;
+  animation: enterTurn 280ms ease-out both;
+}
+
+@keyframes enterTurn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.turn::before {
+  position: absolute;
+  left: -34px;
+  top: 9px;
+  width: 22px;
+  height: 2px;
+  content: "";
+  background: rgba(127, 184, 196, 0.2);
+}
+
+.turn::after {
+  position: absolute;
+  left: -39px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  content: "";
+  border: 2px solid rgba(127, 184, 196, 0.4);
+  border-radius: 50%;
+  background: rgba(127, 184, 196, 0.08);
+}
+
+.turnMeta {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 4px;
+  color: #556362;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.speaker {
+  color: #8d9a99;
+}
+
+.patientText,
+.physicianText {
+  max-width: 64ch;
+  color: #d8dedd;
+}
+
+.patientText {
+  font-size: 14px;
+  font-weight: 440;
+  line-height: 21px;
+}
+
+.physicianText {
+  color: #b0bab9;
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 19px;
+}
+
+/* ── claims ── */
+
+.claims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 8px;
+  padding-left: 14px;
+}
+
+.claim {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 20px;
+  padding: 2px 6px 2px 12px;
+  color: #d8dedd;
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 16px;
+  text-align: left;
+  background: rgba(127, 184, 196, 0.04);
+  border-radius: 2px;
+  opacity: 1;
+  transition:
+    opacity 180ms linear,
+    color 180ms ease-out,
+    transform 180ms ease-out,
+    background 180ms ease-out;
+  animation: enterClaim 220ms ease-out both;
+}
+
+@keyframes enterClaim {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+.claim::before {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  content: "";
+  background: rgba(127, 184, 196, 0.8);
+  border-radius: 1.5px;
+}
+
+.claim:hover {
+  background: rgba(127, 184, 196, 0.1);
+}
+
+.claim_active {
+  color: #d8dedd;
+}
+
+.claim_superseded {
+  color: #8d9a99;
+  opacity: 0.48;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(216, 222, 221, 0.5);
+  background: transparent;
+}
+
+.claim_dismissed {
+  color: #6f7b7a;
+  opacity: 0.34;
+  background: transparent;
+}
+
+.claim_dismissed::after {
+  position: absolute;
+  left: 4px;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  content: "";
+  background: rgba(111, 123, 122, 0.7);
+  transform: rotate(-10deg);
+  transform-origin: center;
+}
+
+.claimPredicate {
+  color: #8d9a99;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 450;
+}
+
+/* ── hypothesis field ── */
+
+.hypotheses {
+  position: absolute;
+  left: 43vw;
+  top: 12vh;
+  width: 45vw;
+  height: 48vh;
+}
+
+.hypotheses::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: "BELIEF FIELD";
+  color: rgba(127, 184, 196, 0.55);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+}
+
+.hypothesisNode {
+  position: absolute;
+  min-width: 11ch;
+  padding: 10px 18px 12px 20px;
+  transform-origin: center;
+  color: #d8dedd;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-align: left;
+  background: linear-gradient(
+    135deg,
+    rgba(127, 184, 196, 0.1) 0%,
+    rgba(127, 184, 196, 0.02) 100%
+  );
+  border: 1px solid rgba(127, 184, 196, 0.14);
+  border-radius: 6px;
+  transition:
+    transform 240ms ease-out,
+    color 160ms linear,
+    background 180ms ease-out,
+    border-color 180ms ease-out;
+}
+
+.hypothesisNode::before {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  content: "";
+  background: #7fb8c4;
+  opacity: 0.6;
+  border-radius: 0 2px 2px 0;
+}
+
+.hypothesisNode > span:first-child {
+  display: block;
+}
+
+.posteriorBar {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 8px;
+  background: rgba(127, 184, 196, 0.1);
+  border-radius: 1.5px;
+  overflow: hidden;
+}
+
+.posteriorFill {
+  display: block;
+  height: 100%;
+  background: rgba(127, 184, 196, 0.65);
+  border-radius: 1.5px;
+  transition: width 400ms ease-out;
+}
+
+.evidenceCount {
+  display: block;
+  margin-top: 6px;
+  color: #6f7b7a;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 450;
+  letter-spacing: 0.04em;
+}
+
+/* ── verifier strip ── */
+
+.verifier {
+  position: absolute;
+  left: calc(43vw + 25vw);
+  top: calc(12vh + 32vh);
+  width: min(390px, 31vw);
+  padding: 10px 14px 10px 20px;
+  color: #d8dedd;
+  text-align: left;
+  background: rgba(127, 184, 196, 0.04);
+  border: 1px solid rgba(127, 184, 196, 0.1);
+  border-radius: 6px;
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.verifier::before {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  content: "";
+  background: #7fb8c4;
+  opacity: 0.55;
+  border-radius: 0 1.5px 1.5px 0;
+}
+
+.verifierTag {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(127, 184, 196, 0.55);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 0.12em;
+}
+
+.verifierQuestion {
+  display: block;
+  font-size: 13px;
+  font-weight: 570;
+  line-height: 18px;
+}
+
+.verifierLogic {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: #8d9a99;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.verifierLogic span:first-child {
+  color: #7fb8c4;
+}
+
+.verifierLogic span:last-child {
+  color: #c4a66a;
+}
+
+/* ── soap / provenance sheet ── */
+
+.soap {
+  position: absolute;
+  left: 47vw;
+  top: 66vh;
+  width: 45vw;
+  height: 25vh;
+  overflow-y: auto;
+  padding: 28px 12px 0 0;
+}
+
+.soap::before {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+  margin-bottom: 14px;
+  content: "PROVENANCE SHEET";
+  color: rgba(127, 184, 196, 0.55);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+}
+
+.sentence {
+  position: relative;
+  display: grid;
+  grid-template-columns: 8px 20px 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 0 8px 10px;
+  border-top: 1px solid rgba(127, 184, 196, 0.08);
+  border-left: 2px solid rgba(127, 184, 196, 0.2);
+  border-radius: 0 0 0 2px;
+  color: #d8dedd;
+  font-size: 13px;
+  font-weight: 480;
+  line-height: 19px;
+  text-align: left;
+  transition:
+    opacity 180ms linear,
+    transform 180ms ease-out,
+    border-color 180ms ease-out;
+}
+
+.provenanceMark {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  background: #7fb8c4;
+  opacity: 0.65;
+  border-radius: 2px;
+}
+
+.sentenceSection {
+  color: #8d9a99;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+}
+
+/* ── focus inspection ── */
+
+.focusInspection {
+  position: absolute;
+  right: 40px;
+  top: 10vh;
+  z-index: 5;
+  width: min(420px, 22vw);
+  max-height: 42vh;
+  overflow: auto;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid rgba(127, 184, 196, 0.2);
+  border-left: 3px solid rgba(127, 184, 196, 0.5);
+  border-radius: 6px;
+  background: rgba(11, 13, 13, 0.95);
+  backdrop-filter: blur(8px);
+  color: #d8dedd;
+}
+
+.inspectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  color: rgba(127, 184, 196, 0.6);
+  font-size: 10px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.closeInspection {
+  width: 22px;
+  height: 22px;
+  color: #8d9a99;
+  font-size: 13px;
+  border-radius: 4px;
+  transition: background 120ms ease-out;
+}
+
+.closeInspection:hover {
+  background: rgba(127, 184, 196, 0.1);
+}
+
+.inspectionLine {
+  color: #d8dedd;
+  font-size: 13px;
+  font-weight: 570;
+  line-height: 18px;
+}
+
+.inspectionMuted {
+  margin-top: 8px;
+  color: #8d9a99;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.inspectionGroup {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(127, 184, 196, 0.08);
+  color: #b0bab9;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.inspectionGroup > span:first-child {
+  color: #6f7b7a;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+}
+
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chainArrow {
+  margin-right: 6px;
+  color: #7fb8c4;
+}
+
+/* ── provenance web ── */
+
+.provenanceWeb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.webPath {
+  fill: none;
+  stroke: #7fb8c4;
+  stroke-width: 1;
+  stroke-opacity: 0.07;
+  transition:
+    stroke-opacity 250ms ease-out,
+    stroke-width 250ms ease-out;
+}
+
+.webPathActive {
+  stroke-opacity: 0.45;
+  stroke-width: 1.5;
+}
+
+/* ── empty states ── */
+
+.emptyState,
+.emptyHypotheses {
+  color: #556362;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.emptyHypotheses {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+}
+
+/* ── revealing (provenance highlight mode) ── */
+
+.revealing .turn,
+.revealing .hypothesisNode,
+.revealing .sentence,
+.revealing .verifier {
+  opacity: 0.24 !important;
+}
+
+.revealing .related,
+.revealing .hovered,
+.revealing .focused {
+  opacity: 1 !important;
+}
+
+.hovered,
+.focused {
+  color: #eef3f2;
+}
+
+.focused {
+  outline: 1px solid rgba(127, 184, 196, 0.6);
+  outline-offset: 3px;
+}
+
+.focused.hypothesisNode {
+  background: linear-gradient(
+    135deg,
+    rgba(127, 184, 196, 0.18) 0%,
+    rgba(127, 184, 196, 0.06) 100%
+  );
+  border-color: rgba(127, 184, 196, 0.35);
+}
+
+.hovered.hypothesisNode {
+  background: linear-gradient(
+    135deg,
+    rgba(127, 184, 196, 0.14) 0%,
+    rgba(127, 184, 196, 0.04) 100%
+  );
+  border-color: rgba(127, 184, 196, 0.25);
+}
+
+.hovered.sentence,
+.focused.sentence {
+  border-left-color: rgba(127, 184, 196, 0.55);
+}
+
+/* ── responsive ── */
+
+@media (max-width: 900px) {
+  .canvas {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    padding: 64px 24px 32px;
+  }
+
+  .disclaimerBar {
+    position: fixed;
+    z-index: 8;
+  }
+
+  .systemLine,
+  .conversation,
+  .hypotheses,
+  .verifier,
+  .soap,
+  .focusInspection {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+  }
+
+  .systemLine {
+    position: fixed;
+    top: 26px;
+    left: 24px;
+    width: calc(100% - 48px);
+    z-index: 6;
+  }
+
+  .hypotheses {
+    height: 320px;
+    margin-top: 32px;
+  }
+
+  .verifier,
+  .soap,
+  .focusInspection {
+    margin-top: 24px;
+  }
+
+  .focusInspection {
+    max-height: none;
+  }
+
+  .provenanceWeb {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}

@@ -1,0 +1,40 @@
+.strip {
+  height: var(--bottom-strip-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-top: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.disclaimer {
+  font-family: var(--font-mono);
+  font-size: var(--size-disclaimer);
+  color: var(--text-tertiary);
+}
+
+.priorVisits {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.priorVisits:hover {
+  color: var(--text-primary);
+}
+
+.closeBtn {
+  font-family: var(--font-mono);
+  font-size: var(--size-clock);
+  color: var(--text-secondary);
+  border: 1px solid var(--rule);
+  padding: 2px 12px;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}

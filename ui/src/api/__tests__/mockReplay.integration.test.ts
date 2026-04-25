@@ -34,7 +34,7 @@ const RESET = {
   selectedTurnId: null,
   selectedClaimId: null,
   selectedSentenceId: null,
-} as const;
+};
 
 describe("fixture replay end-to-end", () => {
   let conn: Connection | null = null;

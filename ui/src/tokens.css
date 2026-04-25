@@ -1,0 +1,42 @@
+:root {
+  /* Color budget: 5 values, zero accent */
+  --surface: #0d0f10;
+  --text-primary: #f2f2ef;
+  --text-secondary: #a8abae;
+  --text-tertiary: #6a6c6e;
+  --rule: #2a2d30;
+
+  /* Typography families */
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Typography sizes */
+  --size-body: 15px;
+  --size-hypothesis: 14px;
+  --size-patient: 13px;
+  --size-timestamp: 12px;
+  --size-clock: 12px;
+  --size-disclaimer: 10px;
+
+  /* Typography weights */
+  --weight-normal: 400;
+  --weight-emphasis: 500;
+
+  /* Layout */
+  --top-strip-height: 48px;
+  --bottom-strip-height: 32px;
+  --trace-measure: 66ch;
+  --trace-line-height: 32px;
+  --trace-gutter: 10ch;
+  --fade-mask-height: 80px;
+
+  /* Motion timing */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --duration-typeset: 30ms; /* per character, midpoint of 25-40ms */
+  --duration-digit-roll: 200ms;
+  --duration-token-resort: 240ms;
+  --duration-strikethrough: 200ms;
+  --duration-fragment-open: 180ms;
+  --duration-fragment-close: 120ms;
+  --duration-close-rule: 300ms;
+}

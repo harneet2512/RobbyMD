@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout C — Stacked Panels (Horizontal Bands)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #0a0a0c; color: #e4e4e7; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  .disclaimer { background: #1a1a2e; border-bottom: 1px solid #2a2a3e; padding: 6px 20px; font-size: 11px; color: #71717a; text-align: center; letter-spacing: 0.03em; flex-shrink: 0; }
+  .disclaimer strong { color: #f59e0b; }
+
+  /* Top band — Differential overview (always visible, compact) */
+  .diff-band { flex-shrink: 0; border-bottom: 1px solid #1e1e2e; padding: 12px 24px; background: #0d0d12; }
+  .diff-band-inner { display: flex; gap: 20px; align-items: center; max-width: 1200px; margin: 0 auto; }
+  .diff-branch { flex: 1; }
+  .diff-label { font-size: 11px; font-weight: 600; color: #a1a1aa; display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .diff-track { height: 8px; background: #1e1e2e; border-radius: 4px; overflow: hidden; }
+  .diff-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .fill-pulmonary { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .fill-cardiac { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .fill-msk { background: linear-gradient(90deg, #60a5fa, #93c5fd); }
+  .fill-gi { background: linear-gradient(90deg, #52525b, #71717a); }
+  .diff-features { font-size: 10px; color: #52525b; margin-top: 4px; }
+  .diff-features .present { color: #4ade80; }
+  .diff-features .absent { color: #f87171; }
+
+  /* Middle band — main content, side by side transcript + claims */
+  .middle-band { flex: 1; display: flex; overflow: hidden; }
+
+  .transcript-col { flex: 1; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; }
+  .col-header { padding: 10px 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; border-bottom: 1px solid #1e1e2e; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .col-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .col-scroll { flex: 1; overflow-y: auto; padding: 12px 20px; }
+
+  .turn { margin-bottom: 14px; }
+  .turn-meta { font-size: 11px; color: #52525b; margin-bottom: 3px; display: flex; gap: 10px; }
+  .turn-speaker { font-weight: 600; }
+  .turn-speaker.physician { color: #60a5fa; }
+  .turn-speaker.patient { color: #a78bfa; }
+  .turn-text { font-size: 14px; line-height: 1.65; color: #d4d4d8; }
+  .turn-text .hl { background: rgba(245, 158, 11, 0.15); border-bottom: 2px solid #f59e0b; padding: 0 2px; border-radius: 2px; }
+  .turn-text .ss { background: rgba(239, 68, 68, 0.1); border-bottom: 2px dashed #ef4444; text-decoration: line-through; color: #71717a; padding: 0 2px; }
+
+  .claims-col { width: 320px; display: flex; flex-direction: column; }
+  .claim-card { background: #111118; border: 1px solid #1e1e2e; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; }
+  .claim-card.active { border-left: 3px solid #22c55e; }
+  .claim-card.superseded { border-left: 3px solid #ef4444; opacity: 0.4; }
+  .claim-subject { font-size: 12px; font-weight: 600; color: #d4d4d8; }
+  .claim-detail { font-size: 10px; color: #52525b; margin-top: 2px; }
+  .badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; }
+  .badge-active { background: #052e16; color: #22c55e; }
+  .badge-superseded { background: #1c0a0a; color: #ef4444; }
+
+  /* Bottom band — SOAP + Aux */
+  .bottom-band { flex-shrink: 0; height: 200px; border-top: 1px solid #1e1e2e; display: flex; background: #0d0d12; }
+
+  .soap-panel { flex: 1; padding: 14px 20px; overflow-y: auto; border-right: 1px solid #1e1e2e; }
+  .soap-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #f59e0b; margin-bottom: 4px; margin-top: 10px; }
+  .soap-label:first-child { margin-top: 0; }
+  .soap-text { font-size: 12px; line-height: 1.6; color: #a1a1aa; }
+  .prov { color: #60a5fa; font-size: 9px; vertical-align: super; }
+
+  .aux-panel { width: 360px; padding: 14px 20px; overflow-y: auto; }
+  .aux-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; margin-bottom: 4px; }
+  .aux-text { font-size: 12px; color: #a1a1aa; line-height: 1.5; margin-bottom: 12px; }
+  .next-q { color: #38bdf8; font-weight: 500; }
+
+  /* Resize handle visual */
+  .resize-hint { width: 4px; background: #1e1e2e; cursor: row-resize; flex-shrink: 0; }
+  .resize-hint:hover { background: #f59e0b44; }
+
+  .layout-label { position: fixed; bottom: 12px; right: 12px; background: #22c55e; color: #000; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; z-index: 100; }
+</style>
+</head>
+<body>
+
+<div class="disclaimer"><strong>Research prototype</strong> — not a medical device. Synthetic data. The physician makes every clinical decision.</div>
+
+<!-- TOP BAND: Differential overview -->
+<div class="diff-band">
+  <div class="diff-band-inner">
+    <div class="diff-branch">
+      <div class="diff-label"><span>Pulmonary</span><span style="color: #4ade80; font-weight: 700;">42%</span></div>
+      <div class="diff-track"><div class="diff-fill fill-pulmonary" style="width: 42%"></div></div>
+      <div class="diff-features"><span class="present">+pleuritic</span> <span class="present">+URI</span> <span class="present">+fever</span> <span class="present">+cough</span></div>
+    </div>
+    <div class="diff-branch">
+      <div class="diff-label"><span>Cardiac</span><span style="color: #fbbf24; font-weight: 700;">28%</span></div>
+      <div class="diff-track"><div class="diff-fill fill-cardiac" style="width: 28%"></div></div>
+      <div class="diff-features"><span class="present">+left</span> <span class="present">+FHx MI</span> <span class="present">+HTN</span> <span class="absent">−crushing</span></div>
+    </div>
+    <div class="diff-branch">
+      <div class="diff-label"><span>MSK</span><span style="color: #93c5fd; font-weight: 700;">22%</span></div>
+      <div class="diff-track"><div class="diff-fill fill-msk" style="width: 22%"></div></div>
+      <div class="diff-features"><span class="present">+sharp</span> <span class="present">+movement</span> <span class="present">+NSAID resp</span></div>
+    </div>
+    <div class="diff-branch">
+      <div class="diff-label"><span>GI</span><span style="color: #71717a; font-weight: 700;">8%</span></div>
+      <div class="diff-track"><div class="diff-fill fill-gi" style="width: 8%"></div></div>
+      <div class="diff-features"><span class="absent">−epigastric</span> <span class="absent">−meal</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- MIDDLE BAND: Transcript + Claims side by side -->
+<div class="middle-band">
+  <div class="transcript-col">
+    <div class="col-header"><div class="dot"></div> Transcript</div>
+    <div class="col-scroll">
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:00:12</span></div>
+        <div class="turn-text">Good morning. What brings you in today?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:00:18</span></div>
+        <div class="turn-text">I've been having this <span class="hl">chest pain for about three days</span>. It's mostly on the <span class="hl">left side</span>, kind of a <span class="hl">sharp, stabbing feeling</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:00:35</span></div>
+        <div class="turn-text">Can you describe when it happens? Is it constant or does it come and go?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:00:42</span></div>
+        <div class="turn-text">It <span class="hl">gets worse when I take a deep breath</span> or when I <span class="hl">cough</span>. It's not constant — <span class="hl">comes and goes</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:05</span></div>
+        <div class="turn-text">Any shortness of breath, fever, or recent illness?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:01:12</span></div>
+        <div class="turn-text">Yeah, I had a <span class="hl">cold about a week ago</span>. <span class="ss">No fever though</span> — actually wait, I did have a <span class="hl">low-grade fever two nights ago, maybe 100.2</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:30</span></div>
+        <div class="turn-text">That's helpful. Any history of blood clots in your family?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:01:38</span></div>
+        <div class="turn-text"><span class="hl">No family history of blood clots</span>. But my <span class="hl">mother had a heart attack at 58</span>.</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker physician">Dr. Chen</span><span>00:01:55</span></div>
+        <div class="turn-text">Are you on any medications currently?</div>
+      </div>
+      <div class="turn">
+        <div class="turn-meta"><span class="turn-speaker patient">Patient</span><span>00:02:02</span></div>
+        <div class="turn-text">Just <span class="hl">ibuprofen for the pain</span> — it <span class="hl">helps a little</span>. And I take <span class="hl">lisinopril for blood pressure</span>.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="claims-col">
+    <div class="col-header">Claims (11)</div>
+    <div class="col-scroll">
+      <div class="claim-card active"><div class="claim-subject">Chest pain — left, sharp, stabbing</div><div class="claim-detail"><span class="badge badge-active">Active</span> T2 · 0.94</div></div>
+      <div class="claim-card active"><div class="claim-subject">Duration ~3 days</div><div class="claim-detail"><span class="badge badge-active">Active</span> T2 · 0.91</div></div>
+      <div class="claim-card active"><div class="claim-subject">Worse with deep breath / cough</div><div class="claim-detail"><span class="badge badge-active">Active</span> T4 · 0.96</div></div>
+      <div class="claim-card active"><div class="claim-subject">Intermittent</div><div class="claim-detail"><span class="badge badge-active">Active</span> T4 · 0.88</div></div>
+      <div class="claim-card active"><div class="claim-subject">Recent URI ~1w ago</div><div class="claim-detail"><span class="badge badge-active">Active</span> T6 · 0.90</div></div>
+      <div class="claim-card superseded"><div class="claim-subject">Denies fever</div><div class="claim-detail"><span class="badge badge-superseded">Superseded</span> T6</div></div>
+      <div class="claim-card active"><div class="claim-subject">Fever 100.2°F, 2 nights ago</div><div class="claim-detail"><span class="badge badge-active">Active</span> T6 · 0.93</div></div>
+      <div class="claim-card active"><div class="claim-subject">No family Hx VTE</div><div class="claim-detail"><span class="badge badge-active">Active</span> T8 · 0.95</div></div>
+      <div class="claim-card active"><div class="claim-subject">Mother — MI at 58</div><div class="claim-detail"><span class="badge badge-active">Active</span> T8 · 0.92</div></div>
+      <div class="claim-card active"><div class="claim-subject">Meds: ibuprofen PRN, lisinopril</div><div class="claim-detail"><span class="badge badge-active">Active</span> T10 · 0.97</div></div>
+      <div class="claim-card active"><div class="claim-subject">Ibuprofen — partial relief</div><div class="claim-detail"><span class="badge badge-active">Active</span> T10 · 0.85</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAND: SOAP + Aux -->
+<div class="bottom-band">
+  <div class="soap-panel">
+    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #52525b; margin-bottom: 8px;">SOAP Note — Live Draft</div>
+    <div class="soap-label">Subjective</div>
+    <div class="soap-text">Patient presents with 3-day history of left-sided chest pain, sharp/stabbing quality.<span class="prov">[T2]</span> Pleuritic — worse with deep inspiration and cough, intermittent.<span class="prov">[T4]</span> Recent URI ~1 week ago<span class="prov">[T6]</span>, low-grade fever 100.2°F 2 nights ago.<span class="prov">[T6]</span> Ibuprofen partial relief.<span class="prov">[T10]</span></div>
+    <div class="soap-label">PMH / Meds</div>
+    <div class="soap-text">HTN (lisinopril).<span class="prov">[T10]</span> FHx: maternal MI at 58<span class="prov">[T8]</span>, no VTE.<span class="prov">[T8]</span></div>
+    <div class="soap-label">Assessment</div>
+    <div class="soap-text" style="color: #52525b; font-style: italic;">Forming...</div>
+  </div>
+  <div class="aux-panel">
+    <div class="aux-label">Why this changed</div>
+    <div class="aux-text">Patient corrected fever denial → URI + fever + pleuritic triad. Pulmonary branch +8pp.</div>
+    <div class="aux-label">Next best question</div>
+    <div class="aux-text"><span class="next-q">"Any recent long travel or periods of immobility?"</span><br>Would shift PE vs pleuritis distinction (Wells criteria).</div>
+  </div>
+</div>
+
+<div class="layout-label">LAYOUT C — Stacked Bands</div>
+
+</body>
+</html>

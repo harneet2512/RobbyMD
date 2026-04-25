@@ -1,0 +1,87 @@
+.strip {
+  height: var(--top-strip-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+
+.patient {
+  font-family: var(--font-mono);
+  font-size: var(--size-patient);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ticker {
+  display: flex;
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: var(--size-hypothesis);
+  color: var(--text-primary);
+  position: relative;
+}
+
+.token {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  cursor: pointer;
+  transition: opacity var(--duration-token-resort) var(--ease-out);
+  user-select: none;
+}
+
+.token:hover {
+  color: var(--text-primary);
+}
+
+.tokenName {
+  text-transform: uppercase;
+}
+
+.tokenCount {
+  display: inline-block;
+  overflow: hidden;
+  height: 1.2em;
+  position: relative;
+}
+
+.tokenGlyph {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tokenDismissed {
+  opacity: 0.35;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-tertiary);
+}
+
+.tokenDeprioritized {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-tertiary);
+}
+
+.tokenWorkup {
+  text-decoration: underline;
+  text-decoration-color: var(--text-secondary);
+  text-underline-offset: 3px;
+}
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: var(--size-clock);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.active {
+  color: var(--text-tertiary);
+}
+
+.separator {
+  color: var(--text-tertiary);
+}
