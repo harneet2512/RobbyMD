@@ -190,9 +190,19 @@ def _render_extracted_claims_for_prompt(
     speaker_label: str,
     active_claims_summary: str = "(none provided; fresh extraction)",
 ) -> str:
+    assistant_instruction = ""
+    if "[assistant]" in turn_text.lower()[:20]:
+        assistant_instruction = (
+            "\n\nIMPORTANT: This is an ASSISTANT turn. Extract any specific facts, "
+            "names, numbers, or claims the assistant stated that the user might "
+            "later want to recall. Use predicate 'user_fact' with subject 'user' "
+            "for factual statements the assistant provided to the user. Preserve "
+            "exact names, titles, numbers, and percentages."
+        )
     return (
         f"Current turn:\n    {speaker_label}: {turn_text}\n\n"
         f"Active claims: {active_claims_summary}\n"
+        f"{assistant_instruction}"
     )
 
 
