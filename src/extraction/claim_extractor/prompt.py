@@ -91,6 +91,15 @@ JSON — a list of claim objects, possibly empty.
    "maybe") drop confidence below 0.7. Unheard or inferred content is never
    emitted.
 
+8. **Exact fact preservation for memory benchmarks**. Preserve short scalar
+   facts verbatim in at least one claim value: personal names and titles,
+   locations, money amounts, durations, counts, dates/times, percentages,
+   product/model names, course/degree names, and quoted titles. Do not round,
+   paraphrase away, translate, or replace these values. If the turn says
+   "$400,000", "8 days", "Dr. Arati Prabhakar", "the suburbs", "25:50",
+   "Samsung Galaxy S22", or "Business Administration", at least one emitted
+   claim value must contain that exact value or a numerically identical form.
+
 ## Output schema (one claim)
 
 ```

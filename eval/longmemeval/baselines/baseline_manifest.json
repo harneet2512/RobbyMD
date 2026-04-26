@@ -1,0 +1,11 @@
+{
+  "benchmark": "LongMemEval-S",
+  "pack": "personal_assistant",
+  "variant": "baseline",
+  "published_source": "ICLR 2025 — https://arxiv.org/abs/2410.10813",
+  "published_scores": {
+    "overall_accuracy": null,
+    "per_category_accuracy": {}
+  },
+  "note": "This file records the published baseline for LongMemEval-S on the personal_assistant pack. Values to be filled in after comparing to official paper."
+}

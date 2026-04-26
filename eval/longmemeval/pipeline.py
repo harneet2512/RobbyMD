@@ -148,6 +148,10 @@ class CaseTrace:
     active_claims: int = 0
     superseded_claims: int = 0
     supersession_pairs: int = 0
+    extracted_claim_ids: list[str] = field(default_factory=list)
+    extracted_claim_values_by_id: dict[str, str] = field(default_factory=dict)
+    active_claim_ids: list[str] = field(default_factory=list)
+    active_claim_values_by_id: dict[str, str] = field(default_factory=dict)
 
     # Router
     retrieval_mode: str = ""
@@ -155,6 +159,8 @@ class CaseTrace:
 
     # Retrieval
     retrieved_candidates: int = 0
+    retrieved_claim_ids: list[str] = field(default_factory=list)
+    retrieved_claim_values_by_id: dict[str, str] = field(default_factory=dict)
 
     # Verifier
     verified_direct: int = 0
@@ -162,6 +168,8 @@ class CaseTrace:
     verified_conflict: int = 0
     verified_background: int = 0
     verified_irrelevant: int = 0
+    verified_claim_ids_by_label: dict[str, list[str]] = field(default_factory=dict)
+    verified_claim_values_by_id: dict[str, str] = field(default_factory=dict)
 
     # Sufficiency
     sufficiency: str = ""
@@ -180,6 +188,8 @@ class CaseTrace:
     final_claim_ids: list[str] = field(default_factory=list)
     final_claim_values: list[str] = field(default_factory=list)
     final_claim_types: list[str] = field(default_factory=list)
+    final_bundle_text: str = ""
+    reader_prompt: str = ""
     reader_input: str = ""
 
     # Session-neighbor expansion
@@ -203,6 +213,7 @@ class CaseTrace:
 
     # Answer
     answer: str = ""
+    reader_output: str = ""
     failure_class: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -325,6 +336,14 @@ def run_substrate_case(
     trace.claims_written = stats.claims_written_count
     trace.active_claims = stats.active_claim_count
     trace.superseded_claims = stats.supersessions_fired_count
+    extracted_rows = conn.execute(
+        "SELECT claim_id, value FROM claims WHERE session_id = ? ORDER BY created_ts ASC, claim_id ASC",
+        (q.question_id,),
+    ).fetchall()
+    trace.extracted_claim_ids = [str(r["claim_id"]) for r in extracted_rows]
+    trace.extracted_claim_values_by_id = {
+        str(r["claim_id"]): str(r["value"]) for r in extracted_rows
+    }
 
     # ── Step 2: Route question ──────────────────────────────────────
     strategy = classify_question(q.question, q.question_type)
@@ -343,6 +362,8 @@ def run_substrate_case(
         conn, q.question_id, strategy.retrieval_mode.value
     )
     active = list_active_claims(conn, q.question_id)
+    trace.active_claim_ids = [c.claim_id for c in active]
+    trace.active_claim_values_by_id = {c.claim_id: c.value for c in active}
     pairs = list_supersession_pairs(conn, q.question_id)
     trace.supersession_pairs = len(pairs)
 
@@ -427,6 +448,10 @@ def run_substrate_case(
         trace.event_source_claim_ids = list(event_claim_ids)
 
     trace.retrieved_candidates = len(candidates)
+    trace.retrieved_claim_ids = [claim.claim_id for claim, _ in candidates]
+    trace.retrieved_claim_values_by_id = {
+        claim.claim_id: claim.value for claim, _ in candidates
+    }
 
     # ── Step 5: Verify evidence ─────────────────────────────────────
     classified = classify_evidence(
@@ -442,6 +467,12 @@ def run_substrate_case(
         elif t == "conflict": trace.verified_conflict += 1
         elif t == "background": trace.verified_background += 1
         elif t == "irrelevant": trace.verified_irrelevant += 1
+    trace.verified_claim_ids_by_label = {}
+    trace.verified_claim_values_by_id = {}
+    for e in classified:
+        label = e.evidence_type.value
+        trace.verified_claim_ids_by_label.setdefault(label, []).append(e.claim.claim_id)
+        trace.verified_claim_values_by_id[e.claim.claim_id] = e.claim.value
 
     # ── Step 5b: Event-neighbor expansion if DIRECT is slot-incomplete ──
     trace.slot_type = slot
@@ -518,6 +549,12 @@ def run_substrate_case(
                 1 for e in kept
                 if any(e.claim.claim_id == nc.claim_id for nc, _ in neighbor_claims)
             )
+            trace.verified_claim_ids_by_label = {}
+            trace.verified_claim_values_by_id = {}
+            for e in classified:
+                label = e.evidence_type.value
+                trace.verified_claim_ids_by_label.setdefault(label, []).append(e.claim.claim_id)
+                trace.verified_claim_values_by_id[e.claim.claim_id] = e.claim.value
 
     # ── Step 6: Assess sufficiency ──────────────────────────────────
     trace.sufficiency = EvidenceSufficiency.assess(classified)
@@ -586,7 +623,9 @@ def run_substrate_case(
     trace.final_claim_types = [ev.evidence_type.value for ev in budgeted.evidence]
 
     structured_text = format_structured_bundle(bundle, list(budgeted.evidence), supersession_info)
+    trace.final_bundle_text = structured_text
     trace.reader_input = structured_text
+    trace.reader_prompt = f"{structured_text}\n\nQuestion: {q.question}"
 
     # ── Step 9: Reader ──────────────────────────────────────────────
     if trace.should_abstain:
@@ -601,9 +640,10 @@ def run_substrate_case(
             "answer even if no single claim states the full answer verbatim. "
             'Only reply "I don\'t know" if the evidence is truly unrelated to the question.'
         )
-        trace.answer = reader_fn(system, f"{structured_text}\n\nQuestion: {q.question}")
+        trace.answer = reader_fn(system, trace.reader_prompt)
     else:
         trace.answer = f"[NO READER] bundle has {trace.final_evidence_count} claims"
+    trace.reader_output = trace.answer
 
     conn.close()
     return trace.answer, trace

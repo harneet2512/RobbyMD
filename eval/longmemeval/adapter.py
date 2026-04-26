@@ -18,14 +18,15 @@ from pathlib import Path
 
 from eval._common import Turn
 
-# LongMemEval's five question-category labels per ICLR 2025 paper §3.
+# Official LongMemEval-S question_type labels in the released JSON.
 QUESTION_CATEGORIES: frozenset[str] = frozenset(
     {
-        "information_extraction",
-        "multi_session_reasoning",
-        "temporal_reasoning",
-        "knowledge_update",
-        "abstention",
+        "single-session-user",
+        "single-session-assistant",
+        "single-session-preference",
+        "multi-session",
+        "temporal-reasoning",
+        "knowledge-update",
     }
 )
 

@@ -197,12 +197,23 @@ def _render_extracted_claims_for_prompt(
             "names, numbers, or claims the assistant stated that the user might "
             "later want to recall. Use predicate 'user_fact' with subject 'user' "
             "for factual statements the assistant provided to the user. Preserve "
-            "exact names, titles, numbers, and percentages."
+            "exact names, titles, numbers, amounts, durations, locations, model "
+            "names, quoted titles, and percentages."
         )
+    exact_fact_instruction = (
+        "\n\nEXACT FACT PRESERVATION: If this turn contains a short scalar fact "
+        "or named entity, preserve it verbatim in at least one claim value. This "
+        "includes personal names/titles, locations, money amounts, durations, "
+        "counts, dates/times, percentages, product/model names, course/degree "
+        "names, and quoted titles. Do not round, generalize, or replace values "
+        "such as '$400,000', '8 days', 'Dr. Arati Prabhakar', 'the suburbs', "
+        "'25:50', 'Samsung Galaxy S22', or 'Business Administration'."
+    )
     return (
         f"Current turn:\n    {speaker_label}: {turn_text}\n\n"
         f"Active claims: {active_claims_summary}\n"
         f"{assistant_instruction}"
+        f"{exact_fact_instruction}"
     )
 
 

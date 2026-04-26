@@ -14,6 +14,7 @@ import json
 import re
 import sys
 import time
+import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -87,6 +88,36 @@ class DiagnosticCase:
     gold: str
     predicted: str
     score: float
+    gold_answer: str = ""
+    gold_normalized: str = ""
+    predicted_answer: str = ""
+    predicted_normalized: str = ""
+    extracted_claim_ids: list[str] = field(default_factory=list)
+    active_claim_ids: list[str] = field(default_factory=list)
+    retrieved_claim_ids: list[str] = field(default_factory=list)
+    verified_claim_ids_by_label: dict[str, list[str]] = field(default_factory=dict)
+    final_bundle_claim_ids: list[str] = field(default_factory=list)
+    final_bundle_claim_values: list[str] = field(default_factory=list)
+    final_bundle_text: str = ""
+    reader_prompt: str = ""
+    reader_output: str = ""
+    scorer_inputs: dict[str, str] = field(default_factory=dict)
+    scorer_result: bool = False
+    extracted_claim_values_by_id: dict[str, str] = field(default_factory=dict)
+    active_claim_values_by_id: dict[str, str] = field(default_factory=dict)
+    retrieved_claim_values_by_id: dict[str, str] = field(default_factory=dict)
+    verified_claim_values_by_id: dict[str, str] = field(default_factory=dict)
+    gold_claim_ids_extracted: list[str] = field(default_factory=list)
+    gold_claim_ids_active: list[str] = field(default_factory=list)
+    gold_claim_ids_retrieved: list[str] = field(default_factory=list)
+    gold_claim_ids_verified: list[str] = field(default_factory=list)
+    gold_claim_ids_in_final_bundle: list[str] = field(default_factory=list)
+    gold_extracted_exact: bool = False
+    gold_active_exact: bool = False
+    gold_retrieved_exact: bool = False
+    gold_verified_exact: bool = False
+    gold_in_bundle_exact: bool = False
+    reader_saw_gold_exact: bool = False
     gold_extracted: bool = False
     gold_active: bool = False
     gold_retrieved: bool = False
@@ -115,8 +146,36 @@ def _classify_diagnostic_category(q: LongMemEvalQuestion) -> str:
     return base
 
 
+def _normalize_short_answer_text(text: str) -> str:
+    """Normalize short answers while preserving numeric identity."""
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    normalized = re.sub(r"(?<=\d)[,_](?=\d)", "", normalized)
+    chars: list[str] = []
+    for ch in normalized:
+        if unicodedata.category(ch) == "Sc":
+            continue
+        chars.append(ch if ch.isalnum() else " ")
+    return re.sub(r"\s+", " ", "".join(chars)).strip()
+
+
+def _short_answer_token_count(normalized: str) -> int:
+    return len(re.findall(r"[a-z0-9]+", normalized))
+
+
+def _contains_boundary_match(gold_norm: str, text_norm: str) -> bool:
+    pattern = rf"(?<![a-z0-9]){re.escape(gold_norm)}(?![a-z0-9])"
+    return re.search(pattern, text_norm) is not None
+
+
 def _gold_in_text(gold: str, text: str) -> bool:
-    """Check if the gold answer appears in the text, with flexible matching."""
+    """Check if the gold answer appears in the text, with strict short answers."""
+    gold_norm = _normalize_short_answer_text(gold)
+    text_norm = _normalize_short_answer_text(text)
+    if _short_answer_token_count(gold_norm) <= 3:
+        if not gold_norm or not text_norm:
+            return False
+        return gold_norm == text_norm or _contains_boundary_match(gold_norm, text_norm)
+
     gl = gold.lower().strip()
     tl = text.lower().strip()
     if gl in tl:
@@ -133,14 +192,74 @@ def _gold_in_text(gold: str, text: str) -> bool:
     return overlap >= 0.45
 
 
+def _claim_matches_gold(gold: str, claim_value: str) -> bool:
+    """Identify claim IDs whose values directly or partially express the gold."""
+    return _gold_in_text(gold, claim_value) or _gold_in_text(claim_value, gold)
+
+
+def _matching_claim_ids(gold: str, ids: list[str], values_by_id: dict[str, str]) -> list[str]:
+    return [cid for cid in ids if _claim_matches_gold(gold, values_by_id.get(cid, ""))]
+
+
+def _verified_ids_by_label(verified: dict[str, list[str]]) -> list[str]:
+    ids: list[str] = []
+    for label_ids in verified.values():
+        ids.extend(label_ids)
+    return ids
+
+
+def _classify_exact_failure(dc: DiagnosticCase) -> None:
+    if dc.scorer_result:
+        dc.first_failing_layer = ""
+        dc.failure_class = ""
+    elif not dc.gold_claim_ids_extracted:
+        dc.first_failing_layer = "extraction"
+        dc.failure_class = "extraction_failure"
+    elif not dc.gold_claim_ids_active:
+        dc.first_failing_layer = "supersession"
+        dc.failure_class = "supersession_failure"
+    elif not dc.gold_claim_ids_retrieved:
+        dc.first_failing_layer = "retrieval"
+        dc.failure_class = "retrieval_failure"
+    elif not dc.gold_claim_ids_verified:
+        dc.first_failing_layer = "verifier"
+        dc.failure_class = "verifier_failure"
+    elif not dc.gold_claim_ids_in_final_bundle:
+        dc.first_failing_layer = "bundling"
+        dc.failure_class = "bundling_failure"
+    elif not dc.scorer_result:
+        dc.first_failing_layer = "reader"
+        dc.failure_class = "reader_failure"
+
+
 def _classify_failure_from_trace(trace: CaseTrace, gold: str) -> DiagnosticCase:
     """Build a DiagnosticCase from a CaseTrace, classifying the first failing layer."""
+    scorer_result = _gold_in_text(gold, trace.answer)
     dc = DiagnosticCase(
         case_id=trace.case_id,
         category="",
         gold=gold,
         predicted=trace.answer,
-        score=1.0 if _gold_in_text(gold, trace.answer) else 0.0,
+        score=1.0 if scorer_result else 0.0,
+        gold_answer=gold,
+        gold_normalized=_normalize_short_answer_text(gold),
+        predicted_answer=trace.answer,
+        predicted_normalized=_normalize_short_answer_text(trace.answer),
+        extracted_claim_ids=trace.extracted_claim_ids,
+        active_claim_ids=trace.active_claim_ids,
+        retrieved_claim_ids=trace.retrieved_claim_ids,
+        verified_claim_ids_by_label=trace.verified_claim_ids_by_label,
+        final_bundle_claim_ids=trace.final_claim_ids,
+        final_bundle_claim_values=trace.final_claim_values,
+        final_bundle_text=trace.final_bundle_text,
+        reader_prompt=trace.reader_prompt,
+        reader_output=trace.reader_output or trace.answer,
+        scorer_inputs={"gold": gold, "predicted": trace.answer},
+        scorer_result=scorer_result,
+        extracted_claim_values_by_id=trace.extracted_claim_values_by_id,
+        active_claim_values_by_id=trace.active_claim_values_by_id,
+        retrieved_claim_values_by_id=trace.retrieved_claim_values_by_id,
+        verified_claim_values_by_id=trace.verified_claim_values_by_id,
         event_frames_assembled=trace.event_frames_assembled,
         event_frames_contributed=len(trace.event_source_claim_ids) > 0,
         bundle_tokens=trace.bundle_tokens,
@@ -149,57 +268,34 @@ def _classify_failure_from_trace(trace: CaseTrace, gold: str) -> DiagnosticCase:
         supporting_evidence_tokens=trace.supporting_evidence_tokens,
         source_path=trace.answer_source_path,
     )
-
-    # Walk the chain to find first failure
-    # 1. Extraction
-    all_values = " ".join(trace.final_claim_values).lower() if trace.final_claim_values else ""
-    dc.gold_extracted = trace.claims_written > 0
-    if not dc.gold_extracted:
-        dc.first_failing_layer = "extraction"
-        dc.failure_class = "extraction_failure"
-        return dc
-
-    # 2. Active (not superseded)
-    dc.gold_active = trace.active_claims > 0
-    if trace.active_claims == 0:
-        dc.first_failing_layer = "supersession"
-        dc.failure_class = "supersession_failure"
-        return dc
-
-    # 3. Retrieved
-    dc.gold_retrieved = trace.retrieved_candidates > 0
-    if trace.retrieved_candidates == 0:
-        dc.first_failing_layer = "retrieval"
-        dc.failure_class = "retrieval_failure"
-        return dc
-
-    # 4. Verified (has any DIRECT)
-    dc.gold_verified = trace.verified_direct > 0
-    if trace.verified_direct == 0:
-        dc.first_failing_layer = "classification"
-        dc.failure_class = "classification_failure"
-        return dc
-
-    # 5. In bundle
-    dc.gold_in_bundle = trace.final_evidence_count > 0
-    if trace.final_evidence_count == 0:
-        dc.first_failing_layer = "bundling"
-        dc.failure_class = "bundling_failure"
-        return dc
-
-    # 6. Reader correct
-    if dc.score < 1.0:
-        # Check if gold is in the reader input
-        if _gold_in_text(gold, trace.reader_input):
-            dc.first_failing_layer = "reader"
-            dc.failure_class = "reader_failure"
-        else:
-            dc.first_failing_layer = "bundling"
-            dc.failure_class = "bundling_failure"
-        return dc
-
+    dc.gold_claim_ids_extracted = _matching_claim_ids(
+        gold, trace.extracted_claim_ids, trace.extracted_claim_values_by_id
+    )
+    dc.gold_claim_ids_active = _matching_claim_ids(
+        gold, trace.active_claim_ids, trace.active_claim_values_by_id
+    )
+    dc.gold_claim_ids_retrieved = _matching_claim_ids(
+        gold, trace.retrieved_claim_ids, trace.retrieved_claim_values_by_id
+    )
+    verified_ids = _verified_ids_by_label(trace.verified_claim_ids_by_label)
+    dc.gold_claim_ids_verified = _matching_claim_ids(
+        gold, verified_ids, trace.verified_claim_values_by_id
+    )
+    final_values_by_id = dict(zip(trace.final_claim_ids, trace.final_claim_values, strict=False))
+    dc.gold_claim_ids_in_final_bundle = _matching_claim_ids(gold, trace.final_claim_ids, final_values_by_id)
+    dc.gold_extracted_exact = bool(dc.gold_claim_ids_extracted)
+    dc.gold_active_exact = bool(dc.gold_claim_ids_active)
+    dc.gold_retrieved_exact = bool(dc.gold_claim_ids_retrieved)
+    dc.gold_verified_exact = bool(dc.gold_claim_ids_verified)
+    dc.gold_in_bundle_exact = bool(dc.gold_claim_ids_in_final_bundle)
+    dc.gold_extracted = dc.gold_extracted_exact
+    dc.gold_active = dc.gold_active_exact
+    dc.gold_retrieved = dc.gold_retrieved_exact
+    dc.gold_verified = dc.gold_verified_exact
+    dc.gold_in_bundle = dc.gold_in_bundle_exact
+    dc.reader_saw_gold_exact = _gold_in_text(gold, trace.reader_prompt or trace.reader_input)
+    _classify_exact_failure(dc)
     return dc
-
 
 def select_diagnostic_slice(
     questions_path: Path,
