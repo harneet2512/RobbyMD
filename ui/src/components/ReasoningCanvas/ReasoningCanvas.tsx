@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "framer-motion";
 import { useSession } from "@/store/session";
 import type {
   BranchScore,
@@ -40,6 +40,16 @@ const statusRank: Record<Claim["status"], number> = {
   dismissed: 3,
 };
 const EXPO_OUT = [0.16, 1, 0.3, 1] as const;
+
+function motionScrollBehavior(): ScrollBehavior {
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return "auto";
+  }
+  return "smooth";
+}
 
 interface LabItem {
   name: string;
@@ -436,13 +446,17 @@ function FocusOverlay({
   target,
   data,
   onClose,
+  restoreFocusTo,
 }: {
   target: FocusTarget;
   data: CanvasData;
   onClose: () => void;
+  restoreFocusTo: HTMLElement | null;
 }) {
   const verifier = useSession((s) => s.verifier);
   const cardRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
   const steps = buildFocusSteps(target, data, verifier);
 
   useEffect(() => {
@@ -453,7 +467,46 @@ function FocusOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      restoreFocusTo?.focus({ preventScroll: true });
+    };
+  }, [restoreFocusTo]);
+
   if (steps.length === 0) return null;
+
+  const cardInitial = reduceMotion
+    ? { opacity: 0 }
+    : { opacity: 0, y: 8 };
+  const cardAnimate = reduceMotion
+    ? { opacity: 1 }
+    : { opacity: 1, y: 0 };
+  const cardExit = reduceMotion
+    ? { opacity: 0 }
+    : { opacity: 0, y: 8 };
+
+  const handleDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab" || !cardRef.current) return;
+    const focusable = Array.from(
+      cardRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => !el.hasAttribute("disabled"));
+    if (focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
     <>
@@ -468,12 +521,17 @@ function FocusOverlay({
       <motion.div
         ref={cardRef}
         className={styles.focusOverlayCard}
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.96 }}
-        transition={{ duration: 0.15, ease: EXPO_OUT }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="provenance-thread-title"
+        initial={cardInitial}
+        animate={cardAnimate}
+        exit={cardExit}
+        transition={{ duration: reduceMotion ? 0.01 : 0.16, ease: EXPO_OUT }}
+        onKeyDown={handleDialogKeyDown}
       >
         <button
+          ref={closeRef}
           className={styles.focusOverlayClose}
           type="button"
           aria-label="Close provenance thread"
@@ -481,7 +539,7 @@ function FocusOverlay({
         >
           ×
         </button>
-        <div className={styles.focusOverlayTitle}>Provenance Thread</div>
+        <div id="provenance-thread-title" className={styles.focusOverlayTitle}>Provenance Thread</div>
         {steps.map((step, i) => (
           <div key={i} className={styles.focusOverlayStep}>
             <span
@@ -553,6 +611,8 @@ function TranscriptPanel(props: {
   const endRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLElement>(null);
   const isNearBottom = useRef(true);
+  const followRaf = useRef<number | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const el = transcriptRef.current;
@@ -560,15 +620,58 @@ function TranscriptPanel(props: {
     const onScroll = () => {
       isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     };
+    const onUserScrollIntent = () => {
+      if (followRaf.current !== null) {
+        cancelAnimationFrame(followRaf.current);
+        followRaf.current = null;
+      }
+      isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    el.addEventListener("wheel", onUserScrollIntent, { passive: true });
+    el.addEventListener("touchstart", onUserScrollIntent, { passive: true });
+    el.addEventListener("pointerdown", onUserScrollIntent, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("wheel", onUserScrollIntent);
+      el.removeEventListener("touchstart", onUserScrollIntent);
+      el.removeEventListener("pointerdown", onUserScrollIntent);
+    };
   }, []);
 
   useEffect(() => {
     if (isNearBottom.current) {
-      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      const el = transcriptRef.current;
+      if (!el) return;
+      const targetTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (followRaf.current !== null) cancelAnimationFrame(followRaf.current);
+
+      if (reduceMotion) {
+        el.scrollTop = targetTop;
+        return;
+      }
+
+      const tick = () => {
+        const current = el.scrollTop;
+        const next = current + (targetTop - current) * 0.18;
+        if (Math.abs(targetTop - next) < 1) {
+          el.scrollTop = targetTop;
+          followRaf.current = null;
+          return;
+        }
+        el.scrollTop = next;
+        followRaf.current = requestAnimationFrame(tick);
+      };
+
+      followRaf.current = requestAnimationFrame(tick);
     }
-  }, [turns.length]);
+    }, [turns.length, reduceMotion]);
+
+  useEffect(() => {
+    return () => {
+      if (followRaf.current !== null) cancelAnimationFrame(followRaf.current);
+    };
+  }, []);
 
   return (
     <section ref={transcriptRef} className={styles.transcript} data-surface="transcript">
@@ -582,9 +685,9 @@ function TranscriptPanel(props: {
               className={styles.turn}
               key={turn.turn_id}
               data-turn-id={turn.turn_id}
-              initial={{ opacity: 0, y: 6 }}
+              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: EXPO_OUT }}
+              transition={{ duration: reduceMotion ? 0.01 : 0.24, ease: EXPO_OUT }}
             >
               <div className={styles.turnHeader}>
                 <span className={styles.turnTime}>{fmtTime(turn.ts)}</span>
@@ -775,6 +878,7 @@ function DifferentialFocal(props: {
     onFocus,
   } = props;
   const verifier = useSession((s) => s.verifier);
+  const reduceMotion = useReducedMotion();
 
   if (hypotheses.length === 0) {
     return (
@@ -826,7 +930,7 @@ function DifferentialFocal(props: {
           .filter(Boolean)
           .join(" ")}
         layout
-        transition={{ duration: 0.3, ease: EXPO_OUT }}
+        transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: EXPO_OUT }}
         onMouseEnter={() =>
           onHover({ type: "hypothesis", id: primary.branch })
         }
@@ -848,9 +952,9 @@ function DifferentialFocal(props: {
                     : styles.focalEvidenceToken
                 }
                 type="button"
-                initial={{ opacity: 0, scale: 0.85, y: 4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.35, ease: EXPO_OUT }}
+                initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: reduceMotion ? 0.01 : 0.2, ease: EXPO_OUT }}
                 onMouseEnter={() =>
                   onHover({ type: "claim", id: t.id })
                 }
@@ -922,7 +1026,7 @@ function DifferentialFocal(props: {
                   .filter(Boolean)
                   .join(" ")}
                 layout
-                transition={{ duration: 0.3, ease: EXPO_OUT }}
+                transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: EXPO_OUT }}
                 onMouseEnter={() =>
                   onHover({ type: "hypothesis", id: h.branch })
                 }
@@ -961,7 +1065,7 @@ function DifferentialFocal(props: {
               key={h.branch}
               className={styles.focalTertiary}
               layout
-              transition={{ duration: 0.3, ease: EXPO_OUT }}
+              transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: EXPO_OUT }}
               onMouseEnter={() =>
                 onHover({ type: "hypothesis", id: h.branch })
               }
@@ -1074,6 +1178,7 @@ function ContextPanel(props: {
   const [rightTab, setRightTab] = useState<"context" | "documents" | "note">("context");
   const [reviewed, setReviewed] = useState<Set<string>>(new Set());
   const prevSentenceCount = useRef(0);
+  const rightTabs = ["context", "documents", "note"] as const;
 
   // Auto-switch to note tab when SOAP arrives
   useEffect(() => {
@@ -1285,6 +1390,8 @@ function ContextPanel(props: {
                       <button
                         className={isReviewed ? styles.soapCheckboxChecked : styles.soapCheckbox}
                         type="button"
+                        aria-label={isReviewed ? "Mark sentence as not reviewed" : "Mark sentence as reviewed"}
+                        aria-pressed={isReviewed}
                         onClick={() => toggleReviewed(s.sentence_id)}
                       >
                         {isReviewed && <span style={{ color: "#FFFFFF", fontSize: 10, lineHeight: 1 }}>✓</span>}
@@ -1353,7 +1460,20 @@ function ContextPanel(props: {
 
   return (
     <aside className={styles.context} data-surface="context">
-      <div className={styles.rightTabBar} role="tablist">
+      <div
+        className={styles.rightTabBar}
+        role="tablist"
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const current = rightTabs.indexOf(rightTab);
+          const next =
+            e.key === "ArrowRight"
+              ? (current + 1) % rightTabs.length
+              : (current + rightTabs.length - 1) % rightTabs.length;
+          setRightTab(rightTabs[next]!);
+        }}
+      >
         <button
           className={rightTab === "context" ? styles.rightTabActive : styles.rightTab}
           type="button"
@@ -1405,6 +1525,11 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
   const svgRef = useRef<SVGSVGElement>(null);
   const [recordState, setRecordState] = useState<RecordState>("idle");
   const [selectedPct, setSelectedPct] = useState<number | null>(null);
+  const [speedIndex, setSpeedIndex] = useState(1);
+  const [smoothTimeNs, setSmoothTimeNs] = useState(0);
+  const [seekNonce, setSeekNonce] = useState(0);
+  const smoothTimeRef = useRef(0);
+  const reduceMotion = useReducedMotion();
 
   const isRecording = recordState === "recording";
   const hasData = data.turns.length > 0;
@@ -1424,15 +1549,52 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
 
   const currentTimeNs = hasData ? data.turns[data.turns.length - 1]!.ts : 0;
   const expectedDurationNs = Math.max(ENCOUNTER_DURATION_NS, currentTimeNs * 1.1);
-  const currentTime = fmtTime(currentTimeNs);
+  const railTimeNs = Math.max(currentTimeNs, smoothTimeNs);
+  const currentTime = fmtTime(railTimeNs);
   const totalTime = fmtTime(expectedDurationNs);
-  const livePct = expectedDurationNs > 0 ? Math.min(100, (currentTimeNs / expectedDurationNs) * 100) : 0;
+  const livePct = expectedDurationNs > 0 ? Math.min(100, (railTimeNs / expectedDurationNs) * 100) : 0;
 
   const waveHeights = useMemo(
     () => buildWaveform(data.turns, expectedDurationNs),
     [data.turns, expectedDurationNs],
   );
   const svgW = 960;
+  const playbackRates = [0.5, 1, 1.5] as const;
+  const playbackRate = playbackRates[speedIndex] ?? 1;
+
+  useEffect(() => {
+    if (currentTimeNs <= smoothTimeRef.current) return;
+    smoothTimeRef.current = currentTimeNs;
+    setSmoothTimeNs(currentTimeNs);
+  }, [currentTimeNs]);
+
+  useEffect(() => {
+    if (!isRecording || !hasData || expectedDurationNs === 0) return;
+    if (reduceMotion) {
+      smoothTimeRef.current = Math.max(smoothTimeRef.current, currentTimeNs);
+      setSmoothTimeNs(smoothTimeRef.current);
+      return;
+    }
+
+    let raf = 0;
+    const startPerf = performance.now();
+    const startNs = Math.max(smoothTimeRef.current, currentTimeNs);
+
+    const tick = (now: number) => {
+      const next = Math.min(
+        expectedDurationNs,
+        startNs + (now - startPerf) * 1_000_000 * playbackRate,
+      );
+      smoothTimeRef.current = next;
+      setSmoothTimeNs(next);
+      if (next < expectedDurationNs && recordState === "recording") {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [currentTimeNs, expectedDurationNs, hasData, isRecording, playbackRate, recordState, reduceMotion, seekNonce]);
 
   const markers = useMemo<RailEvent[]>(() => {
     if (expectedDurationNs === 0) return [];
@@ -1469,22 +1631,86 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
     return ticks;
   }, [expectedDurationNs]);
 
-  const handleTimelineClick = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
+  const seekFromClientX = useCallback(
+    (clientX: number, commit: boolean) => {
       const rect = svgRef.current?.getBoundingClientRect();
-      if (!rect || expectedDurationNs === 0) return;
-      const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      if (!rect || expectedDurationNs === 0 || data.turns.length === 0) return;
+      const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
       setSelectedPct(pct);
       const targetNs = (pct / 100) * expectedDurationNs;
-      const nearest = [...data.turns].reverse().find((t) => t.ts <= targetNs);
-      if (nearest) onScrollToTurn(nearest.turn_id);
+      smoothTimeRef.current = targetNs;
+      setSmoothTimeNs(targetNs);
+      setSeekNonce((n) => n + 1);
+      if (commit) {
+        const nearest = [...data.turns].reverse().find((t) => t.ts <= targetNs);
+        if (nearest) onScrollToTurn(nearest.turn_id);
+      }
     },
     [expectedDurationNs, data.turns, onScrollToTurn],
+  );
+
+  const handleTimelineClick = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      seekFromClientX(e.clientX, true);
+    },
+    [seekFromClientX],
+  );
+
+  const handleTimelinePointerDown = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      seekFromClientX(e.clientX, false);
+    },
+    [seekFromClientX],
+  );
+
+  const handleTimelinePointerMove = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      if ((e.buttons & 1) !== 1) return;
+      seekFromClientX(e.clientX, false);
+    },
+    [seekFromClientX],
+  );
+
+  const handleTimelinePointerUp = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      seekFromClientX(e.clientX, true);
+    },
+    [seekFromClientX],
   );
 
   const handleRecordToggle = useCallback(() => {
     setRecordState((s) => s === "recording" ? "paused" : "recording");
   }, []);
+
+  const handleSkip = useCallback(
+    (deltaSeconds: number) => {
+      if (data.turns.length === 0 || expectedDurationNs === 0) return;
+      const targetNs = Math.max(
+        0,
+        Math.min(expectedDurationNs, railTimeNs + deltaSeconds * 1_000_000_000),
+      );
+      smoothTimeRef.current = targetNs;
+      setSmoothTimeNs(targetNs);
+      const nearest =
+        [...data.turns].reverse().find((t) => t.ts <= targetNs) ?? data.turns[0];
+      if (nearest) onScrollToTurn(nearest.turn_id);
+      setSelectedPct((targetNs / expectedDurationNs) * 100);
+    },
+    [data.turns, expectedDurationNs, onScrollToTurn, railTimeNs],
+  );
+
+  const handleFullscreen = useCallback(() => {
+    const el = document.querySelector(`[data-surface="rail"]`) as HTMLElement | null;
+    if (!el || !document.fullscreenEnabled) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+    void el.requestFullscreen();
+  }, []);
+
+  const speedOptions = ["0.5x", "1x", "1.5x"];
 
   const barCount = 200;
   const barW = svgW / barCount;
@@ -1501,13 +1727,13 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
           {currentTime} <span className={styles.railTimeTotal}>/ {totalTime}</span>
         </span>
         <div className={styles.railTransport}>
-          <button className={styles.railBtn} type="button">
+          <button className={styles.railBtn} type="button" aria-label="Jump back 15 seconds" onClick={() => handleSkip(-15)}>
             <span className={styles.railBtnSkipIcon}>◀</span>15
           </button>
           <button className={styles.railBtnPause} type="button" aria-label={isRecording ? "Pause" : "Play"} onClick={handleRecordToggle}>
             {isRecording ? "❚❚" : "▶"}
           </button>
-          <button className={styles.railBtn} type="button">
+          <button className={styles.railBtn} type="button" aria-label="Jump forward 15 seconds" onClick={() => handleSkip(15)}>
             15<span className={styles.railBtnSkipIcon}>▶</span>
           </button>
         </div>
@@ -1519,9 +1745,19 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
         <svg
           ref={svgRef}
           className={styles.waveformSvg}
+          role="button"
+          aria-label="Conversation timeline"
+          tabIndex={0}
           viewBox={`0 0 ${svgW} ${WAVE_H}`}
           preserveAspectRatio="none"
           onClick={handleTimelineClick}
+          onPointerDown={handleTimelinePointerDown}
+          onPointerMove={handleTimelinePointerMove}
+          onPointerUp={handleTimelinePointerUp}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") handleSkip(-15);
+            if (e.key === "ArrowRight") handleSkip(15);
+          }}
         >
           {waveHeights.map((h, i) => {
             const barPct = (i / barCount) * 100;
@@ -1599,11 +1835,11 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
       {/* Right: speed + fullscreen */}
       <div className={styles.railRight}>
         <div className={styles.railSpeedControls}>
-          <button className={styles.railSpeedBtn} type="button">−</button>
-          <span className={styles.railSpeedCurrent}>1x</span>
-          <button className={styles.railSpeedBtn} type="button">+</button>
+          <button className={styles.railSpeedBtn} type="button" aria-label="Decrease playback speed" onClick={() => setSpeedIndex((i) => Math.max(0, i - 1))}>−</button>
+          <span className={styles.railSpeedCurrent} aria-live="polite">{speedOptions[speedIndex]}</span>
+          <button className={styles.railSpeedBtn} type="button" aria-label="Increase playback speed" onClick={() => setSpeedIndex((i) => Math.min(speedOptions.length - 1, i + 1))}>+</button>
         </div>
-        <button className={styles.railFullscreen} type="button">⛶</button>
+        <button className={styles.railFullscreen} type="button" aria-label="Toggle rail fullscreen" onClick={handleFullscreen}>⛶</button>
       </div>
 
       </div>{/* close railTop */}
@@ -1628,6 +1864,8 @@ export function ReasoningCanvas() {
   const clearSelection = useSession((s) => s.clearSelection);
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const suppressHoverRef = useRef(false);
 
   // Fix 5: pulse tracking
   const [pulsingLabels, setPulsingLabels] = useState<Set<string>>(new Set());
@@ -1635,10 +1873,27 @@ export function ReasoningCanvas() {
   const prevMatchedLabelsRef = useRef<Set<string>>(new Set());
 
   const closeFocus = useCallback(() => {
+    suppressHoverRef.current = true;
     setFocusTarget(null);
     setHoverTarget(null);
     clearSelection();
   }, [clearSelection]);
+
+  const handleHover = useCallback((target: HoverTarget) => {
+    if (suppressHoverRef.current && target) return;
+    setHoverTarget(target);
+  }, []);
+
+  const handleFocusTarget = useCallback((target: FocusTarget) => {
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    suppressHoverRef.current = false;
+    setFocusTarget(target);
+  }, []);
+
+  const handlePointerMove = useCallback(() => {
+    if (suppressHoverRef.current) suppressHoverRef.current = false;
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1722,15 +1977,17 @@ export function ReasoningCanvas() {
 
   const handleScrollToTurn = useCallback((turnId: string) => {
     const el = document.querySelector(`[data-turn-id="${turnId}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (el) el.scrollIntoView({ behavior: motionScrollBehavior(), block: "center" });
   }, []);
 
   return (
-    <main
-      className={[styles.canvas, activeTarget ? styles.revealing : ""]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <MotionConfig reducedMotion="user">
+      <main
+        className={[styles.canvas, activeTarget ? styles.revealing : ""]
+          .filter(Boolean)
+          .join(" ")}
+        onPointerMove={handlePointerMove}
+      >
       <PatientStrip state={stateLabel(data)} />
 
       <TranscriptPanel
@@ -1740,8 +1997,8 @@ export function ReasoningCanvas() {
         focusTarget={focusTarget}
         relatedClaims={relatedClaims}
         restAssoc={restAssoc}
-        onHover={setHoverTarget}
-        onFocus={setFocusTarget}
+        onHover={handleHover}
+        onFocus={handleFocusTarget}
       />
 
       <div className={styles.center}>
@@ -1752,8 +2009,8 @@ export function ReasoningCanvas() {
           focusTarget={focusTarget}
           relatedClaims={relatedClaims}
           restAssoc={restAssoc}
-          onHover={setHoverTarget}
-          onFocus={setFocusTarget}
+          onHover={handleHover}
+          onFocus={handleFocusTarget}
         />
 
         <DifferentialFocal
@@ -1763,8 +2020,8 @@ export function ReasoningCanvas() {
           hoverTarget={hoverTarget}
           focusTarget={focusTarget}
           data={data}
-          onHover={setHoverTarget}
-          onFocus={setFocusTarget}
+          onHover={handleHover}
+          onFocus={handleFocusTarget}
         />
 
         <NextQuestion />
@@ -1780,8 +2037,8 @@ export function ReasoningCanvas() {
         pulsingLabels={pulsingLabels}
         pulsingClaimIds={pulsingClaimIds}
         data={data}
-        onHover={setHoverTarget}
-        onFocus={setFocusTarget}
+        onHover={handleHover}
+        onFocus={handleFocusTarget}
       />
 
       <ConversationRail data={data} onScrollToTurn={handleScrollToTurn} />
@@ -1793,9 +2050,11 @@ export function ReasoningCanvas() {
             target={focusTarget}
             data={data}
             onClose={closeFocus}
+            restoreFocusTo={restoreFocusRef.current}
           />
         )}
       </AnimatePresence>
-    </main>
+      </main>
+    </MotionConfig>
   );
 }
