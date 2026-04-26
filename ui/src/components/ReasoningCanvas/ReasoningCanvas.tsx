@@ -41,16 +41,6 @@ const statusRank: Record<Claim["status"], number> = {
 };
 const EXPO_OUT = [0.16, 1, 0.3, 1] as const;
 
-function motionScrollBehavior(): ScrollBehavior {
-  if (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return "auto";
-  }
-  return "smooth";
-}
-
 interface LabItem {
   name: string;
   value: string;
@@ -593,25 +583,34 @@ function TranscriptPanel(props: {
   claimsByTurn: Map<string, Claim[]>;
   hoverTarget: HoverTarget;
   focusTarget: FocusTarget | null;
+  activeTurnId: string | null;
+  followTranscript: boolean;
   relatedClaims: Set<string>;
   restAssoc: Set<string>;
   onHover: (t: HoverTarget) => void;
   onFocus: (t: FocusTarget) => void;
+  onManualScroll: () => void;
+  onReturnToActive: () => void;
 }) {
   const {
     turns,
     claimsByTurn,
     hoverTarget,
     focusTarget,
+    activeTurnId,
+    followTranscript,
     relatedClaims,
     restAssoc,
     onHover,
     onFocus,
+    onManualScroll,
+    onReturnToActive,
   } = props;
   const endRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLElement>(null);
   const isNearBottom = useRef(true);
   const followRaf = useRef<number | null>(null);
+  const programmaticScrollRef = useRef(false);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -619,12 +618,20 @@ function TranscriptPanel(props: {
     if (!el) return;
     const onScroll = () => {
       isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (!followTranscript && activeTurnId) {
+        const row = el.querySelector<HTMLElement>(`[data-turn-id="${activeTurnId}"]`);
+        if (!row) return;
+        const rowTop = row.offsetTop - el.scrollTop;
+        const rowBottom = rowTop + row.offsetHeight;
+        if (rowTop >= 0 && rowBottom <= el.clientHeight) onReturnToActive();
+      }
     };
     const onUserScrollIntent = () => {
       if (followRaf.current !== null) {
         cancelAnimationFrame(followRaf.current);
         followRaf.current = null;
       }
+      if (!programmaticScrollRef.current) onManualScroll();
       isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     };
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -637,10 +644,10 @@ function TranscriptPanel(props: {
       el.removeEventListener("touchstart", onUserScrollIntent);
       el.removeEventListener("pointerdown", onUserScrollIntent);
     };
-  }, []);
+  }, [activeTurnId, followTranscript, onManualScroll, onReturnToActive]);
 
   useEffect(() => {
-    if (isNearBottom.current) {
+    if (turns.length > 0 && isNearBottom.current && !activeTurnId) {
       const el = transcriptRef.current;
       if (!el) return;
       const targetTop = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -665,7 +672,49 @@ function TranscriptPanel(props: {
 
       followRaf.current = requestAnimationFrame(tick);
     }
-    }, [turns.length, reduceMotion]);
+    }, [turns.length, reduceMotion, activeTurnId]);
+
+  useEffect(() => {
+    if (!activeTurnId || !followTranscript) return;
+    const el = transcriptRef.current;
+    const row = el?.querySelector<HTMLElement>(`[data-turn-id="${activeTurnId}"]`);
+    if (!el || !row) return;
+
+    if (followRaf.current !== null) {
+      cancelAnimationFrame(followRaf.current);
+      followRaf.current = null;
+    }
+
+    const rowTop = row.offsetTop;
+    const rowCenter = rowTop + row.offsetHeight / 2;
+    const targetTop = Math.max(0, rowCenter - el.clientHeight / 2);
+
+    programmaticScrollRef.current = true;
+    if (reduceMotion) {
+      el.scrollTop = targetTop;
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false;
+      }, 0);
+      return;
+    }
+
+    const tick = () => {
+      const current = el.scrollTop;
+      const next = current + (targetTop - current) * 0.22;
+      if (Math.abs(targetTop - next) < 1) {
+        el.scrollTop = targetTop;
+        followRaf.current = null;
+        window.setTimeout(() => {
+          programmaticScrollRef.current = false;
+        }, 0);
+        return;
+      }
+      el.scrollTop = next;
+      followRaf.current = requestAnimationFrame(tick);
+    };
+
+    followRaf.current = requestAnimationFrame(tick);
+  }, [activeTurnId, followTranscript, reduceMotion]);
 
   useEffect(() => {
     return () => {
@@ -680,11 +729,16 @@ function TranscriptPanel(props: {
         {turns.map((turn) => {
           const isPhysician = turn.speaker === "physician";
           const turnClaims = claimsByTurn.get(turn.turn_id) ?? [];
+          const isActive = activeTurnId === turn.turn_id;
           return (
             <motion.div
-              className={styles.turn}
+              className={`${styles.turn} ${isActive ? styles.turnActive : ""}`}
               key={turn.turn_id}
               data-turn-id={turn.turn_id}
+              aria-current={isActive ? "true" : undefined}
+              onFocus={() => {
+                if (isActive) onReturnToActive();
+              }}
               initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: reduceMotion ? 0.01 : 0.24, ease: EXPO_OUT }}
@@ -1515,44 +1569,123 @@ function ContextPanel(props: {
 
 type RecordState = "idle" | "recording" | "paused";
 
-interface RailEvent {
-  pct: number;
-  type: "speech" | "claim" | "dismissed" | "superseded" | "soap" | "shift";
+interface SpeakerLane {
+  speakerId: string;
+  speakerLabel: string;
+  speakerRole: "clinician" | "patient" | "caregiver" | "nurse" | "specialist" | "other";
+}
+
+interface SpeakerSegment {
+  id: string;
+  speakerId: string;
+  startMs: number;
+  endMs: number;
+  transcriptTurnId?: string;
+  estimatedEnd: boolean;
+}
+
+interface TimelineMarker {
+  id: string;
+  type: "claim" | "dismissal" | "supersession" | "soap" | "reasoning_shift" | "risk" | "contradiction";
+  timeMs: number;
+  endMs?: number;
+  relatedSpeakerId?: string;
   turnId?: string;
 }
 
-function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScrollToTurn: (turnId: string) => void }) {
+function fmtTimeMs(ms: number) {
+  return fmtTime(ms * 1_000_000);
+}
+
+function nsToMs(ns: number) {
+  return Math.max(0, ns / 1_000_000);
+}
+
+function clampTime(ms: number, durationMs: number) {
+  return Math.max(0, Math.min(durationMs, ms));
+}
+
+function speakerForTurn(turn: Turn): SpeakerLane {
+  if (turn.speaker === "physician") {
+    return { speakerId: "physician", speakerLabel: "Physician", speakerRole: "clinician" };
+  }
+  if (turn.speaker === "patient") {
+    return { speakerId: "patient", speakerLabel: "Patient", speakerRole: "patient" };
+  }
+  return { speakerId: turn.speaker, speakerLabel: "System", speakerRole: "other" };
+}
+
+function arraysEqual(a: readonly string[], b: readonly string[]) {
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
+}
+
+function activeTranscriptIdAt(timeMs: number, turns: Turn[]) {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]!;
+    if (nsToMs(turn.ts) <= timeMs) return turn.turn_id;
+  }
+  return turns[0]?.turn_id ?? null;
+}
+
+function activeSpeakerIdsAt(timeMs: number, segments: SpeakerSegment[]) {
+  return segments
+    .filter((segment) => segment.startMs <= timeMs && timeMs < segment.endMs)
+    .map((segment) => segment.speakerId)
+    .sort();
+}
+
+function ConversationRail({
+  data,
+  followTranscript,
+  onPlaybackTurnChange,
+  onSeekToTurn,
+}: {
+  data: CanvasData;
+  followTranscript: boolean;
+  onPlaybackTurnChange: (turnId: string | null) => void;
+  onSeekToTurn: (turnId: string | null) => void;
+}) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const waveAreaRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const currentTimeRef = useRef(0);
+  const lastPerfRef = useRef(0);
+  const isPlayingRef = useRef(false);
+  const playbackRateRef = useRef(1);
+  const isScrubbingRef = useRef(false);
+  const wasPlayingBeforeScrubRef = useRef(false);
+  const activeTurnRef = useRef<string | null>(null);
+  const activeSpeakerIdsRef = useRef<string[]>([]);
+  const coarseDisplayBucketRef = useRef(-1);
   const [recordState, setRecordState] = useState<RecordState>("idle");
-  const [selectedPct, setSelectedPct] = useState<number | null>(null);
+  const [selectedTimeMs, setSelectedTimeMs] = useState<number | null>(null);
   const [speedIndex, setSpeedIndex] = useState(1);
-  const [smoothTimeNs, setSmoothTimeNs] = useState(0);
-  const [seekNonce, setSeekNonce] = useState(0);
-  const smoothTimeRef = useRef(0);
-  const reduceMotion = useReducedMotion();
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubTimeMs, setScrubTimeMs] = useState(0);
+  const [activeSpeakerIds, setActiveSpeakerIds] = useState<string[]>([]);
 
   const isRecording = recordState === "recording";
   const hasData = data.turns.length > 0;
 
   useEffect(() => {
-    if (data.turns.length > 0 && recordState === "idle")
-      setRecordState("recording");
-  }, [data.turns.length, recordState]);
-
-  useEffect(() => {
-    if (selectedPct === null) return;
-    const t = setTimeout(() => setSelectedPct(null), 2000);
+    if (selectedTimeMs === null) return;
+    const t = setTimeout(() => setSelectedTimeMs(null), 1600);
     return () => clearTimeout(t);
-  }, [selectedPct]);
+  }, [selectedTimeMs]);
 
-  const ENCOUNTER_DURATION_NS = 240_000_000_000;
-
-  const currentTimeNs = hasData ? data.turns[data.turns.length - 1]!.ts : 0;
-  const expectedDurationNs = Math.max(ENCOUNTER_DURATION_NS, currentTimeNs * 1.1);
-  const railTimeNs = Math.max(currentTimeNs, smoothTimeNs);
-  const currentTime = fmtTime(railTimeNs);
-  const totalTime = fmtTime(expectedDurationNs);
-  const livePct = expectedDurationNs > 0 ? Math.min(100, (railTimeNs / expectedDurationNs) * 100) : 0;
+  const ENCOUNTER_DURATION_MS = 240_000;
+  const latestInputTimeMs = useMemo(() => {
+    const turnTimes = data.turns.map((turn) => nsToMs(turn.ts));
+    const claimTimes = [...data.claimsById.values()].map((claim) => nsToMs(claim.created_ts));
+    return Math.max(0, ...turnTimes, ...claimTimes);
+  }, [data.turns, data.claimsById]);
+  const durationMs = Math.max(ENCOUNTER_DURATION_MS, latestInputTimeMs * 1.1);
+  const expectedDurationNs = durationMs * 1_000_000;
+  const currentTime = fmtTimeMs(currentTimeMs);
+  const totalTime = fmtTimeMs(durationMs);
+  const livePct = durationMs > 0 ? Math.min(100, (currentTimeMs / durationMs) * 100) : 0;
 
   const waveHeights = useMemo(
     () => buildWaveform(data.turns, expectedDurationNs),
@@ -1563,59 +1696,156 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
   const playbackRate = playbackRates[speedIndex] ?? 1;
 
   useEffect(() => {
-    if (currentTimeNs <= smoothTimeRef.current) return;
-    smoothTimeRef.current = currentTimeNs;
-    setSmoothTimeNs(currentTimeNs);
-  }, [currentTimeNs]);
+    playbackRateRef.current = playbackRate;
+  }, [playbackRate]);
 
-  useEffect(() => {
-    if (!isRecording || !hasData || expectedDurationNs === 0) return;
-    if (reduceMotion) {
-      smoothTimeRef.current = Math.max(smoothTimeRef.current, currentTimeNs);
-      setSmoothTimeNs(smoothTimeRef.current);
-      return;
+  const speakers = useMemo<SpeakerLane[]>(() => {
+    const lanes = new Map<string, SpeakerLane>();
+    lanes.set("physician", { speakerId: "physician", speakerLabel: "Physician", speakerRole: "clinician" });
+    lanes.set("patient", { speakerId: "patient", speakerLabel: "Patient", speakerRole: "patient" });
+    for (const turn of data.turns) {
+      const speaker = speakerForTurn(turn);
+      lanes.set(speaker.speakerId, speaker);
     }
+    return [...lanes.values()];
+  }, [data.turns]);
 
-    let raf = 0;
-    const startPerf = performance.now();
-    const startNs = Math.max(smoothTimeRef.current, currentTimeNs);
+  const speakerSegments = useMemo<SpeakerSegment[]>(() => {
+    return data.turns.map((turn, index) => {
+      const startMs = nsToMs(turn.ts);
+      const nextStartMs = data.turns[index + 1] ? nsToMs(data.turns[index + 1]!.ts) : durationMs;
+      const estimatedSpeechMs = Math.min(10_000, Math.max(1_200, turn.text.length * 48));
+      const estimatedEndMs = Math.min(durationMs, startMs + estimatedSpeechMs);
+      const endMs = nextStartMs > startMs ? Math.min(nextStartMs, estimatedEndMs) : estimatedEndMs;
+      return {
+        id: turn.turn_id,
+        speakerId: speakerForTurn(turn).speakerId,
+        startMs,
+        endMs: Math.max(startMs + 500, endMs),
+        transcriptTurnId: turn.turn_id,
+        estimatedEnd: true,
+      };
+    });
+  }, [data.turns, durationMs]);
 
-    const tick = (now: number) => {
-      const next = Math.min(
-        expectedDurationNs,
-        startNs + (now - startPerf) * 1_000_000 * playbackRate,
-      );
-      smoothTimeRef.current = next;
-      setSmoothTimeNs(next);
-      if (next < expectedDurationNs && recordState === "recording") {
-        raf = requestAnimationFrame(tick);
+  const overlapWindows = useMemo(() => {
+    const overlaps: Array<{ id: string; startMs: number; endMs: number }> = [];
+    for (let i = 0; i < speakerSegments.length; i++) {
+      for (let j = i + 1; j < speakerSegments.length; j++) {
+        const a = speakerSegments[i]!;
+        const b = speakerSegments[j]!;
+        if (a.speakerId === b.speakerId) continue;
+        const startMs = Math.max(a.startMs, b.startMs);
+        const endMs = Math.min(a.endMs, b.endMs);
+        if (endMs > startMs) overlaps.push({ id: `${a.id}-${b.id}`, startMs, endMs });
       }
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [currentTimeNs, expectedDurationNs, hasData, isRecording, playbackRate, recordState, reduceMotion, seekNonce]);
-
-  const markers = useMemo<RailEvent[]>(() => {
-    if (expectedDurationNs === 0) return [];
-    const m: RailEvent[] = [];
-    for (const t of data.turns) {
-      m.push({ pct: (t.ts / expectedDurationNs) * 100, type: "speech", turnId: t.turn_id });
     }
+    return overlaps;
+  }, [speakerSegments]);
+
+  const markers = useMemo<TimelineMarker[]>(() => {
+    const m: TimelineMarker[] = [];
     for (const c of data.claimsById.values()) {
       const st = normStatus(c.status);
       m.push({
-        pct: (c.created_ts / expectedDurationNs) * 100,
-        type: st === "superseded" ? "superseded" : st === "dismissed" ? "dismissed" : "claim",
+        id: c.claim_id,
+        timeMs: nsToMs(c.created_ts),
+        type: st === "superseded" ? "supersession" : st === "dismissed" ? "dismissal" : "claim",
         turnId: c.source_turn_id,
+        relatedSpeakerId: data.turns.find((turn) => turn.turn_id === c.source_turn_id)?.speaker,
       });
     }
     for (const s of data.sentences) {
       const srcClaim = s.source_claim_ids[0] ? data.claimsById.get(s.source_claim_ids[0]) : undefined;
-      if (srcClaim) m.push({ pct: (srcClaim.created_ts / expectedDurationNs) * 100, type: "soap", turnId: srcClaim.source_turn_id });
+      if (srcClaim) {
+        m.push({
+          id: s.sentence_id,
+          timeMs: nsToMs(srcClaim.created_ts),
+          type: "soap",
+          turnId: srcClaim.source_turn_id,
+        });
+      }
     }
     return m;
-  }, [expectedDurationNs, data.turns, data.claimsById, data.sentences]);
+  }, [data.turns, data.claimsById, data.sentences]);
+
+  const applyVisualTime = useCallback(
+    (timeMs: number) => {
+      const pct = durationMs > 0 ? `${(timeMs / durationMs) * 100}%` : "0%";
+      waveAreaRef.current?.style.setProperty("--rail-playhead-pct", pct);
+    },
+    [durationMs],
+  );
+
+  const syncPlaybackTime = useCallback(
+    (timeMs: number, options?: { forceReact?: boolean; seekTranscript?: boolean }) => {
+      const nextTime = clampTime(timeMs, durationMs);
+      currentTimeRef.current = nextTime;
+      applyVisualTime(nextTime);
+
+      const nextTurnId = activeTranscriptIdAt(nextTime, data.turns);
+      if (nextTurnId !== activeTurnRef.current) {
+        activeTurnRef.current = nextTurnId;
+        onPlaybackTurnChange(nextTurnId);
+      }
+
+      const nextSpeakerIds = activeSpeakerIdsAt(nextTime, speakerSegments);
+      if (!arraysEqual(nextSpeakerIds, activeSpeakerIdsRef.current)) {
+        activeSpeakerIdsRef.current = nextSpeakerIds;
+        setActiveSpeakerIds(nextSpeakerIds);
+      }
+
+      const coarseBucket = Math.floor(nextTime / 250);
+      if (options?.forceReact || coarseBucket !== coarseDisplayBucketRef.current) {
+        coarseDisplayBucketRef.current = coarseBucket;
+        setCurrentTimeMs(nextTime);
+      }
+
+      if (options?.seekTranscript) onSeekToTurn(nextTurnId);
+    },
+    [applyVisualTime, data.turns, durationMs, onPlaybackTurnChange, onSeekToTurn, speakerSegments],
+  );
+
+  useEffect(() => {
+    if (!hasData || recordState !== "idle") return;
+    setRecordState("recording");
+    isPlayingRef.current = true;
+    lastPerfRef.current = performance.now();
+  }, [hasData, recordState]);
+
+  useEffect(() => {
+    syncPlaybackTime(clampTime(currentTimeRef.current, durationMs), { forceReact: true });
+  }, [durationMs, syncPlaybackTime]);
+
+  useEffect(() => {
+    if (recordState !== "recording" || isScrubbing) {
+      isPlayingRef.current = false;
+      return;
+    }
+    isPlayingRef.current = true;
+    lastPerfRef.current = performance.now();
+
+    const tick = (now: number) => {
+      if (!isPlayingRef.current || isScrubbingRef.current) return;
+      const elapsedMs = Math.max(0, now - lastPerfRef.current) * playbackRateRef.current;
+      lastPerfRef.current = now;
+      const next = clampTime(currentTimeRef.current + elapsedMs, durationMs);
+      syncPlaybackTime(next);
+      if (next >= durationMs) {
+        isPlayingRef.current = false;
+        setRecordState("paused");
+        syncPlaybackTime(durationMs, { forceReact: true });
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [durationMs, isScrubbing, recordState, syncPlaybackTime]);
 
   const timeTicks = useMemo(() => {
     if (expectedDurationNs === 0) return [];
@@ -1631,73 +1861,85 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
     return ticks;
   }, [expectedDurationNs]);
 
-  const seekFromClientX = useCallback(
-    (clientX: number, commit: boolean) => {
-      const rect = svgRef.current?.getBoundingClientRect();
-      if (!rect || expectedDurationNs === 0 || data.turns.length === 0) return;
-      const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-      setSelectedPct(pct);
-      const targetNs = (pct / 100) * expectedDurationNs;
-      smoothTimeRef.current = targetNs;
-      setSmoothTimeNs(targetNs);
-      setSeekNonce((n) => n + 1);
-      if (commit) {
-        const nearest = [...data.turns].reverse().find((t) => t.ts <= targetNs);
-        if (nearest) onScrollToTurn(nearest.turn_id);
-      }
+  const seekToTime = useCallback(
+    (targetMs: number, options?: { commit?: boolean; preserveSelection?: boolean }) => {
+      if (!hasData || durationMs === 0) return;
+      const next = clampTime(targetMs, durationMs);
+      syncPlaybackTime(next, { forceReact: true, seekTranscript: options?.commit });
+      setScrubTimeMs(next);
+      if (!options?.preserveSelection) setSelectedTimeMs(next);
     },
-    [expectedDurationNs, data.turns, onScrollToTurn],
+    [durationMs, hasData, syncPlaybackTime],
   );
 
-  const handleTimelineClick = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
-      seekFromClientX(e.clientX, true);
+  const timeFromClientX = useCallback(
+    (clientX: number) => {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect || durationMs === 0) return 0;
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return pct * durationMs;
     },
-    [seekFromClientX],
+    [durationMs],
   );
 
   const handleTimelinePointerDown = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!hasData) return;
+      e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      seekFromClientX(e.clientX, false);
+      wasPlayingBeforeScrubRef.current = isPlayingRef.current;
+      isScrubbingRef.current = true;
+      setIsScrubbing(true);
+      setRecordState("paused");
+      seekToTime(timeFromClientX(e.clientX), { preserveSelection: true });
     },
-    [seekFromClientX],
+    [hasData, seekToTime, timeFromClientX],
   );
 
   const handleTimelinePointerMove = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
-      if ((e.buttons & 1) !== 1) return;
-      seekFromClientX(e.clientX, false);
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isScrubbingRef.current || (e.buttons & 1) !== 1) return;
+      seekToTime(timeFromClientX(e.clientX), { preserveSelection: true });
     },
-    [seekFromClientX],
+    [seekToTime, timeFromClientX],
   );
 
   const handleTimelinePointerUp = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
-      seekFromClientX(e.clientX, true);
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isScrubbingRef.current) return;
+      seekToTime(timeFromClientX(e.clientX), { commit: true });
+      isScrubbingRef.current = false;
+      setIsScrubbing(false);
+      if (wasPlayingBeforeScrubRef.current) setRecordState("recording");
     },
-    [seekFromClientX],
+    [seekToTime, timeFromClientX],
+  );
+
+  const handleTimelinePointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isScrubbingRef.current) return;
+      seekToTime(timeFromClientX(e.clientX), { commit: true });
+      isScrubbingRef.current = false;
+      setIsScrubbing(false);
+      if (wasPlayingBeforeScrubRef.current) setRecordState("recording");
+    },
+    [seekToTime, timeFromClientX],
   );
 
   const handleRecordToggle = useCallback(() => {
-    setRecordState((s) => s === "recording" ? "paused" : "recording");
-  }, []);
+    setRecordState((s) => {
+      if (s === "recording") return "paused";
+      if (currentTimeRef.current >= durationMs) syncPlaybackTime(0, { forceReact: true, seekTranscript: followTranscript });
+      lastPerfRef.current = performance.now();
+      return "recording";
+    });
+  }, [durationMs, followTranscript, syncPlaybackTime]);
 
   const handleSkip = useCallback(
     (deltaSeconds: number) => {
-      if (data.turns.length === 0 || expectedDurationNs === 0) return;
-      const targetNs = Math.max(
-        0,
-        Math.min(expectedDurationNs, railTimeNs + deltaSeconds * 1_000_000_000),
-      );
-      smoothTimeRef.current = targetNs;
-      setSmoothTimeNs(targetNs);
-      const nearest =
-        [...data.turns].reverse().find((t) => t.ts <= targetNs) ?? data.turns[0];
-      if (nearest) onScrollToTurn(nearest.turn_id);
-      setSelectedPct((targetNs / expectedDurationNs) * 100);
+      seekToTime(currentTimeRef.current + deltaSeconds * 1000, { commit: true });
     },
-    [data.turns, expectedDurationNs, onScrollToTurn, railTimeNs],
+    [seekToTime],
   );
 
   const handleFullscreen = useCallback(() => {
@@ -1714,6 +1956,8 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
 
   const barCount = 200;
   const barW = svgW / barCount;
+  const selectedPct = selectedTimeMs === null || durationMs === 0 ? null : (selectedTimeMs / durationMs) * 100;
+  const scrubPct = durationMs > 0 ? (scrubTimeMs / durationMs) * 100 : 0;
 
   return (
     <footer className={styles.rail} data-surface="rail">
@@ -1740,8 +1984,19 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
       </div>
 
       {/* Center: waveform + markers */}
-      <div className={styles.railCenter}>
-      <div className={styles.railWaveArea}>
+      <div
+        className={styles.railCenter}
+        onPointerDown={handleTimelinePointerDown}
+        onPointerMove={handleTimelinePointerMove}
+        onPointerUp={handleTimelinePointerUp}
+        onPointerCancel={handleTimelinePointerCancel}
+        onLostPointerCapture={handleTimelinePointerCancel}
+      >
+      <div
+        ref={waveAreaRef}
+        className={styles.railWaveArea}
+        style={{ "--rail-playhead-pct": `${livePct}%` } as React.CSSProperties}
+      >
         <svg
           ref={svgRef}
           className={styles.waveformSvg}
@@ -1750,13 +2005,27 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
           tabIndex={0}
           viewBox={`0 0 ${svgW} ${WAVE_H}`}
           preserveAspectRatio="none"
-          onClick={handleTimelineClick}
-          onPointerDown={handleTimelinePointerDown}
-          onPointerMove={handleTimelinePointerMove}
-          onPointerUp={handleTimelinePointerUp}
           onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") handleSkip(-15);
-            if (e.key === "ArrowRight") handleSkip(15);
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              handleSkip(-5);
+            }
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              handleSkip(5);
+            }
+            if (e.key.toLowerCase() === "j") {
+              e.preventDefault();
+              handleSkip(-15);
+            }
+            if (e.key.toLowerCase() === "l") {
+              e.preventDefault();
+              handleSkip(15);
+            }
+            if (e.key === " " || e.key === "Enter") {
+              e.preventDefault();
+              handleRecordToggle();
+            }
           }}
         >
           {waveHeights.map((h, i) => {
@@ -1781,17 +2050,68 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
         </svg>
         {hasData && (
           <>
-            <div className={styles.railPlayhead} style={{ left: `${livePct}%` }} />
+            <div className={styles.railPlayhead} />
             {isRecording && (
-              <div className={styles.railLiveDot} style={{ left: `${livePct}%` }} />
+              <div className={styles.railLiveDot} />
             )}
           </>
         )}
         {selectedPct !== null && (
           <span className={styles.scrubPreview} style={{ left: `${selectedPct}%` }}>
-            {fmtTime((selectedPct / 100) * expectedDurationNs)}
+            {fmtTimeMs(selectedTimeMs ?? 0)}
           </span>
         )}
+        {isScrubbing && (
+          <span className={styles.scrubPreview} style={{ left: `${scrubPct}%` }}>
+            {fmtTimeMs(scrubTimeMs)}
+          </span>
+        )}
+      </div>
+
+      <div className={styles.speakerLanes} aria-label="Speaker activity lanes">
+        {speakers.map((speaker) => (
+          <div
+            key={speaker.speakerId}
+            className={styles.speakerLane}
+            data-speaker-role={speaker.speakerRole}
+            aria-label={`${speaker.speakerLabel} activity`}
+          >
+            <span className={styles.speakerLaneLabel}>{speaker.speakerLabel}</span>
+            <div className={styles.speakerLaneTrack}>
+              {speakerSegments
+                .filter((segment) => segment.speakerId === speaker.speakerId)
+                .map((segment) => {
+                  const left = durationMs > 0 ? (segment.startMs / durationMs) * 100 : 0;
+                  const width = durationMs > 0 ? ((segment.endMs - segment.startMs) / durationMs) * 100 : 0;
+                  const active =
+                    activeSpeakerIds.includes(speaker.speakerId) &&
+                    segment.startMs <= currentTimeMs &&
+                    currentTimeMs < segment.endMs;
+                  return (
+                    <span
+                      key={segment.id}
+                      className={`${styles.speakerSegment} ${active ? styles.speakerSegmentActive : ""}`}
+                      style={{ left: `${left}%`, width: `${Math.max(0.25, width)}%` }}
+                      aria-label={`${speaker.speakerLabel} speech segment${segment.estimatedEnd ? ", estimated end" : ""}`}
+                    />
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+        <div className={styles.overlapLayer} aria-hidden="true">
+          {overlapWindows.map((overlap) => {
+            const left = durationMs > 0 ? (overlap.startMs / durationMs) * 100 : 0;
+            const width = durationMs > 0 ? ((overlap.endMs - overlap.startMs) / durationMs) * 100 : 0;
+            return (
+              <span
+                key={overlap.id}
+                className={styles.overlapIndicator}
+                style={{ left: `${left}%`, width: `${Math.max(0.2, width)}%` }}
+              />
+            );
+          })}
+        </div>
       </div>
 
       {/* Markers + time axis (inside railCenter) */}
@@ -1799,26 +2119,31 @@ function ConversationRail({ data, onScrollToTurn }: { data: CanvasData; onScroll
         <div className={styles.railMarkers}>
           {markers.map((m, i) => {
             const cls =
-              m.type === "speech" ? styles.markerSpeech :
               m.type === "claim" ? styles.markerDot :
-              m.type === "dismissed" ? styles.markerCross :
-              m.type === "superseded" ? styles.markerSlash :
+              m.type === "dismissal" ? styles.markerCross :
+              m.type === "supersession" ? styles.markerSlash :
               m.type === "soap" ? styles.markerBracket :
               styles.markerShift;
             const content =
-              m.type === "superseded" ? "//" :
+              m.type === "supersession" ? "//" :
               m.type === "soap" ? "[ ]" :
-              m.type === "shift" ? "}" :
-              m.type === "dismissed" ? "⊠" : null;
+              m.type === "reasoning_shift" ? "}" :
+              m.type === "dismissal" ? "⊠" : null;
+            const markerPct = durationMs > 0 ? (m.timeMs / durationMs) * 100 : 0;
             return (
-              <div
-                key={i}
+              <button
+                key={`${m.id}-${i}`}
+                type="button"
                 className={`${styles.railMarker} ${cls}`}
-                style={{ left: `${m.pct}%` }}
-                onClick={() => { if (m.turnId) onScrollToTurn(m.turnId); }}
+                style={{ left: `${markerPct}%` }}
+                aria-label={`Seek to ${m.type.replace("_", " ")} marker at ${fmtTimeMs(m.timeMs)}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  seekToTime(m.timeMs, { commit: true });
+                }}
               >
                 {content}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -1864,6 +2189,8 @@ export function ReasoningCanvas() {
   const clearSelection = useSession((s) => s.clearSelection);
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
+  const [followTranscript, setFollowTranscript] = useState(true);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const suppressHoverRef = useRef(false);
 
@@ -1975,9 +2302,21 @@ export function ReasoningCanvas() {
     return ids;
   }, [activeTarget, data.sentences]);
 
-  const handleScrollToTurn = useCallback((turnId: string) => {
-    const el = document.querySelector(`[data-turn-id="${turnId}"]`);
-    if (el) el.scrollIntoView({ behavior: motionScrollBehavior(), block: "center" });
+  const handlePlaybackTurnChange = useCallback((turnId: string | null) => {
+    setActiveTurnId(turnId);
+  }, []);
+
+  const handleSeekToTurn = useCallback((turnId: string | null) => {
+    setActiveTurnId(turnId);
+    setFollowTranscript(true);
+  }, []);
+
+  const handleManualTranscriptScroll = useCallback(() => {
+    setFollowTranscript(false);
+  }, []);
+
+  const handleReturnToActiveTranscript = useCallback(() => {
+    setFollowTranscript(true);
   }, []);
 
   return (
@@ -1995,10 +2334,14 @@ export function ReasoningCanvas() {
         claimsByTurn={data.claimsByTurn}
         hoverTarget={hoverTarget}
         focusTarget={focusTarget}
+        activeTurnId={activeTurnId}
+        followTranscript={followTranscript}
         relatedClaims={relatedClaims}
         restAssoc={restAssoc}
         onHover={handleHover}
         onFocus={handleFocusTarget}
+        onManualScroll={handleManualTranscriptScroll}
+        onReturnToActive={handleReturnToActiveTranscript}
       />
 
       <div className={styles.center}>
@@ -2041,7 +2384,12 @@ export function ReasoningCanvas() {
         onFocus={handleFocusTarget}
       />
 
-      <ConversationRail data={data} onScrollToTurn={handleScrollToTurn} />
+      <ConversationRail
+        data={data}
+        followTranscript={followTranscript}
+        onPlaybackTurnChange={handlePlaybackTurnChange}
+        onSeekToTurn={handleSeekToTurn}
+      />
 
       {/* Fix 4: Single focus overlay at canvas root */}
       <AnimatePresence>

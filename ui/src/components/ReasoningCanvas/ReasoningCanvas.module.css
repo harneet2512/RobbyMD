@@ -176,10 +176,16 @@
 .turn {
   padding: 10px 16px;
   border-bottom: 1px solid #f5f3f0;
+  transition: background var(--dur-fast) var(--ease-out-expo),
+              opacity var(--dur-fast) var(--ease-out-expo);
 }
 
 .turn:last-of-type {
   border-bottom: none;
+}
+
+.turnActive {
+  background: rgba(91, 84, 112, 0.055);
 }
 
 .turnHeader {
@@ -1076,12 +1082,14 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .railWaveArea {
   position: relative;
   height: 48px;
   cursor: pointer;
+  --rail-playhead-pct: 0%;
 }
 
 .waveformSvg {
@@ -1099,6 +1107,7 @@
 .railPlayhead {
   position: absolute;
   top: -2px;
+  left: var(--rail-playhead-pct);
   width: 24px;
   height: calc(100% + 4px);
   border: 1.5px solid #5B5470;
@@ -1106,12 +1115,13 @@
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 3;
-  will-change: left;
+  will-change: transform;
 }
 
 .railLiveDot {
   position: absolute;
   top: -6px;
+  left: var(--rail-playhead-pct);
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1119,19 +1129,7 @@
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 4;
-  will-change: left;
-  animation: livePulse 2s ease-in-out infinite;
-}
-
-@keyframes livePulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(91, 84, 112, 0.4);
-  }
-  50% {
-    opacity: 0.6;
-    box-shadow: 0 0 0 8px rgba(91, 84, 112, 0);
-  }
+  will-change: transform;
 }
 
 .scrubPreview {
@@ -1150,16 +1148,103 @@
   z-index: 6;
 }
 
+.speakerLanes {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-height: 32px;
+  padding: 2px 0 4px;
+  pointer-events: none;
+}
+
+.speakerLane {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  height: 13px;
+  min-width: 0;
+}
+
+.speakerLaneLabel {
+  overflow: hidden;
+  color: #87848f;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.speakerLaneTrack {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.speakerSegment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  border-radius: 999px;
+  background: #9a969f;
+  opacity: 0.42;
+  transition: opacity 140ms var(--ease-out-expo),
+              background 140ms var(--ease-out-expo);
+}
+
+.speakerLane[data-speaker-role="clinician"] .speakerSegment {
+  background: #7d7890;
+}
+
+.speakerLane[data-speaker-role="patient"] .speakerSegment {
+  background: #8a8279;
+}
+
+.speakerSegmentActive {
+  background: #5B5470;
+  opacity: 0.82;
+}
+
+.overlapLayer {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  left: 66px;
+  height: 30px;
+  pointer-events: none;
+}
+
+.overlapIndicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(91, 84, 112, 0.18) 0,
+    rgba(91, 84, 112, 0.18) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  opacity: 0.5;
+}
+
 /* markers + time axis */
 .railMarkersArea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .railMarkers {
   position: relative;
   height: 16px;
+  pointer-events: none;
 }
 
 .railMarker {
@@ -1167,13 +1252,11 @@
   top: 2px;
   transform: translateX(-50%);
   cursor: pointer;
-}
-
-.markerSpeech {
-  width: 1px;
-  height: 12px;
-  background: #c4bdb4;
-  opacity: 0.45;
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  line-height: 1;
 }
 
 .markerDot {
@@ -1191,7 +1274,7 @@
 .markerSlash {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 9px;
-  color: #c25636;
+  color: #8a8279;
   font-weight: 600;
 }
 
