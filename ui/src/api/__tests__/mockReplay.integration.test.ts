@@ -10,9 +10,9 @@
  *   - Reset session state before every test to avoid cross-test leakage.
  *   - Disconnect (which calls endSession) in afterEach.
  *
- * Fixture: `ui/fixtures/chest_pain_demo.json` — 18 turns, 15 claims,
- * 1 supersession (patient correction), 4 differential updates, 3 SOAP
- * sentences, 1 verifier output. Max t_ms = 70000.
+ * Fixture: `ui/fixtures/chest_pain_demo.json` — 30 turns, 23 claims,
+ * 2 supersessions (patient correction + severity refinement), 5 differential
+ * updates, 8 SOAP sentences, 5 verifier outputs. Max t_ms = 184000.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,15 +50,15 @@ describe("fixture replay end-to-end", () => {
     vi.useRealTimers();
   });
 
-  it("full fixture lands in store: 18 turns, 15 claims, 1 edge, 4 rankings, 3 sentences, 1 verifier", () => {
+  it("full fixture lands in store: 30 turns, 23 claims, 2 edges, 5 rankings, 8 sentences, 5 verifiers", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(200_000);
 
     const s = useSession.getState();
-    expect(s.turnOrder).toHaveLength(18);
-    expect(s.claimOrder).toHaveLength(15);
-    expect(s.edges).toHaveLength(1);
-    expect(s.noteOrder).toHaveLength(3);
+    expect(s.turnOrder).toHaveLength(30);
+    expect(s.claimOrder).toHaveLength(23);
+    expect(s.edges).toHaveLength(2);
+    expect(s.noteOrder).toHaveLength(8);
     expect(s.ranking).not.toBeNull();
     expect(s.ranking?.scores).toHaveLength(4);
     expect(s.verifier).not.toBeNull();
@@ -66,7 +66,7 @@ describe("fixture replay end-to-end", () => {
 
   it("supersession: c02 → c02b marks c02 superseded and leaves c02b active", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(15_000);
+    vi.advanceTimersByTime(25_000);
 
     const s = useSession.getState();
     expect(s.edges[0]?.old_claim_id).toBe("c02");
@@ -78,7 +78,7 @@ describe("fixture replay end-to-end", () => {
 
   it("final ranking: cardiac ~0.84 and posteriors sum to 1.0", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(200_000);
 
     const s = useSession.getState();
     const cardiac = s.ranking?.scores.find((x) => x.branch === "cardiac");
@@ -90,7 +90,7 @@ describe("fixture replay end-to-end", () => {
 
   it("SOAP sentences only cite claim ids that exist in the store", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(200_000);
 
     const s = useSession.getState();
     for (const sid of s.noteOrder) {
@@ -104,7 +104,7 @@ describe("fixture replay end-to-end", () => {
 
   it("verifier emits why_moved, gap list, and next-best-question with rationale", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(200_000);
 
     const v = useSession.getState().verifier;
     expect(v?.why_moved.length).toBeGreaterThan(0);
@@ -113,11 +113,11 @@ describe("fixture replay end-to-end", () => {
     expect(v?.next_question_rationale.length).toBeGreaterThan(0);
   });
 
-  it("turn order preserves fixture insertion order (t01..t18)", () => {
+  it("turn order preserves fixture insertion order (t01..t30)", () => {
     conn = connectMock();
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(200_000);
 
-    const expected = Array.from({ length: 18 }, (_, i) => `t${String(i + 1).padStart(2, "0")}`);
+    const expected = Array.from({ length: 30 }, (_, i) => `t${String(i + 1).padStart(2, "0")}`);
     expect(useSession.getState().turnOrder).toEqual(expected);
   });
 });

@@ -1,6 +1,6 @@
 {
-  "_synthetic": "SYNTHETIC — no real patient data (rules.md §2.2). 18-turn scripted chest-pain encounter with one patient correction (supersession demo moment). Elicits HEART-score-relevant features. All identifiers fictional.",
-  "_generated": "hand-authored 2026-04-22; no PHI; no proprietary clinical content",
+  "_synthetic": "SYNTHETIC — no real patient data (rules.md §2.2). 30-turn scripted chest-pain encounter with two patient corrections (supersession demo moments). Elicits HEART-score-relevant features across all 14 predicate families. All identifiers fictional.",
+  "_generated": "hand-authored 2026-04-25; no PHI; no proprietary clinical content",
   "case_id": "chest_pain_01",
   "events": [
     {
@@ -10,25 +10,25 @@
         "turn_id": "t01",
         "session_id": "sess_chest_pain_01",
         "speaker": "physician",
-        "text": "Good afternoon. What brings you in today?",
+        "text": "Good afternoon. I'm Dr. Chen — I'll be taking care of you today. Can you tell me what's been going on and what brought you in to see us?",
         "ts": 1000000000,
         "asr_confidence": 0.97
       }
     },
     {
-      "t_ms": 3500,
+      "t_ms": 5000,
       "type": "turn",
       "turn": {
         "turn_id": "t02",
         "session_id": "sess_chest_pain_01",
         "speaker": "patient",
-        "text": "I have this pressure in my chest. It started about three days ago.",
-        "ts": 4500000000,
+        "text": "Well doctor, I've been having this heavy pressure right in the center of my chest. It started about three days ago — at first I thought it was just indigestion, but it's been coming back every time I try to do anything physical, and honestly it's starting to scare me.",
+        "ts": 6000000000,
         "asr_confidence": 0.94
       }
     },
     {
-      "t_ms": 4200,
+      "t_ms": 6500,
       "type": "claim",
       "claim": {
         "claim_id": "c01",
@@ -37,16 +37,16 @@
         "predicate": "character",
         "value": "pressure",
         "value_normalised": "pressure",
-        "confidence": 0.92,
+        "confidence": 0.93,
         "source_turn_id": "t02",
         "status": "active",
-        "created_ts": 4200000000,
-        "char_start": 12,
-        "char_end": 20
+        "created_ts": 6500000000,
+        "char_start": 42,
+        "char_end": 56
       }
     },
     {
-      "t_ms": 4800,
+      "t_ms": 7200,
       "type": "claim",
       "claim": {
         "claim_id": "c02",
@@ -58,37 +58,55 @@
         "confidence": 0.89,
         "source_turn_id": "t02",
         "status": "active",
-        "created_ts": 4800000000,
-        "char_start": 40,
-        "char_end": 60
+        "created_ts": 7200000000,
+        "char_start": 80,
+        "char_end": 105
       }
     },
     {
-      "t_ms": 7000,
+      "t_ms": 7800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c03",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "location",
+        "value": "substernal",
+        "value_normalised": "substernal",
+        "confidence": 0.91,
+        "source_turn_id": "t02",
+        "status": "active",
+        "created_ts": 7800000000,
+        "char_start": 57,
+        "char_end": 79
+      }
+    },
+    {
+      "t_ms": 12000,
       "type": "turn",
       "turn": {
         "turn_id": "t03",
         "session_id": "sess_chest_pain_01",
         "speaker": "physician",
-        "text": "When did it start exactly — I want to make sure I have the timeline right.",
-        "ts": 8000000000,
+        "text": "Three days ago — I want to make sure I have the timeline right. Can you think back to exactly when it first started? What were you doing at the time?",
+        "ts": 13000000000,
         "asr_confidence": 0.98
       }
     },
     {
-      "t_ms": 10500,
+      "t_ms": 17000,
       "type": "turn",
       "turn": {
         "turn_id": "t04",
         "session_id": "sess_chest_pain_01",
         "speaker": "patient",
-        "text": "Actually, thinking about it — it was yesterday morning, not three days ago. I got mixed up.",
-        "ts": 11500000000,
+        "text": "Actually, now that I think about it more carefully, it was yesterday morning, not three days ago. I'm sorry — the days have kind of blurred together. I remember because I was walking the dog and I had to stop and sit on a bench because the pressure came on so suddenly.",
+        "ts": 18000000000,
         "asr_confidence": 0.93
       }
     },
     {
-      "t_ms": 11200,
+      "t_ms": 18500,
       "type": "claim",
       "claim": {
         "claim_id": "c02b",
@@ -100,13 +118,13 @@
         "confidence": 0.95,
         "source_turn_id": "t04",
         "status": "active",
-        "created_ts": 11200000000,
-        "char_start": 20,
-        "char_end": 45
+        "created_ts": 18500000000,
+        "char_start": 52,
+        "char_end": 80
       }
     },
     {
-      "t_ms": 11800,
+      "t_ms": 19200,
       "type": "supersede",
       "edge": {
         "edge_id": "edge_c02_c02b",
@@ -114,492 +132,1035 @@
         "new_claim_id": "c02b",
         "edge_type": "patient_correction",
         "identity_score": 0.97,
-        "created_ts": 11800000000
+        "created_ts": 19200000000
       }
     },
     {
-      "t_ms": 14000,
+      "t_ms": 24000,
       "type": "turn",
       "turn": {
         "turn_id": "t05",
         "session_id": "sess_chest_pain_01",
         "speaker": "physician",
-        "text": "Does the pain radiate anywhere — down an arm, into the jaw or back?",
-        "ts": 15000000000,
+        "text": "That's very helpful, thank you for clarifying. Does the pain travel anywhere — does it go down an arm, or into your jaw, your back, or anywhere else?",
+        "ts": 25000000000,
         "asr_confidence": 0.97
       }
     },
     {
-      "t_ms": 17500,
+      "t_ms": 29000,
       "type": "turn",
       "turn": {
         "turn_id": "t06",
         "session_id": "sess_chest_pain_01",
         "speaker": "patient",
-        "text": "Yes — it goes down my left arm, and I feel it in my jaw when it is at its worst.",
-        "ts": 18500000000,
+        "text": "Yes — it definitely goes down my left arm, kind of into the wrist. And when it's really bad I can feel it in my jaw too, almost like a dull ache along the jawline. That's actually what scared me the most, because my father had the same thing before his heart attack.",
+        "ts": 30000000000,
         "asr_confidence": 0.92
       }
     },
     {
-      "t_ms": 18200,
-      "type": "claim",
-      "claim": {
-        "claim_id": "c03",
-        "session_id": "sess_chest_pain_01",
-        "subject": "patient",
-        "predicate": "radiation",
-        "value": "left_arm",
-        "value_normalised": "left_arm",
-        "confidence": 0.91,
-        "source_turn_id": "t06",
-        "status": "active",
-        "created_ts": 18200000000,
-        "char_start": 6,
-        "char_end": 19
-      }
-    },
-    {
-      "t_ms": 18800,
+      "t_ms": 30500,
       "type": "claim",
       "claim": {
         "claim_id": "c04",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
         "predicate": "radiation",
-        "value": "jaw",
-        "value_normalised": "jaw",
-        "confidence": 0.85,
+        "value": "left_arm",
+        "value_normalised": "left_arm",
+        "confidence": 0.92,
         "source_turn_id": "t06",
         "status": "active",
-        "created_ts": 18800000000,
-        "char_start": 50,
-        "char_end": 57
+        "created_ts": 30500000000,
+        "char_start": 30,
+        "char_end": 67
       }
     },
     {
-      "t_ms": 20000,
-      "type": "differential",
-      "ranking": {
-        "scores": [
-          {"branch": "cardiac",   "log_score": 3.1,  "posterior": 0.52, "applied": []},
-          {"branch": "pulmonary", "log_score": 0.8,  "posterior": 0.21, "applied": []},
-          {"branch": "msk",       "log_score": -0.4, "posterior": 0.15, "applied": []},
-          {"branch": "gi",        "log_score": -0.9, "posterior": 0.12, "applied": []}
-        ]
-      }
-    },
-    {
-      "t_ms": 21000,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t07",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "physician",
-        "text": "Does physical exertion bring it on?",
-        "ts": 22000000000,
-        "asr_confidence": 0.98
-      }
-    },
-    {
-      "t_ms": 24500,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t08",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "patient",
-        "text": "Yes — it came on when I was walking up the stairs. It eases when I rest.",
-        "ts": 25500000000,
-        "asr_confidence": 0.93
-      }
-    },
-    {
-      "t_ms": 25200,
+      "t_ms": 31200,
       "type": "claim",
       "claim": {
         "claim_id": "c05",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "aggravating_factor",
-        "value": "exertion",
-        "value_normalised": "exertion",
-        "confidence": 0.93,
-        "source_turn_id": "t08",
+        "predicate": "radiation",
+        "value": "jaw",
+        "value_normalised": "jaw",
+        "confidence": 0.86,
+        "source_turn_id": "t06",
         "status": "active",
-        "created_ts": 25200000000,
-        "char_start": 10,
-        "char_end": 48
+        "created_ts": 31200000000,
+        "char_start": 103,
+        "char_end": 152
       }
     },
     {
-      "t_ms": 25800,
+      "t_ms": 31800,
       "type": "claim",
       "claim": {
         "claim_id": "c06",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "alleviating_factor",
-        "value": "rest",
-        "value_normalised": "rest",
+        "predicate": "family_history",
+        "value": "father_myocardial_infarction",
+        "value_normalised": "family_history_mi",
         "confidence": 0.88,
-        "source_turn_id": "t08",
+        "source_turn_id": "t06",
         "status": "active",
-        "created_ts": 25800000000,
-        "char_start": 55,
-        "char_end": 71
+        "created_ts": 31800000000,
+        "char_start": 186,
+        "char_end": 263
       }
     },
     {
-      "t_ms": 27000,
+      "t_ms": 33000,
       "type": "differential",
       "ranking": {
         "scores": [
-          {"branch": "cardiac",   "log_score": 5.2,  "posterior": 0.67, "applied": []},
-          {"branch": "pulmonary", "log_score": 0.3,  "posterior": 0.15, "applied": []},
-          {"branch": "msk",       "log_score": -1.1, "posterior": 0.11, "applied": []},
-          {"branch": "gi",        "log_score": -1.5, "posterior": 0.07, "applied": []}
+          {"branch": "cardiac", "log_score": 3.4, "posterior": 0.51, "applied": [
+            {"claim_id": "c01", "branch": "cardiac", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 2.0, "log_lr": 0.69, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c02b", "branch": "cardiac", "feature": "acute_onset", "predicate_path": "onset.yesterday_morning", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c03", "branch": "cardiac", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c04", "branch": "cardiac", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 4.7, "log_lr": 1.55, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c05", "branch": "cardiac", "feature": "radiation_jaw", "predicate_path": "radiation.jaw", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "pulmonary_embolism", "log_score": 0.9, "posterior": 0.22, "applied": [
+            {"claim_id": "c01", "branch": "pulmonary_embolism", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.8, "log_lr": -0.22, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c03", "branch": "pulmonary_embolism", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c04", "branch": "pulmonary_embolism", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 1.5, "log_lr": 0.41, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "msk", "log_score": -0.5, "posterior": 0.15, "applied": [
+            {"claim_id": "c01", "branch": "msk", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c04", "branch": "msk", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 0.4, "log_lr": -0.92, "direction": "lr_minus", "approximation": true}
+          ]},
+          {"branch": "gi", "log_score": -0.8, "posterior": 0.12, "applied": [
+            {"claim_id": "c01", "branch": "gi", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c03", "branch": "gi", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.1, "log_lr": 0.10, "direction": "lr_plus", "approximation": true}
+          ]}
         ]
       }
     },
     {
-      "t_ms": 28000,
+      "t_ms": 34000,
+      "type": "verifier",
+      "verifier": {
+        "why_moved": [
+          "Cardiac leads based on substernal pressure, left-arm and jaw radiation pattern consistent with ischemia."
+        ],
+        "missing_or_contradicting": [
+          "Exertional component not yet established.",
+          "Associated symptoms not yet elicited (diaphoresis, dyspnoea, nausea)."
+        ],
+        "next_best_question": "Does the chest pressure come on with physical activity, and does it get better when you rest?",
+        "next_question_rationale": "Exertional angina with rest relief is the highest-yield discriminator between cardiac ischemia and other causes at this stage.",
+        "source_feature": "exertional_trigger"
+      }
+    },
+    {
+      "t_ms": 37000,
       "type": "turn",
       "turn": {
-        "turn_id": "t09",
+        "turn_id": "t07",
         "session_id": "sess_chest_pain_01",
         "speaker": "physician",
-        "text": "Any sweating, nausea, or shortness of breath with the chest pain?",
-        "ts": 29000000000,
-        "asr_confidence": 0.96
+        "text": "I'm sorry to hear about your father. That's important information. Now, does anything specific bring on the chest pressure — like physical activity, climbing stairs, walking?",
+        "ts": 38000000000,
+        "asr_confidence": 0.97
       }
     },
     {
-      "t_ms": 31500,
+      "t_ms": 43000,
       "type": "turn",
       "turn": {
-        "turn_id": "t10",
+        "turn_id": "t08",
         "session_id": "sess_chest_pain_01",
         "speaker": "patient",
-        "text": "Yes, I get a cold sweat. And I have been a bit short of breath too.",
-        "ts": 32500000000,
-        "asr_confidence": 0.91
+        "text": "Absolutely — walking upstairs is the worst. Even just going from the living room to the kitchen sometimes sets it off if I'm moving quickly. And carrying the groceries in from the car yesterday afternoon, I had to put the bags down and just stand there for a minute until it passed.",
+        "ts": 44000000000,
+        "asr_confidence": 0.93
       }
     },
     {
-      "t_ms": 32200,
+      "t_ms": 44500,
       "type": "claim",
       "claim": {
         "claim_id": "c07",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "associated_symptom",
-        "value": "diaphoresis",
-        "value_normalised": "diaphoresis",
-        "confidence": 0.88,
-        "source_turn_id": "t10",
+        "predicate": "aggravating_factor",
+        "value": "exertion",
+        "value_normalised": "exertion",
+        "confidence": 0.94,
+        "source_turn_id": "t08",
         "status": "active",
-        "created_ts": 32200000000,
-        "char_start": 8,
-        "char_end": 23
+        "created_ts": 44500000000,
+        "char_start": 14,
+        "char_end": 48
       }
     },
     {
-      "t_ms": 32900,
+      "t_ms": 49000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t09",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "And when you stop and rest, does the pressure go away? How long does it typically last before it eases off?",
+        "ts": 50000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 54000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t10",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes, when I sit down and rest it gradually goes away. It usually takes about five to ten minutes to fully settle down, though there's sometimes a sort of lingering tightness for a while after that. The episodes themselves are probably around ten to fifteen minutes at their worst.",
+        "ts": 55000000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 55500,
       "type": "claim",
       "claim": {
         "claim_id": "c08",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "associated_symptom",
-        "value": "dyspnoea",
-        "value_normalised": "dyspnoea",
-        "confidence": 0.82,
+        "predicate": "alleviating_factor",
+        "value": "rest",
+        "value_normalised": "rest",
+        "confidence": 0.90,
         "source_turn_id": "t10",
         "status": "active",
-        "created_ts": 32900000000,
-        "char_start": 42,
-        "char_end": 64
-      }
-    },
-    {
-      "t_ms": 35000,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t11",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "physician",
-        "text": "Any history of heart problems or high blood pressure?",
-        "ts": 36000000000,
-        "asr_confidence": 0.97
-      }
-    },
-    {
-      "t_ms": 38500,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t12",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "patient",
-        "text": "Yes — I had a stent placed about six years ago. And I have high blood pressure, on lisinopril.",
-        "ts": 39500000000,
-        "asr_confidence": 0.92
-      }
-    },
-    {
-      "t_ms": 39200,
-      "type": "claim",
-      "claim": {
-        "claim_id": "c09",
-        "session_id": "sess_chest_pain_01",
-        "subject": "patient",
-        "predicate": "medical_history",
-        "value": "coronary_artery_disease_stent",
-        "value_normalised": "coronary_artery_disease",
-        "confidence": 0.95,
-        "source_turn_id": "t12",
-        "status": "active",
-        "created_ts": 39200000000,
-        "char_start": 10,
-        "char_end": 47
-      }
-    },
-    {
-      "t_ms": 39800,
-      "type": "claim",
-      "claim": {
-        "claim_id": "c10",
-        "session_id": "sess_chest_pain_01",
-        "subject": "patient",
-        "predicate": "medical_history",
-        "value": "hypertension",
-        "value_normalised": "hypertension",
-        "confidence": 0.91,
-        "source_turn_id": "t12",
-        "status": "active",
-        "created_ts": 39800000000,
-        "char_start": 55,
-        "char_end": 75
-      }
-    },
-    {
-      "t_ms": 40100,
-      "type": "claim",
-      "claim": {
-        "claim_id": "c11",
-        "session_id": "sess_chest_pain_01",
-        "subject": "patient",
-        "predicate": "medication",
-        "value": "lisinopril",
-        "value_normalised": "lisinopril",
-        "confidence": 0.94,
-        "source_turn_id": "t12",
-        "status": "active",
-        "created_ts": 40100000000,
-        "char_start": 83,
-        "char_end": 93
-      }
-    },
-    {
-      "t_ms": 42000,
-      "type": "differential",
-      "ranking": {
-        "scores": [
-          {"branch": "cardiac",   "log_score": 7.8,  "posterior": 0.79, "applied": []},
-          {"branch": "pulmonary", "log_score": 0.1,  "posterior": 0.10, "applied": []},
-          {"branch": "msk",       "log_score": -1.8, "posterior": 0.07, "applied": []},
-          {"branch": "gi",        "log_score": -2.1, "posterior": 0.04, "applied": []}
-        ]
-      }
-    },
-    {
-      "t_ms": 43000,
-      "type": "soap_delta",
-      "delta": {
-        "sentence_id": "s01",
-        "session_id": "sess_chest_pain_01",
-        "section": "S",
-        "ordinal": 1,
-        "text": "Patient reports pressure-type chest pain since yesterday morning, with radiation to the left arm and jaw.",
-        "source_claim_ids": ["c01", "c02b", "c03", "c04"]
-      }
-    },
-    {
-      "t_ms": 45000,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t13",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "physician",
-        "text": "Do you currently smoke?",
-        "ts": 46000000000,
-        "asr_confidence": 0.99
-      }
-    },
-    {
-      "t_ms": 48500,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t14",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "patient",
-        "text": "Yes, half a pack a day. About 30 pack-years all told.",
-        "ts": 49500000000,
-        "asr_confidence": 0.94
-      }
-    },
-    {
-      "t_ms": 49200,
-      "type": "claim",
-      "claim": {
-        "claim_id": "c12",
-        "session_id": "sess_chest_pain_01",
-        "subject": "patient",
-        "predicate": "social_history",
-        "value": "current_smoker_30_pack_years",
-        "value_normalised": "current_smoker",
-        "confidence": 0.92,
-        "source_turn_id": "t14",
-        "status": "active",
-        "created_ts": 49200000000,
-        "char_start": 4,
-        "char_end": 52
-      }
-    },
-    {
-      "t_ms": 52000,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t15",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "physician",
-        "text": "Does taking a deep breath make the pain worse?",
-        "ts": 53000000000,
-        "asr_confidence": 0.97
-      }
-    },
-    {
-      "t_ms": 55500,
-      "type": "turn",
-      "turn": {
-        "turn_id": "t16",
-        "session_id": "sess_chest_pain_01",
-        "speaker": "patient",
-        "text": "No, breathing does not affect it at all.",
-        "ts": 56500000000,
-        "asr_confidence": 0.95
+        "created_ts": 55500000000,
+        "char_start": 0,
+        "char_end": 48
       }
     },
     {
       "t_ms": 56200,
       "type": "claim",
       "claim": {
-        "claim_id": "c13",
+        "claim_id": "c09",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "aggravating_factor",
-        "value": "inspiration_negative",
-        "value_normalised": "inspiration_negative",
-        "confidence": 0.87,
-        "source_turn_id": "t16",
+        "predicate": "duration",
+        "value": "10_to_15_minutes",
+        "value_normalised": "10_to_15_minutes",
+        "confidence": 0.86,
+        "source_turn_id": "t10",
         "status": "active",
         "created_ts": 56200000000,
-        "char_start": 0,
-        "char_end": 39
+        "char_start": 198,
+        "char_end": 270
+      }
+    },
+    {
+      "t_ms": 58000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac", "log_score": 5.6, "posterior": 0.64, "applied": [
+            {"claim_id": "c01", "branch": "cardiac", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 2.0, "log_lr": 0.69, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c02b", "branch": "cardiac", "feature": "acute_onset", "predicate_path": "onset.yesterday_morning", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c03", "branch": "cardiac", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c04", "branch": "cardiac", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 4.7, "log_lr": 1.55, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c05", "branch": "cardiac", "feature": "radiation_jaw", "predicate_path": "radiation.jaw", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "cardiac", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 2.4, "log_lr": 0.88, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c08", "branch": "cardiac", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 1.6, "log_lr": 0.47, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c09", "branch": "cardiac", "feature": "episode_duration", "predicate_path": "duration.10_to_15_minutes", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": false}
+          ]},
+          {"branch": "pulmonary_embolism", "log_score": 0.4, "posterior": 0.17, "applied": [
+            {"claim_id": "c01", "branch": "pulmonary_embolism", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.8, "log_lr": -0.22, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c03", "branch": "pulmonary_embolism", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "pulmonary_embolism", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c08", "branch": "pulmonary_embolism", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true}
+          ]},
+          {"branch": "msk", "log_score": -1.0, "posterior": 0.11, "applied": [
+            {"claim_id": "c01", "branch": "msk", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c04", "branch": "msk", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 0.4, "log_lr": -0.92, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c07", "branch": "msk", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 1.2, "log_lr": 0.18, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "gi", "log_score": -1.4, "posterior": 0.08, "applied": [
+            {"claim_id": "c01", "branch": "gi", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c08", "branch": "gi", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 0.6, "log_lr": -0.51, "direction": "lr_minus", "approximation": true}
+          ]}
+        ]
       }
     },
     {
       "t_ms": 59000,
+      "type": "verifier",
+      "verifier": {
+        "why_moved": [
+          "Cardiac strengthened: exertional trigger with rest relief confirms classic anginal pattern.",
+          "Pulmonary Embolism stable: exertion is non-specific, does not differentiate PE from cardiac."
+        ],
+        "missing_or_contradicting": [
+          "Associated symptoms not yet elicited (diaphoresis, dyspnoea, nausea).",
+          "Severity not yet quantified."
+        ],
+        "next_best_question": "Do you get any sweating, shortness of breath, nausea, or lightheadedness when the chest pressure comes on?",
+        "next_question_rationale": "Diaphoresis and dyspnoea are high-yield discriminators. Diaphoresis strongly favours cardiac, while isolated dyspnoea raises PE probability.",
+        "source_feature": "associated_symptoms"
+      }
+    },
+    {
+      "t_ms": 62000,
       "type": "turn",
       "turn": {
-        "turn_id": "t17",
+        "turn_id": "t11",
         "session_id": "sess_chest_pain_01",
         "speaker": "physician",
-        "text": "I am going to press on your chest here. Does that reproduce the discomfort?",
-        "ts": 60000000000,
+        "text": "When the pressure is at its worst, how would you rate it on a scale of zero to ten, where ten is the worst pain you've ever experienced?",
+        "ts": 63000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 67000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t12",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "I'd say it's about a six or seven out of ten when it's really going. Actually, now that I think about it, the episode yesterday when I was carrying the groceries — that one was more like an eight. It was quite intense, much worse than the others. That was the one that made me decide to come in today.",
+        "ts": 68000000000,
+        "asr_confidence": 0.91
+      }
+    },
+    {
+      "t_ms": 68800,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c09b",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "severity",
+        "value": "8_out_of_10",
+        "value_normalised": "8_out_of_10",
+        "confidence": 0.90,
+        "source_turn_id": "t12",
+        "status": "active",
+        "created_ts": 68800000000,
+        "char_start": 103,
+        "char_end": 175
+      }
+    },
+    {
+      "t_ms": 69500,
+      "type": "supersede",
+      "edge": {
+        "edge_id": "edge_c09_sev_refine",
+        "old_claim_id": "c09",
+        "new_claim_id": "c09b",
+        "edge_type": "refines",
+        "identity_score": 0.93,
+        "created_ts": 69500000000
+      }
+    },
+    {
+      "t_ms": 74000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t13",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Are there any other symptoms that come along with the chest pressure? Any sweating, nausea, lightheadedness, or shortness of breath?",
+        "ts": 75000000000,
         "asr_confidence": 0.96
       }
     },
     {
-      "t_ms": 62500,
+      "t_ms": 79000,
       "type": "turn",
       "turn": {
-        "turn_id": "t18",
+        "turn_id": "t14",
         "session_id": "sess_chest_pain_01",
         "speaker": "patient",
-        "text": "No, pressing on it does not do anything. It is not that kind of pain.",
-        "ts": 63500000000,
-        "asr_confidence": 0.94
+        "text": "Yes, I get this cold clammy sweat — my wife noticed it too, she said I looked pale and was dripping. And I've been short of breath, not terribly so, but enough that I notice it when the pressure comes on. No nausea really, but I did feel a bit lightheaded once or twice.",
+        "ts": 80000000000,
+        "asr_confidence": 0.91
       }
     },
     {
-      "t_ms": 63200,
+      "t_ms": 80500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c10",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "associated_symptom",
+        "value": "diaphoresis",
+        "value_normalised": "diaphoresis",
+        "confidence": 0.89,
+        "source_turn_id": "t14",
+        "status": "active",
+        "created_ts": 80500000000,
+        "char_start": 9,
+        "char_end": 35
+      }
+    },
+    {
+      "t_ms": 81200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c11",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "associated_symptom",
+        "value": "dyspnoea",
+        "value_normalised": "dyspnoea",
+        "confidence": 0.84,
+        "source_turn_id": "t14",
+        "status": "active",
+        "created_ts": 81200000000,
+        "char_start": 112,
+        "char_end": 178
+      }
+    },
+    {
+      "t_ms": 82500,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac", "log_score": 5.0, "posterior": 0.48, "applied": [
+            {"claim_id": "c01", "branch": "cardiac", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 2.0, "log_lr": 0.69, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c02b", "branch": "cardiac", "feature": "acute_onset", "predicate_path": "onset.yesterday_morning", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c03", "branch": "cardiac", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c04", "branch": "cardiac", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 4.7, "log_lr": 1.55, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c05", "branch": "cardiac", "feature": "radiation_jaw", "predicate_path": "radiation.jaw", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "cardiac", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 2.4, "log_lr": 0.88, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c08", "branch": "cardiac", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 1.6, "log_lr": 0.47, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c10", "branch": "cardiac", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 2.9, "log_lr": 1.06, "direction": "lr_plus", "approximation": false}
+          ]},
+          {"branch": "pulmonary_embolism", "log_score": 1.9, "posterior": 0.30, "applied": [
+            {"claim_id": "c01", "branch": "pulmonary_embolism", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.8, "log_lr": -0.22, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c03", "branch": "pulmonary_embolism", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "pulmonary_embolism", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c11", "branch": "pulmonary_embolism", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 2.1, "log_lr": 0.74, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c10", "branch": "pulmonary_embolism", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 1.2, "log_lr": 0.18, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "msk", "log_score": -1.1, "posterior": 0.13, "applied": [
+            {"claim_id": "c01", "branch": "msk", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c04", "branch": "msk", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 0.4, "log_lr": -0.92, "direction": "lr_minus", "approximation": true}
+          ]},
+          {"branch": "gi", "log_score": -1.5, "posterior": 0.09, "applied": [
+            {"claim_id": "c01", "branch": "gi", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c08", "branch": "gi", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 0.6, "log_lr": -0.51, "direction": "lr_minus", "approximation": true}
+          ]}
+        ]
+      }
+    },
+    {
+      "t_ms": 83000,
+      "type": "verifier",
+      "verifier": {
+        "why_moved": [
+          "Pulmonary Embolism rising: dyspnoea is a strong positive for PE, combined with exertional component. PE must be actively ruled out.",
+          "Cardiac still leads but gap narrowing: diaphoresis supports cardiac, but dyspnoea alone does not differentiate."
+        ],
+        "missing_or_contradicting": [
+          "Wells PE criteria urgently needed: recent immobilisation, leg swelling, prior DVT/PE, recent surgery.",
+          "Medical history not yet obtained (prior cardiac events, risk factors)."
+        ],
+        "next_best_question": "Have you noticed any swelling in your legs, or have you had any long periods of sitting or bed rest recently?",
+        "next_question_rationale": "Wells PE criteria are the fastest way to rule PE in or out. Leg swelling or immobilisation would significantly raise PE probability; their absence would lower it.",
+        "source_feature": "wells_pe_leg_swelling"
+      }
+    },
+    {
+      "t_ms": 86000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t15",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "I appreciate all this detail. Can you tell me about your medical history? Any heart problems, high blood pressure, diabetes, high cholesterol?",
+        "ts": 87000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 92000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t16",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Yes — I had a stent put in about six years ago after they found a blockage during a stress test. I also have high blood pressure and type two diabetes. My cholesterol has been high, but I've been on medication for that. Honestly, I probably haven't been as good about taking my medications as I should be.",
+        "ts": 93000000000,
+        "asr_confidence": 0.92
+      }
+    },
+    {
+      "t_ms": 93500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c12",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medical_history",
+        "value": "coronary_artery_disease_stent",
+        "value_normalised": "coronary_artery_disease",
+        "confidence": 0.95,
+        "source_turn_id": "t16",
+        "status": "active",
+        "created_ts": 93500000000,
+        "char_start": 10,
+        "char_end": 83
+      }
+    },
+    {
+      "t_ms": 94200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c13",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medical_history",
+        "value": "hypertension",
+        "value_normalised": "hypertension",
+        "confidence": 0.92,
+        "source_turn_id": "t16",
+        "status": "active",
+        "created_ts": 94200000000,
+        "char_start": 107,
+        "char_end": 127
+      }
+    },
+    {
+      "t_ms": 94800,
       "type": "claim",
       "claim": {
         "claim_id": "c14",
         "session_id": "sess_chest_pain_01",
         "subject": "patient",
-        "predicate": "alleviating_factor",
-        "value": "palpation_not_reproducible",
-        "value_normalised": "palpation_not_reproducible",
-        "confidence": 0.83,
-        "source_turn_id": "t18",
+        "predicate": "risk_factor",
+        "value": "diabetes_type_2",
+        "value_normalised": "diabetes_mellitus_type_2",
+        "confidence": 0.91,
+        "source_turn_id": "t16",
         "status": "active",
-        "created_ts": 63200000000,
-        "char_start": 0,
-        "char_end": 40
+        "created_ts": 94800000000,
+        "char_start": 132,
+        "char_end": 152
       }
     },
     {
-      "t_ms": 65000,
+      "t_ms": 96000,
       "type": "differential",
       "ranking": {
         "scores": [
-          {"branch": "cardiac",   "log_score": 9.1,  "posterior": 0.84, "applied": []},
-          {"branch": "pulmonary", "log_score": 0.0,  "posterior": 0.09, "applied": []},
-          {"branch": "msk",       "log_score": -2.5, "posterior": 0.05, "applied": []},
-          {"branch": "gi",        "log_score": -2.8, "posterior": 0.02, "applied": []}
+          {"branch": "cardiac", "log_score": 8.3, "posterior": 0.78, "applied": [
+            {"claim_id": "c01", "branch": "cardiac", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 2.0, "log_lr": 0.69, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c02b", "branch": "cardiac", "feature": "acute_onset", "predicate_path": "onset.yesterday_morning", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c03", "branch": "cardiac", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c04", "branch": "cardiac", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 4.7, "log_lr": 1.55, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c05", "branch": "cardiac", "feature": "radiation_jaw", "predicate_path": "radiation.jaw", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "cardiac", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 2.4, "log_lr": 0.88, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c08", "branch": "cardiac", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 1.6, "log_lr": 0.47, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c10", "branch": "cardiac", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 2.9, "log_lr": 1.06, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c11", "branch": "cardiac", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c12", "branch": "cardiac", "feature": "prior_cad_stent", "predicate_path": "medical_history.coronary_artery_disease_stent", "lr_value": 3.2, "log_lr": 1.16, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c13", "branch": "cardiac", "feature": "hypertension", "predicate_path": "medical_history.hypertension", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c14", "branch": "cardiac", "feature": "diabetes_risk", "predicate_path": "risk_factor.diabetes_type_2", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false}
+          ]},
+          {"branch": "pulmonary_embolism", "log_score": 0.1, "posterior": 0.10, "applied": [
+            {"claim_id": "c01", "branch": "pulmonary_embolism", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.8, "log_lr": -0.22, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c03", "branch": "pulmonary_embolism", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "pulmonary_embolism", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c10", "branch": "pulmonary_embolism", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c11", "branch": "pulmonary_embolism", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 2.1, "log_lr": 0.74, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c13", "branch": "pulmonary_embolism", "feature": "hypertension", "predicate_path": "medical_history.hypertension", "lr_value": 1.1, "log_lr": 0.10, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "msk", "log_score": -1.7, "posterior": 0.07, "applied": [
+            {"claim_id": "c01", "branch": "msk", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c04", "branch": "msk", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 0.4, "log_lr": -0.92, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c10", "branch": "msk", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 0.3, "log_lr": -1.20, "direction": "lr_minus", "approximation": true}
+          ]},
+          {"branch": "gi", "log_score": -2.0, "posterior": 0.05, "applied": [
+            {"claim_id": "c01", "branch": "gi", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c08", "branch": "gi", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 0.6, "log_lr": -0.51, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c11", "branch": "gi", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": true}
+          ]}
         ]
       }
     },
     {
-      "t_ms": 66000,
+      "t_ms": 97000,
       "type": "verifier",
       "verifier": {
         "why_moved": [
-          "Cardiac up: exertional trigger, left-arm and jaw radiation, diaphoresis (HEART score high).",
-          "Pulmonary stable: no pleuritic component, no recent immobility elicited."
+          "Cardiac dominant: prior CAD with stenting, hypertension, diabetes, diaphoresis create overwhelming evidence for ACS.",
+          "Pulmonary Embolism declining: medical history strongly favours cardiac over PE. Dyspnoea explained by cardiac mechanism."
         ],
         "missing_or_contradicting": [
-          "Wells PE criteria not elicited yet (leg swelling, recent travel, immobilisation).",
-          "Risk stratification incomplete without troponin — text substrate only."
+          "Smoking and social history not yet fully explored.",
+          "Pleuritic vs non-pleuritic character not yet clarified.",
+          "Chest wall reproducibility not yet tested."
         ],
-        "next_best_question": "Any recent long travel, leg swelling, or prolonged immobility?",
-        "next_question_rationale": "Separates PE from cardiac at top-2 — highest expected information gain on current differential.",
+        "next_best_question": "Does breathing in deeply make the pressure worse, or is it completely unrelated to breathing?",
+        "next_question_rationale": "Pleuritic chest pain strongly favours PE or pleural cause over cardiac. Non-pleuritic pain would further strengthen the cardiac hypothesis and weaken PE.",
+        "source_feature": "pleuritic_character"
+      }
+    },
+    {
+      "t_ms": 98000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s01",
+        "session_id": "sess_chest_pain_01",
+        "section": "S",
+        "ordinal": 1,
+        "text": "Patient reports substernal pressure-type chest pain since yesterday morning, with radiation to the left arm and jaw, rated 8/10 at worst.",
+        "source_claim_ids": ["c01", "c03", "c02b", "c04", "c05", "c09b"]
+      }
+    },
+    {
+      "t_ms": 100000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t17",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "What medications are you currently taking? And are you taking them regularly?",
+        "ts": 101000000000,
+        "asr_confidence": 0.98
+      }
+    },
+    {
+      "t_ms": 106000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t18",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "Let me think — I'm on lisinopril for the blood pressure, atorvastatin for the cholesterol, metformin for the diabetes, and I take a baby aspirin every day. My wife keeps them all in one of those weekly pill organizers for me, so I'm pretty consistent now, though I'll admit I missed a few days last month when we were traveling.",
+        "ts": 107000000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 107500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c15",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medication",
+        "value": "lisinopril",
+        "value_normalised": "lisinopril",
+        "confidence": 0.94,
+        "source_turn_id": "t18",
+        "status": "active",
+        "created_ts": 107500000000,
+        "char_start": 19,
+        "char_end": 56
+      }
+    },
+    {
+      "t_ms": 108200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c16",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "medication",
+        "value": "atorvastatin",
+        "value_normalised": "atorvastatin",
+        "confidence": 0.93,
+        "source_turn_id": "t18",
+        "status": "active",
+        "created_ts": 108200000000,
+        "char_start": 58,
+        "char_end": 94
+      }
+    },
+    {
+      "t_ms": 112000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t19",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Good. Do you smoke or have you ever smoked? And how about alcohol?",
+        "ts": 113000000000,
+        "asr_confidence": 0.98
+      }
+    },
+    {
+      "t_ms": 118000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t20",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "I've been smoking half a pack a day for about thirty years now — so that's around fifteen pack-years, I think. My wife has been after me to quit for ages, and I've tried a couple of times but it never stuck. I have a beer or two on weekends, nothing excessive.",
+        "ts": 119000000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 119500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c17",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "social_history",
+        "value": "current_smoker_15_pack_years",
+        "value_normalised": "current_smoker",
+        "confidence": 0.92,
+        "source_turn_id": "t20",
+        "status": "active",
+        "created_ts": 119500000000,
+        "char_start": 0,
+        "char_end": 80
+      }
+    },
+    {
+      "t_ms": 124000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t21",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Does taking a deep breath make the chest pressure worse? Or does it change if you lean forward or change positions?",
+        "ts": 125000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 130000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t22",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "No, breathing doesn't affect it at all — I can take a deep breath in and out and the pressure stays exactly the same. And changing positions, lying down, sitting up, leaning forward, none of that makes any difference either. It really only seems to be the physical activity that triggers it.",
+        "ts": 131000000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 131500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c18",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "aggravating_factor",
+        "value": "negated:inspiration",
+        "value_normalised": "inspiration_negative",
+        "confidence": 0.88,
+        "source_turn_id": "t22",
+        "status": "active",
+        "created_ts": 131500000000,
+        "char_start": 0,
+        "char_end": 95
+      }
+    },
+    {
+      "t_ms": 136000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t23",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "I'm going to press on your chest wall here in a few spots. Tell me if any of this reproduces the pressure you've been feeling.",
+        "ts": 137000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 142000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t24",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "No, pressing on it doesn't do anything at all. That's not the same kind of feeling. The pressure I get is deeper, like it's inside my chest, not on the surface. It doesn't matter where you press — it's just not the same thing.",
+        "ts": 143000000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 143500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c19",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "alleviating_factor",
+        "value": "negated:palpation_reproducible",
+        "value_normalised": "palpation_not_reproducible",
+        "confidence": 0.85,
+        "source_turn_id": "t24",
+        "status": "active",
+        "created_ts": 143500000000,
+        "char_start": 0,
+        "char_end": 44
+      }
+    },
+    {
+      "t_ms": 146000,
+      "type": "differential",
+      "ranking": {
+        "scores": [
+          {"branch": "cardiac", "log_score": 9.8, "posterior": 0.84, "applied": [
+            {"claim_id": "c01", "branch": "cardiac", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 2.0, "log_lr": 0.69, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c02b", "branch": "cardiac", "feature": "acute_onset", "predicate_path": "onset.yesterday_morning", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c03", "branch": "cardiac", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c04", "branch": "cardiac", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 4.7, "log_lr": 1.55, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c05", "branch": "cardiac", "feature": "radiation_jaw", "predicate_path": "radiation.jaw", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "cardiac", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 2.4, "log_lr": 0.88, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c08", "branch": "cardiac", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 1.6, "log_lr": 0.47, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c10", "branch": "cardiac", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 2.9, "log_lr": 1.06, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c11", "branch": "cardiac", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c12", "branch": "cardiac", "feature": "prior_cad_stent", "predicate_path": "medical_history.coronary_artery_disease_stent", "lr_value": 3.2, "log_lr": 1.16, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c13", "branch": "cardiac", "feature": "hypertension", "predicate_path": "medical_history.hypertension", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c14", "branch": "cardiac", "feature": "diabetes_risk", "predicate_path": "risk_factor.diabetes_type_2", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c17", "branch": "cardiac", "feature": "smoking_history", "predicate_path": "social_history.current_smoker_15_pack_years", "lr_value": 1.5, "log_lr": 0.41, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c18", "branch": "cardiac", "feature": "non_pleuritic", "predicate_path": "aggravating_factor.inspiration_negative", "lr_value": 1.2, "log_lr": 0.18, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c19", "branch": "cardiac", "feature": "non_reproducible_palpation", "predicate_path": "alleviating_factor.palpation_not_reproducible", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true}
+          ]},
+          {"branch": "pulmonary_embolism", "log_score": 0.0, "posterior": 0.08, "applied": [
+            {"claim_id": "c01", "branch": "pulmonary_embolism", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.8, "log_lr": -0.22, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c03", "branch": "pulmonary_embolism", "feature": "substernal_location", "predicate_path": "location.substernal", "lr_value": 1.4, "log_lr": 0.34, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c07", "branch": "pulmonary_embolism", "feature": "exertional_trigger", "predicate_path": "aggravating_factor.exertion", "lr_value": 1.3, "log_lr": 0.26, "direction": "lr_plus", "approximation": true},
+            {"claim_id": "c10", "branch": "pulmonary_embolism", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c11", "branch": "pulmonary_embolism", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 2.1, "log_lr": 0.74, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c17", "branch": "pulmonary_embolism", "feature": "smoking_history", "predicate_path": "social_history.current_smoker_15_pack_years", "lr_value": 1.8, "log_lr": 0.59, "direction": "lr_plus", "approximation": false},
+            {"claim_id": "c18", "branch": "pulmonary_embolism", "feature": "non_pleuritic", "predicate_path": "aggravating_factor.inspiration_negative", "lr_value": 0.3, "log_lr": -1.20, "direction": "lr_minus", "approximation": false}
+          ]},
+          {"branch": "msk", "log_score": -2.4, "posterior": 0.05, "applied": [
+            {"claim_id": "c01", "branch": "msk", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": false},
+            {"claim_id": "c04", "branch": "msk", "feature": "radiation_left_arm", "predicate_path": "radiation.left_arm", "lr_value": 0.4, "log_lr": -0.92, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c10", "branch": "msk", "feature": "diaphoresis", "predicate_path": "associated_symptom.diaphoresis", "lr_value": 0.3, "log_lr": -1.20, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c19", "branch": "msk", "feature": "non_reproducible_palpation", "predicate_path": "alleviating_factor.palpation_not_reproducible", "lr_value": 0.2, "log_lr": -1.61, "direction": "lr_minus", "approximation": false}
+          ]},
+          {"branch": "gi", "log_score": -2.8, "posterior": 0.03, "applied": [
+            {"claim_id": "c01", "branch": "gi", "feature": "pressure_character", "predicate_path": "character.pressure", "lr_value": 0.7, "log_lr": -0.36, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c08", "branch": "gi", "feature": "rest_relief", "predicate_path": "alleviating_factor.rest", "lr_value": 0.6, "log_lr": -0.51, "direction": "lr_minus", "approximation": true},
+            {"claim_id": "c11", "branch": "gi", "feature": "dyspnoea", "predicate_path": "associated_symptom.dyspnoea", "lr_value": 0.5, "log_lr": -0.69, "direction": "lr_minus", "approximation": true}
+          ]}
+        ]
+      }
+    },
+    {
+      "t_ms": 148000,
+      "type": "verifier",
+      "verifier": {
+        "why_moved": [
+          "Cardiac up: exertional trigger with rest relief, left-arm and jaw radiation, diaphoresis, prior CAD with stenting — HEART score is high.",
+          "Pulmonary stable: no pleuritic component, non-pleuritic chest pain argues against PE; smoking raises baseline PE risk but dyspnoea alone insufficient.",
+          "MSK down: non-reproducible on palpation eliminates costochondritis pattern; diaphoresis inconsistent with musculoskeletal origin."
+        ],
+        "missing_or_contradicting": [
+          "Wells PE criteria not elicited yet (leg swelling, recent travel, immobilisation, prior DVT/PE).",
+          "Risk stratification incomplete without troponin and ECG — text substrate only.",
+          "Medication compliance detail incomplete — may affect risk assessment."
+        ],
+        "next_best_question": "Have you had any recent long travel, leg swelling, or periods where you were immobilised for an extended time?",
+        "next_question_rationale": "Separates pulmonary embolism from cardiac at top-2 differential — highest expected information gain on current distribution. Eliciting Wells PE criteria would decisively lower or raise pulmonary posterior.",
         "source_feature": "wells_pe_immobilisation"
       }
     },
     {
-      "t_ms": 68000,
+      "t_ms": 150000,
       "type": "soap_delta",
       "delta": {
         "sentence_id": "s02",
         "session_id": "sess_chest_pain_01",
         "section": "S",
         "ordinal": 2,
-        "text": "Pain is exertional, relieved by rest, non-pleuritic, not reproducible with palpation; associated diaphoresis and dyspnoea.",
-        "source_claim_ids": ["c05", "c06", "c13", "c14", "c07", "c08"]
+        "text": "Pain is exertional, relieved by rest, non-pleuritic, not reproducible with palpation; associated diaphoresis and dyspnoea noted.",
+        "source_claim_ids": ["c07", "c08", "c18", "c19", "c10", "c11"]
       }
     },
     {
-      "t_ms": 70000,
+      "t_ms": 151000,
       "type": "soap_delta",
       "delta": {
         "sentence_id": "s03",
         "session_id": "sess_chest_pain_01",
         "section": "S",
         "ordinal": 3,
-        "text": "PMH: prior coronary stent (6 years ago), hypertension on lisinopril, active smoker (~30 pack-years).",
-        "source_claim_ids": ["c09", "c10", "c11", "c12"]
+        "text": "PMH: prior coronary stent (6 years ago), hypertension, type 2 diabetes; medications include lisinopril, atorvastatin; active smoker (~15 pack-years); family history of MI in father.",
+        "source_claim_ids": ["c12", "c13", "c14", "c15", "c16", "c17", "c06"]
+      }
+    },
+    {
+      "t_ms": 154000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t25",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Have you had any recent long flights or car rides? Any leg swelling, calf pain, or periods where you were bedridden or unable to move around for a while?",
+        "ts": 155000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 160000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t26",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "No, nothing like that. We haven't traveled anywhere recently, and I've been pretty active — well, as active as I can be with this chest pressure. No swelling in my legs that I've noticed, and no calf pain. I've been up and about normally other than having to take it easy because of this.",
+        "ts": 161000000000,
+        "asr_confidence": 0.94
+      }
+    },
+    {
+      "t_ms": 161500,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c20",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "risk_factor",
+        "value": "negated:immobilisation",
+        "value_normalised": "immobilisation_negative",
+        "confidence": 0.87,
+        "source_turn_id": "t26",
+        "status": "active",
+        "created_ts": 161500000000,
+        "char_start": 0,
+        "char_end": 80
+      }
+    },
+    {
+      "t_ms": 162200,
+      "type": "claim",
+      "claim": {
+        "claim_id": "c21",
+        "session_id": "sess_chest_pain_01",
+        "subject": "patient",
+        "predicate": "associated_symptom",
+        "value": "negated:leg_swelling",
+        "value_normalised": "leg_swelling_negative",
+        "confidence": 0.85,
+        "source_turn_id": "t26",
+        "status": "active",
+        "created_ts": 162200000000,
+        "char_start": 125,
+        "char_end": 168
+      }
+    },
+    {
+      "t_ms": 166000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t27",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "That's reassuring. Now let me do a quick review — vitals look like your blood pressure is a hundred and fifty-two over ninety-four, heart rate eighty-eight, oxygen saturation ninety-seven percent on room air. Heart sounds are regular, no murmurs. Lungs are clear bilaterally.",
+        "ts": 167000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 170000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s04",
+        "session_id": "sess_chest_pain_01",
+        "section": "O",
+        "ordinal": 1,
+        "text": "Vitals: BP 152/94, HR 88, SpO2 97% on RA. Cardiac exam: regular rate and rhythm, no murmurs, gallops, or rubs. Lungs clear to auscultation bilaterally.",
+        "source_claim_ids": ["c13"]
+      }
+    },
+    {
+      "t_ms": 172000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t28",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "Based on everything you've told me and the examination findings, I'm quite concerned this could be cardiac in origin — possibly unstable angina or an acute coronary syndrome given your history of coronary artery disease. We need to get an ECG and some blood work including troponin levels right away.",
+        "ts": 173000000000,
+        "asr_confidence": 0.97
+      }
+    },
+    {
+      "t_ms": 174000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s05",
+        "session_id": "sess_chest_pain_01",
+        "section": "A",
+        "ordinal": 1,
+        "text": "Acute chest pain syndrome, high suspicion for unstable angina vs. acute coronary syndrome in setting of known CAD s/p stenting, multiple cardiac risk factors (HTN, DM2, smoking, family history MI), and classic exertional anginal pattern.",
+        "source_claim_ids": ["c01", "c12", "c13", "c14", "c17", "c06", "c07"]
+      }
+    },
+    {
+      "t_ms": 175000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s06",
+        "session_id": "sess_chest_pain_01",
+        "section": "A",
+        "ordinal": 2,
+        "text": "Pulmonary embolism less likely given absence of pleuritic pain, no immobilisation risk, no leg swelling; musculoskeletal cause unlikely given non-reproducibility on palpation.",
+        "source_claim_ids": ["c18", "c20", "c21", "c19"]
+      }
+    },
+    {
+      "t_ms": 176000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t29",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "patient",
+        "text": "I understand, doctor. I have to say, I was worried it might be my heart again. Whatever you think is best — I just want to make sure we catch this early. My father didn't get to the hospital in time, and I don't want to make the same mistake.",
+        "ts": 177000000000,
+        "asr_confidence": 0.93
+      }
+    },
+    {
+      "t_ms": 180000,
+      "type": "turn",
+      "turn": {
+        "turn_id": "t30",
+        "session_id": "sess_chest_pain_01",
+        "speaker": "physician",
+        "text": "You did the right thing coming in. We're going to take very good care of you. I'm ordering a stat ECG, troponin, CBC, BMP, and a chest X-ray. We'll also start you on aspirin three-twenty-five milligrams and sublingual nitroglycerin if the pain returns. I want to keep you on telemetry monitoring. Depending on the initial results, we may need to consult cardiology for a possible catheterisation. Any questions?",
+        "ts": 181000000000,
+        "asr_confidence": 0.96
+      }
+    },
+    {
+      "t_ms": 182000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s07",
+        "session_id": "sess_chest_pain_01",
+        "section": "P",
+        "ordinal": 1,
+        "text": "Stat ECG, serial troponin q3h, CBC, BMP, chest X-ray. Aspirin 325mg PO now, sublingual NTG PRN for recurrent pain. Telemetry monitoring. Cardiology consult if troponin elevated or ECG changes noted.",
+        "source_claim_ids": ["c12", "c01", "c07"]
+      }
+    },
+    {
+      "t_ms": 184000,
+      "type": "soap_delta",
+      "delta": {
+        "sentence_id": "s08",
+        "session_id": "sess_chest_pain_01",
+        "section": "P",
+        "ordinal": 2,
+        "text": "Smoking cessation counseling initiated. Continue home medications (lisinopril, atorvastatin, metformin, aspirin). Strict bed rest with continuous monitoring until risk stratification complete.",
+        "source_claim_ids": ["c17", "c15", "c16"]
       }
     }
   ]

@@ -138,6 +138,18 @@ const SECTION_NAMES: Record<string, string> = {
 
 /* ── helpers ── */
 
+const BRANCH_DISPLAY_NAMES: Record<string, string> = {
+  cardiac: "Acute Coronary Syndrome",
+  pulmonary_embolism: "Pulmonary Embolism",
+  pulmonary: "Pulmonary Embolism",
+  msk: "Musculoskeletal",
+  gi: "Gastrointestinal",
+};
+
+function displayBranch(branch: string): string {
+  return BRANCH_DISPLAY_NAMES[branch] ?? branch.replaceAll("_", " ");
+}
+
 function isClaim(c: Claim | undefined): c is Claim {
   return c !== undefined;
 }
@@ -442,7 +454,7 @@ function buildFocusSteps(
       h.applied.some((a) => a.claim_id === claim.claim_id),
     );
     if (hyp)
-      steps.push({ label: "reasoning", text: hyp.branch.replaceAll("_", " ") });
+      steps.push({ label: "reasoning", text: displayBranch(hyp.branch) });
     if (verifier?.next_best_question)
       steps.push({ label: "question", text: verifier.next_best_question });
     const soap = data.sentences.find((s) =>
@@ -453,13 +465,13 @@ function buildFocusSteps(
   } else if (target.type === "hypothesis") {
     const h = data.hypotheses.find((x) => x.branch === target.id);
     if (!h) return steps;
-    steps.push({ label: "reasoning", text: h.branch.replaceAll("_", " ") });
+    steps.push({ label: "reasoning", text: displayBranch(h.branch) });
     for (const applied of h.applied) {
       const c = data.claimsById.get(applied.claim_id);
       if (c)
         steps.push({
           label: "evidence",
-          text: `${c.predicate.replaceAll("_", " ")}: ${fmtValue(c.value)} (LR ${applied.lr_value.toFixed(1)})`,
+          text: `${c.predicate.replaceAll("_", " ")}: ${fmtValue(c.value)}`,
         });
     }
     const firstClaim = h.applied[0] ? data.claimsById.get(h.applied[0].claim_id) : undefined;
@@ -529,7 +541,7 @@ function FocusOverlay({
   const contextLabel = target.type === "claim" && claim
     ? `${claim.predicate.replaceAll("_", " ")}: ${fmtValue(claim.value)}`
     : target.type === "hypothesis"
-      ? target.id.replaceAll("_", " ")
+      ? displayBranch(target.id)
       : target.type === "sentence"
         ? data.sentences.find(s => s.sentence_id === target.id)?.text?.slice(0, 80) ?? ""
         : "";
@@ -625,23 +637,23 @@ function FocusOverlay({
           </div>
         )}
 
-        {/* 4 actions: Right / Wrong / Thread / Close */}
+        {/* 4 actions: Upvote / Downvote / Thread / Close */}
         <div className={styles.focusPanelActions}>
           {canSteer && (
             <>
               <button
-                className={styles.focusActionRight}
+                className={styles.focusActionUpvote}
                 type="button"
                 onClick={() => { targetClaimIds.forEach(onPromote); onClose(); }}
               >
-                Right
+                Upvote
               </button>
               <button
-                className={styles.focusActionWrong}
+                className={styles.focusActionDownvote}
                 type="button"
                 onClick={() => { targetClaimIds.forEach(onDemote); onClose(); }}
               >
-                Wrong
+                Downvote
               </button>
             </>
           )}
@@ -969,6 +981,7 @@ function ClaimsArea(props: {
     onHover,
     onFocus,
   } = props;
+  const verifier = useSession((s) => s.verifier);
 
   const CLINICAL_SALIENCE = [
     "onset", "character", "severity", "location", "radiation",
@@ -977,12 +990,41 @@ function ClaimsArea(props: {
     "risk_factor", "medication",
   ];
 
+  const weakenedPredicates: string[] = [];
+  for (const [pred, claims] of claimsByPredicate) {
+    const hasActive = claims.some((c) => {
+      const t = claimTreatments.get(c.claim_id) ?? "normal";
+      return t === "normal" || t === "confirmed";
+    });
+    if (!hasActive) weakenedPredicates.push(pred);
+  }
+
+  const flaggedLabs: LabItem[] = [];
+  for (const doc of DEMO_PATIENT.documents) {
+    if (doc.items) for (const item of doc.items) {
+      if (item.flag !== "normal") flaggedLabs.push(item);
+    }
+  }
+
   if (claimsByPredicate.size === 0) {
     return (
       <div className={styles.claimsArea} data-surface="claims">
         <div className={styles.claimsAreaHeader}>Evidence</div>
         <div className={styles.emptyState}>
           Waiting for clinical evidence...
+        </div>
+        <div className={styles.patientSignals}>
+          <div className={styles.signalsLabel}>Patient baseline</div>
+          <div className={styles.signalsRow}>
+            {DEMO_PATIENT.problems.map((p) => (
+              <span key={p} className={styles.signalPill}>{p}</span>
+            ))}
+            {flaggedLabs.map((l) => (
+              <span key={l.name} className={`${styles.signalPill} ${styles.signalFlagged}`}>
+                {l.name} {l.value}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -993,6 +1035,8 @@ function ClaimsArea(props: {
     const bi = CLINICAL_SALIENCE.indexOf(b);
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
+
+  const missingItems = verifier?.missing_or_contradicting ?? [];
 
   return (
     <div className={styles.claimsArea} data-surface="claims">
@@ -1061,6 +1105,38 @@ function ClaimsArea(props: {
           </div>
         ))}
       </div>
+      {(weakenedPredicates.length > 0 || missingItems.length > 0) && (
+        <div className={styles.coverageStrip}>
+          {weakenedPredicates.length > 0 && (
+            <>
+              <span className={styles.coverageLabelWarn}>Unsupported</span>
+              {weakenedPredicates.map((p) => (
+                <span key={p} className={styles.coverageWeakened}>{p.replaceAll("_", " ")}</span>
+              ))}
+            </>
+          )}
+          {missingItems.length > 0 && (
+            <>
+              <span className={styles.coverageLabel}>Still needed</span>
+              {missingItems.map((m, i) => (
+                <span key={i} className={styles.coveragePending}>{m}</span>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+      {claimsByPredicate.size <= 4 && flaggedLabs.length > 0 && (
+        <div className={styles.patientSignals}>
+          <div className={styles.signalsLabel}>Flagged values</div>
+          <div className={styles.signalsRow}>
+            {flaggedLabs.map((l) => (
+              <span key={l.name} className={`${styles.signalPill} ${styles.signalFlagged}`}>
+                {l.name} {l.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1134,21 +1210,21 @@ const PRIMARY_SLOT: DifferentialSlot = {
 };
 
 const SECONDARY_SLOTS: DifferentialSlot[] = [
-  { zone: "upperLeft", xPercent: 28, yPercent: 24, scale: 0.9, opacity: 0.82, fontWeight: 520, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
-  { zone: "upperRight", xPercent: 72, yPercent: 24, scale: 0.9, opacity: 0.82, fontWeight: 520, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
-  { zone: "lowerLeft", xPercent: 29, yPercent: 70, scale: 0.88, opacity: 0.78, fontWeight: 500, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
-  { zone: "lowerRight", xPercent: 71, yPercent: 70, scale: 0.88, opacity: 0.78, fontWeight: 500, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
-  { zone: "sideLeft", xPercent: 16, yPercent: 48, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
-  { zone: "sideRight", xPercent: 84, yPercent: 48, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
+  { zone: "upperLeft", xPercent: 28, yPercent: 24, scale: 0.88, opacity: 0.80, fontWeight: 510, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "upperRight", xPercent: 72, yPercent: 24, scale: 0.88, opacity: 0.80, fontWeight: 510, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "lowerLeft", xPercent: 29, yPercent: 70, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "lowerRight", xPercent: 71, yPercent: 70, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "sideLeft", xPercent: 16, yPercent: 48, scale: 0.84, opacity: 0.74, fontWeight: 480, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
+  { zone: "sideRight", xPercent: 84, yPercent: 48, scale: 0.84, opacity: 0.74, fontWeight: 480, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
 ];
 
 const TERTIARY_SLOTS: DifferentialSlot[] = [
-  { zone: "farUpperLeft", xPercent: 15, yPercent: 18, scale: 0.78, opacity: 0.62, fontWeight: 430, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
-  { zone: "farUpperRight", xPercent: 85, yPercent: 18, scale: 0.78, opacity: 0.62, fontWeight: 430, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
-  { zone: "farLowerLeft", xPercent: 16, yPercent: 79, scale: 0.76, opacity: 0.58, fontWeight: 420, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farLowerRight", xPercent: 84, yPercent: 79, scale: 0.76, opacity: 0.58, fontWeight: 420, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farSideLeft", xPercent: 9, yPercent: 50, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farSideRight", xPercent: 91, yPercent: 50, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farUpperLeft", xPercent: 15, yPercent: 18, scale: 0.76, opacity: 0.60, fontWeight: 420, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farUpperRight", xPercent: 85, yPercent: 18, scale: 0.76, opacity: 0.60, fontWeight: 420, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farLowerLeft", xPercent: 16, yPercent: 79, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farLowerRight", xPercent: 84, yPercent: 79, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideLeft", xPercent: 9, yPercent: 50, scale: 0.72, opacity: 0.54, fontWeight: 400, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideRight", xPercent: 91, yPercent: 50, scale: 0.72, opacity: 0.54, fontWeight: 400, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
 ];
 
 const DANGEROUS_BRANCH_PATTERNS = [
@@ -1199,36 +1275,74 @@ function roleForHypothesis(
   return "peripheral";
 }
 
+const ZONE_FAMILIES: Record<DifferentialRole, DifferentialZone[]> = {
+  leading: ["primary"],
+  dangerousAlternative: ["upperLeft", "upperRight"],
+  risingChallenger: ["upperRight", "sideRight", "upperLeft"],
+  falling: ["lowerLeft", "lowerRight"],
+  ruledDown: ["farLowerLeft", "farLowerRight", "farSideLeft", "farSideRight"],
+  unresolved: ["sideLeft", "sideRight", "lowerLeft", "lowerRight"],
+  peripheral: ["farUpperLeft", "farUpperRight", "farSideLeft", "farSideRight"],
+};
+
+const ALL_SLOTS: Map<DifferentialZone, DifferentialSlot> = new Map([
+  ["primary" as DifferentialZone, PRIMARY_SLOT],
+  ...SECONDARY_SLOTS.map((s) => [s.zone, s] as [DifferentialZone, DifferentialSlot]),
+  ...TERTIARY_SLOTS.map((s) => [s.zone, s] as [DifferentialZone, DifferentialSlot]),
+]);
+
+function stableHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 function buildDifferentialLayouts(
   hypotheses: BranchScore[],
   claimsById: Map<string, Claim>,
   claimTreatments: Map<string, ClaimTreatment>,
   previous: Map<string, DifferentialLayout>,
 ): DifferentialLayout[] {
-  const secondarySlots = [...SECONDARY_SLOTS];
-  const tertiarySlots = [...TERTIARY_SLOTS];
+  const occupied = new Set<DifferentialZone>();
+  const layouts: DifferentialLayout[] = [];
 
-  return hypotheses.map((h, rank) => {
+  for (let rank = 0; rank < hypotheses.length; rank++) {
+    const h = hypotheses[rank]!;
     const previousLayout = previous.get(h.branch) ?? null;
     const claimIds = h.applied.map((a) => a.claim_id);
     const suppressionState = strongestTreatment(claimIds, claimsById, claimTreatments);
     const evidenceStrength = h.applied.reduce((sum, applied) => sum + Math.abs(applied.log_lr), 0);
     const dangerLevel = dangerLevelForBranch(h.branch);
     const semanticRole = roleForHypothesis(h, rank, previousLayout?.rank ?? null, dangerLevel, suppressionState);
-    let slot: DifferentialSlot;
 
-    if (semanticRole === "leading") {
-      slot = PRIMARY_SLOT;
-    } else if (semanticRole === "risingChallenger" || semanticRole === "dangerousAlternative" || semanticRole === "unresolved") {
-      slot = secondarySlots.shift() ?? tertiarySlots.shift() ?? TERTIARY_SLOTS[TERTIARY_SLOTS.length - 1]!;
+    let zone: DifferentialZone;
+
+    if (previousLayout && previousLayout.semanticRole === semanticRole && !occupied.has(previousLayout.destinationZone)) {
+      zone = previousLayout.destinationZone;
     } else {
-      slot = tertiarySlots.shift() ?? secondarySlots.shift() ?? TERTIARY_SLOTS[TERTIARY_SLOTS.length - 1]!;
+      const family = ZONE_FAMILIES[semanticRole];
+      const startIdx = stableHash(h.branch) % family.length;
+      zone = family[startIdx]!;
+      let attempts = 0;
+      while (occupied.has(zone) && attempts < family.length) {
+        attempts++;
+        zone = family[(startIdx + attempts) % family.length]!;
+      }
+      if (occupied.has(zone)) {
+        for (const [z] of ALL_SLOTS) {
+          if (!occupied.has(z) && z !== "primary") { zone = z; break; }
+        }
+      }
     }
 
-    return {
+    occupied.add(zone);
+    const slot = ALL_SLOTS.get(zone) ?? TERTIARY_SLOTS[TERTIARY_SLOTS.length - 1]!;
+
+    layouts.push({
       ...slot,
+      zone,
       id: h.branch,
-      label: h.branch.replaceAll("_", " "),
+      label: displayBranch(h.branch),
       rank,
       previousRank: previousLayout?.rank ?? null,
       semanticRole,
@@ -1236,12 +1350,23 @@ function buildDifferentialLayouts(
       evidenceStrength,
       dangerLevel,
       suppressionState,
-      destinationZone: slot.zone,
+      destinationZone: zone,
       previousZone: previousLayout?.destinationZone ?? null,
       x: slot.xPercent,
       y: slot.yPercent,
-    };
-  });
+    });
+  }
+
+  if (import.meta.env.DEV) {
+    console.table(layouts.map((l) => ({
+      id: l.id, role: l.semanticRole, prevRole: l.previousSemanticRole,
+      zone: l.destinationZone, prevZone: l.previousZone,
+      moved: l.destinationZone !== l.previousZone,
+      reason: l.previousSemanticRole == null ? "initial" : l.semanticRole !== l.previousSemanticRole ? "role change" : "stable",
+    })));
+  }
+
+  return layouts;
 }
 
 function DifferentialFocal(props: {
@@ -1299,6 +1424,11 @@ function DifferentialFocal(props: {
     [hypotheses, claimsById, claimTreatments],
   );
 
+  const maxEvidenceStrength = useMemo(
+    () => Math.max(1, ...layouts.map((l) => l.evidenceStrength)),
+    [layouts],
+  );
+
   useEffect(() => {
     previousLayoutsRef.current = new Map(layouts.map((layout) => [layout.id, layout]));
   }, [layouts]);
@@ -1333,8 +1463,18 @@ function DifferentialFocal(props: {
       }));
   };
 
-  const primaryLayout = layoutById.get(primary.branch) ?? PRIMARY_SLOT;
-  const primaryTokens = getEvidenceTokens(primary, primaryLayout.tokenDensity);
+  const breathe = (layout: DifferentialLayout) => {
+    const t = maxEvidenceStrength > 0 ? layout.evidenceStrength / maxEvidenceStrength : 0;
+    return {
+      scale: layout.scale + t * 0.06,
+      opacity: Math.min(1, layout.opacity + t * 0.12),
+      fontWeight: Math.round(layout.fontWeight + t * 60),
+    };
+  };
+
+  const primaryLayout = layoutById.get(primary.branch);
+  const primaryBreathe = primaryLayout ? breathe(primaryLayout) : { scale: 1, opacity: 1, fontWeight: 650 };
+  const primaryTokens = getEvidenceTokens(primary, primaryLayout?.tokenDensity ?? 8);
   const isFocPrimary =
     focusTarget?.type === "hypothesis" && focusTarget.id === primary.branch;
   const isHovPrimary =
@@ -1359,22 +1499,22 @@ function DifferentialFocal(props: {
           styles.related,
         ].filter(Boolean).join(" ")}
         style={{
-          "--x": `${primaryLayout.xPercent}%`,
-          "--y": `${primaryLayout.yPercent}%`,
-          "--parallax": `${primaryLayout.parallaxDepth}px`,
-          "--slot-scale": `${primaryLayout.scale}`,
+          "--x": `${primaryLayout?.xPercent ?? 50}%`,
+          "--y": `${primaryLayout?.yPercent ?? 45}%`,
+          "--parallax": `${primaryLayout?.parallaxDepth ?? 3}px`,
+          "--slot-scale": `${primaryBreathe.scale}`,
           "--z-depth": "0px",
-          maxWidth: primaryLayout.maxWidth,
-          zIndex: primaryLayout.zIndex,
+          maxWidth: primaryLayout?.maxWidth ?? 460,
+          zIndex: primaryLayout?.zIndex ?? 8,
         } as React.CSSProperties}
-        animate={{ opacity: primaryLayout.opacity }}
+        animate={{ opacity: primaryBreathe.opacity }}
         transition={{ duration: reduceMotion ? 0.01 : 0.26, ease: EXPO_OUT }}
         onMouseEnter={() => onHover({ type: "hypothesis", id: primary.branch })}
         onMouseLeave={() => onHover(null)}
         onClick={() => onFocus({ type: "hypothesis", id: primary.branch })}
       >
-        <h2 className={styles.focalPrimaryName} style={{ fontWeight: primaryLayout.fontWeight }}>
-          {primary.branch.replaceAll("_", " ")}
+        <h2 className={styles.focalPrimaryName} style={{ fontWeight: primaryBreathe.fontWeight }}>
+          {displayBranch(primary.branch)}
         </h2>
         {primaryTokens.length > 0 && (
           <div className={styles.focalPrimaryEvidence}>
@@ -1399,7 +1539,7 @@ function DifferentialFocal(props: {
         )}
         {primaryTokens.length >= 3 && (
           <p className={styles.reasoningNarrative}>
-            {primary.branch.replaceAll("_", " ")} is the primary consideration based on{" "}
+            {displayBranch(primary.branch)} is the primary consideration based on{" "}
             {primaryTokens.filter((t) => !t.weakening && t.treatment === "normal").map((t) => t.text).join(", ")}
             {primaryTokens.some((t) => t.weakening || t.treatment !== "normal")
               ? `. ${primaryTokens.filter((t) => t.weakening || t.treatment !== "normal").map((t) => t.text).join(", ")} ${primaryTokens.filter((t) => t.weakening || t.treatment !== "normal").length > 1 ? "are" : "is"} less consistent.`
@@ -1428,6 +1568,7 @@ function DifferentialFocal(props: {
         const isFoc = focusTarget?.type === "hypothesis" && focusTarget.id === h.branch;
         const isHov = hoverTarget?.type === "hypothesis" && hoverTarget.id === h.branch;
         const tierCls = tier === "secondary" ? styles.spatialSecondary : styles.spatialTertiary;
+        const b = breathe(layout);
 
         return (
           <motion.div
@@ -1446,25 +1587,34 @@ function DifferentialFocal(props: {
               "--x": `${layout.xPercent}%`,
               "--y": `${layout.yPercent}%`,
               "--parallax": `${layout.parallaxDepth}px`,
-              "--slot-scale": `${layout.scale}`,
-              "--z-depth": `${layout.zIndex >= 3 ? -25 : -50}px`,
-              "--blur": `${layout.zIndex >= 3 ? 0.3 : 0.5}px`,
+              "--slot-scale": `${b.scale}`,
+              "--z-depth": `${layout.zIndex >= 3 ? -30 : -60}px`,
+              "--blur": `${layout.zIndex >= 3 ? 0.4 : 0.7}px`,
               maxWidth: layout.maxWidth,
               zIndex: layout.zIndex,
             } as React.CSSProperties}
-            animate={{ opacity: layout.opacity }}
+            animate={{ opacity: b.opacity }}
             transition={{ duration: reduceMotion ? 0.01 : 0.28, ease: EXPO_OUT }}
             data-role={layout.semanticRole}
             data-zone={layout.destinationZone}
+            data-debug={import.meta.env.DEV ? JSON.stringify({
+              id: h.branch, rank: layout.rank, prevRank: layout.previousRank,
+              role: layout.semanticRole, prevRole: layout.previousSemanticRole,
+              zone: layout.destinationZone, prevZone: layout.previousZone,
+              moved: layout.destinationZone !== layout.previousZone,
+              reason: layout.previousSemanticRole == null ? "initial"
+                : layout.semanticRole !== layout.previousSemanticRole ? `role: ${layout.previousSemanticRole} → ${layout.semanticRole}`
+                : "stable",
+            }) : undefined}
             onMouseEnter={() => onHover({ type: "hypothesis", id: h.branch })}
             onMouseLeave={() => onHover(null)}
             onClick={() => onFocus({ type: "hypothesis", id: h.branch })}
           >
             <div
               className={tier === "secondary" ? styles.focalSecondaryName : styles.focalTertiaryName}
-              style={{ fontWeight: layout.fontWeight }}
+              style={{ fontWeight: b.fontWeight }}
             >
-              {h.branch.replaceAll("_", " ")}
+              {displayBranch(h.branch)}
             </div>
             {tokens.length > 0 && (
               <div className={styles.focalSecondaryEvidence}>
@@ -1503,7 +1653,7 @@ function NextQuestion() {
     () => [...(ranking?.scores ?? [])].sort((a, b) => b.log_score - a.log_score),
     [ranking],
   );
-  const rulesOutLabel = sorted[1]?.branch.replaceAll("_", " ") ?? "";
+  const rulesOutLabel = sorted[1] ? displayBranch(sorted[1].branch) : "";
 
   if (!verifier?.next_best_question) {
     return (
@@ -2715,9 +2865,11 @@ export function ReasoningCanvas() {
   return (
     <MotionConfig reducedMotion="user">
       <main
-        className={[styles.canvas, focusTarget ? styles.focusMode : ""]
-          .filter(Boolean)
-          .join(" ")}
+        className={[
+          styles.canvas,
+          focusTarget ? styles.focusMode : "",
+          !focusTarget && hoverTarget ? styles.hoverMode : "",
+        ].filter(Boolean).join(" ")}
         onPointerMove={handlePointerMove}
       >
       <PatientStrip state={stateLabel(data)} />
