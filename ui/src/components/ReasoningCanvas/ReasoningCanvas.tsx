@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "framer-motion";
 import { useSession } from "@/store/session";
+import type { UserBranchDecision, UserClaimDecision } from "@/store/session";
 import type {
   BranchScore,
   Claim,
@@ -28,6 +29,8 @@ type ClaimTreatment =
   | "systemSuperseded"
   | "systemDismissed"
   | "userSuppressed";
+type BranchDecision = UserBranchDecision;
+type ClaimDecision = UserClaimDecision;
 
 interface CanvasData {
   turns: Turn[];
@@ -511,8 +514,8 @@ function FocusOverlay({
   target: FocusTarget;
   data: CanvasData;
   onClose: () => void;
-  onPromote: (claimId: string) => void;
-  onDemote: (claimId: string) => void;
+  onPromote: (target: FocusTarget, claimIds: string[]) => void;
+  onDemote: (target: FocusTarget, claimIds: string[]) => void;
   claimTreatments: Map<string, ClaimTreatment>;
   restoreFocusTo: HTMLElement | null;
 }) {
@@ -534,7 +537,7 @@ function FocusOverlay({
         : target.type === "sentence"
           ? data.sentences.find((s) => s.sentence_id === target.id)?.source_claim_ids ?? []
           : [];
-  const canSteer = targetClaimIds.length > 0;
+  const canSteer = target.type === "hypothesis" || targetClaimIds.length > 0;
   const titleId = `focus-panel-title-${target.type}-${target.id}`;
   const summaryId = `focus-panel-summary-${target.type}-${target.id}`;
 
@@ -644,14 +647,14 @@ function FocusOverlay({
               <button
                 className={styles.focusActionUpvote}
                 type="button"
-                onClick={() => { targetClaimIds.forEach(onPromote); onClose(); }}
+                onClick={() => { onPromote(target, targetClaimIds); onClose(); }}
               >
                 Upvote
               </button>
               <button
                 className={styles.focusActionDownvote}
                 type="button"
-                onClick={() => { targetClaimIds.forEach(onDemote); onClose(); }}
+                onClick={() => { onDemote(target, targetClaimIds); onClose(); }}
               >
                 Downvote
               </button>
@@ -685,8 +688,10 @@ function FocusOverlay({
 function PatientStrip({ state }: { state: string }) {
   return (
     <header className={styles.patientStrip}>
-      <span className={styles.brandMark}>RobbyMD</span>
-      <span className={styles.patientName}>{DEMO_PATIENT.name}</span>
+      <span className={styles.brandMark}>
+        <img className={styles.brandLogo} src="/robby-md-wordmark.svg" alt="RobbyMD" />
+      </span>
+      <span className={styles.patientName}>Patient Name: {DEMO_PATIENT.name}</span>
       <div className={styles.patientMeta}>
         <span>{DEMO_PATIENT.dob}</span>
         <span>
@@ -963,6 +968,7 @@ function ClaimsArea(props: {
   claimsById: Map<string, Claim>;
   strikeOrigin: Map<string, EdgeType>;
   claimTreatments: Map<string, ClaimTreatment>;
+  claimDecisionsById: Record<string, ClaimDecision>;
   hoverTarget: HoverTarget;
   focusTarget: FocusTarget | null;
   relatedClaims: Set<string>;
@@ -974,6 +980,7 @@ function ClaimsArea(props: {
     claimsByPredicate,
     strikeOrigin,
     claimTreatments,
+    claimDecisionsById,
     hoverTarget,
     focusTarget,
     relatedClaims,
@@ -992,11 +999,11 @@ function ClaimsArea(props: {
 
   const weakenedPredicates: string[] = [];
   for (const [pred, claims] of claimsByPredicate) {
-    const hasActive = claims.some((c) => {
+    const hasReadableEvidence = claims.some((c) => {
       const t = claimTreatments.get(c.claim_id) ?? "normal";
-      return t === "normal" || t === "confirmed";
+      return t === "normal" || t === "confirmed" || t === "systemSuperseded";
     });
-    if (!hasActive) weakenedPredicates.push(pred);
+    if (!hasReadableEvidence) weakenedPredicates.push(pred);
   }
 
   const flaggedLabs: LabItem[] = [];
@@ -1058,6 +1065,7 @@ function ClaimsArea(props: {
                   hoverTarget?.type === "claim" &&
                   hoverTarget.id === claim.claim_id;
                 const treatment = claimTreatments.get(claim.claim_id) ?? "normal";
+                const decision = claimDecisionsById[claim.claim_id] ?? null;
                 const isSystemSup = treatment === "systemSuperseded";
                 const isSystemDismissed = treatment === "systemDismissed";
                 const isUserSuppressed = treatment === "userSuppressed";
@@ -1070,6 +1078,7 @@ function ClaimsArea(props: {
                       : "";
                 const cls = [
                   styles.claimToken,
+                  decision === "promoted" ? styles.claimTokenPromoted : "",
                   isSystemSup ? styles.claimTokenSuperseded : "",
                   isSystemDismissed ? styles.claimTokenDismissed : "",
                   isUserSuppressed ? styles.claimTokenUserSuppressed : "",
@@ -1096,6 +1105,9 @@ function ClaimsArea(props: {
                       onFocus({ type: "claim", id: claim.claim_id })
                     }
                   >
+                    {decision === "promoted" && (
+                      <span className={styles.decisionGlyph} aria-label="promoted by user">★</span>
+                    )}
                     {fmtValue(claim.value)}
                     {stateLabel && <span className={styles.claimStateMarker}>{stateLabel}</span>}
                   </button>
@@ -1190,6 +1202,7 @@ interface DifferentialLayout extends DifferentialSlot {
   evidenceStrength: number;
   dangerLevel: number;
   suppressionState: ClaimTreatment;
+  branchDecision: BranchDecision | null;
   destinationZone: DifferentialZone;
   previousZone: DifferentialZone | null;
   x: number;
@@ -1210,21 +1223,21 @@ const PRIMARY_SLOT: DifferentialSlot = {
 };
 
 const SECONDARY_SLOTS: DifferentialSlot[] = [
-  { zone: "upperLeft", xPercent: 28, yPercent: 24, scale: 0.88, opacity: 0.80, fontWeight: 510, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
-  { zone: "upperRight", xPercent: 72, yPercent: 24, scale: 0.88, opacity: 0.80, fontWeight: 510, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
-  { zone: "lowerLeft", xPercent: 29, yPercent: 70, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
-  { zone: "lowerRight", xPercent: 71, yPercent: 70, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
-  { zone: "sideLeft", xPercent: 16, yPercent: 48, scale: 0.84, opacity: 0.74, fontWeight: 480, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
-  { zone: "sideRight", xPercent: 84, yPercent: 48, scale: 0.84, opacity: 0.74, fontWeight: 480, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
+  { zone: "upperLeft", xPercent: 18, yPercent: 15, scale: 0.88, opacity: 0.83, fontWeight: 510, zIndex: 5, maxWidth: 205, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "upperRight", xPercent: 82, yPercent: 15, scale: 0.88, opacity: 0.83, fontWeight: 510, zIndex: 5, maxWidth: 205, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "lowerLeft", xPercent: 24, yPercent: 72, scale: 0.86, opacity: 0.79, fontWeight: 490, zIndex: 4, maxWidth: 210, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "lowerRight", xPercent: 76, yPercent: 72, scale: 0.86, opacity: 0.79, fontWeight: 490, zIndex: 4, maxWidth: 210, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "sideLeft", xPercent: 13, yPercent: 48, scale: 0.84, opacity: 0.77, fontWeight: 480, zIndex: 3, maxWidth: 180, tokenDensity: 2, parallaxDepth: 3 },
+  { zone: "sideRight", xPercent: 87, yPercent: 48, scale: 0.84, opacity: 0.77, fontWeight: 480, zIndex: 3, maxWidth: 180, tokenDensity: 2, parallaxDepth: 3 },
 ];
 
 const TERTIARY_SLOTS: DifferentialSlot[] = [
-  { zone: "farUpperLeft", xPercent: 15, yPercent: 18, scale: 0.76, opacity: 0.60, fontWeight: 420, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
-  { zone: "farUpperRight", xPercent: 85, yPercent: 18, scale: 0.76, opacity: 0.60, fontWeight: 420, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
-  { zone: "farLowerLeft", xPercent: 16, yPercent: 79, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farLowerRight", xPercent: 84, yPercent: 79, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farSideLeft", xPercent: 9, yPercent: 50, scale: 0.72, opacity: 0.54, fontWeight: 400, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
-  { zone: "farSideRight", xPercent: 91, yPercent: 50, scale: 0.72, opacity: 0.54, fontWeight: 400, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farUpperLeft", xPercent: 12, yPercent: 16, scale: 0.76, opacity: 0.66, fontWeight: 420, zIndex: 2, maxWidth: 160, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farUpperRight", xPercent: 88, yPercent: 16, scale: 0.76, opacity: 0.66, fontWeight: 420, zIndex: 2, maxWidth: 160, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farLowerLeft", xPercent: 13, yPercent: 82, scale: 0.74, opacity: 0.62, fontWeight: 410, zIndex: 1, maxWidth: 155, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farLowerRight", xPercent: 87, yPercent: 82, scale: 0.74, opacity: 0.62, fontWeight: 410, zIndex: 1, maxWidth: 155, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideLeft", xPercent: 8, yPercent: 50, scale: 0.72, opacity: 0.60, fontWeight: 400, zIndex: 1, maxWidth: 145, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideRight", xPercent: 92, yPercent: 50, scale: 0.72, opacity: 0.60, fontWeight: 400, zIndex: 1, maxWidth: 145, tokenDensity: 0, parallaxDepth: 1 },
 ];
 
 const DANGEROUS_BRANCH_PATTERNS = [
@@ -1264,8 +1277,11 @@ function roleForHypothesis(
   previousRank: number | null,
   dangerLevel: number,
   suppressionState: ClaimTreatment,
+  branchDecision: BranchDecision | null,
 ): DifferentialRole {
+  if (branchDecision === "demoted") return "ruledDown";
   if (rank === 0) return "leading";
+  if (branchDecision === "promoted") return "risingChallenger";
   if (suppressionState === "userSuppressed" || suppressionState === "systemDismissed") return "ruledDown";
   if (dangerLevel > 0 && rank <= 5) return "dangerousAlternative";
   if (previousRank !== null && rank < previousRank) return "risingChallenger";
@@ -1301,6 +1317,7 @@ function buildDifferentialLayouts(
   hypotheses: BranchScore[],
   claimsById: Map<string, Claim>,
   claimTreatments: Map<string, ClaimTreatment>,
+  branchDecisionsById: Record<string, BranchDecision>,
   previous: Map<string, DifferentialLayout>,
 ): DifferentialLayout[] {
   const occupied = new Set<DifferentialZone>();
@@ -1313,7 +1330,8 @@ function buildDifferentialLayouts(
     const suppressionState = strongestTreatment(claimIds, claimsById, claimTreatments);
     const evidenceStrength = h.applied.reduce((sum, applied) => sum + Math.abs(applied.log_lr), 0);
     const dangerLevel = dangerLevelForBranch(h.branch);
-    const semanticRole = roleForHypothesis(h, rank, previousLayout?.rank ?? null, dangerLevel, suppressionState);
+    const branchDecision = branchDecisionsById[h.branch] ?? null;
+    const semanticRole = roleForHypothesis(h, rank, previousLayout?.rank ?? null, dangerLevel, suppressionState, branchDecision);
 
     let zone: DifferentialZone;
 
@@ -1350,6 +1368,7 @@ function buildDifferentialLayouts(
       evidenceStrength,
       dangerLevel,
       suppressionState,
+      branchDecision,
       destinationZone: zone,
       previousZone: previousLayout?.destinationZone ?? null,
       x: slot.xPercent,
@@ -1374,6 +1393,8 @@ function DifferentialFocal(props: {
   allClaims: Claim[];
   claimsById: Map<string, Claim>;
   claimTreatments: Map<string, ClaimTreatment>;
+  branchDecisionsById: Record<string, BranchDecision>;
+  claimDecisionsById: Record<string, ClaimDecision>;
   hoverTarget: HoverTarget;
   focusTarget: FocusTarget | null;
   data: CanvasData;
@@ -1385,6 +1406,8 @@ function DifferentialFocal(props: {
     allClaims,
     claimsById,
     claimTreatments,
+    branchDecisionsById,
+    claimDecisionsById,
     hoverTarget,
     focusTarget,
     onHover,
@@ -1419,9 +1442,20 @@ function DifferentialFocal(props: {
     return () => { if (rafId.current !== null) cancelAnimationFrame(rafId.current); };
   }, []);
 
+  const visualHypotheses = useMemo(() => {
+    const decisionWeight = (branch: string) =>
+      branchDecisionsById[branch] === "promoted" ? 1000 :
+      branchDecisionsById[branch] === "demoted" ? -1000 :
+      0;
+    return [...hypotheses].sort((a, b) => {
+      const byDecision = decisionWeight(b.branch) - decisionWeight(a.branch);
+      return byDecision || b.log_score - a.log_score;
+    });
+  }, [branchDecisionsById, hypotheses]);
+
   const layouts = useMemo(
-    () => buildDifferentialLayouts(hypotheses, claimsById, claimTreatments, previousLayoutsRef.current),
-    [hypotheses, claimsById, claimTreatments],
+    () => buildDifferentialLayouts(visualHypotheses, claimsById, claimTreatments, branchDecisionsById, previousLayoutsRef.current),
+    [visualHypotheses, claimsById, claimTreatments, branchDecisionsById],
   );
 
   const maxEvidenceStrength = useMemo(
@@ -1433,7 +1467,7 @@ function DifferentialFocal(props: {
     previousLayoutsRef.current = new Map(layouts.map((layout) => [layout.id, layout]));
   }, [layouts]);
 
-  if (hypotheses.length === 0) {
+  if (visualHypotheses.length === 0) {
     return (
       <div className={styles.differential} data-surface="differential">
         <div className={styles.emptyDifferential}>
@@ -1443,8 +1477,8 @@ function DifferentialFocal(props: {
     );
   }
 
-  const primary = hypotheses[0]!;
-  const rest = hypotheses.slice(1);
+  const primary = visualHypotheses[0]!;
+  const rest = visualHypotheses.slice(1);
   const layoutById = new Map(layouts.map((layout) => [layout.id, layout]));
 
   const getEvidenceTokens = (h: BranchScore, tokenDensity: number) => {
@@ -1459,22 +1493,26 @@ function DifferentialFocal(props: {
         id: c.claim_id,
         text: fmtValue(c.value),
         treatment: claimTreatments.get(c.claim_id) ?? "normal",
+        decision: claimDecisionsById[c.claim_id] ?? null,
         weakening: c.value.startsWith("negated:") || normStatus(c.status) === "superseded",
       }));
   };
 
   const breathe = (layout: DifferentialLayout) => {
     const t = maxEvidenceStrength > 0 ? layout.evidenceStrength / maxEvidenceStrength : 0;
+    const promoted = layout.branchDecision === "promoted" ? 1 : 0;
+    const demoted = layout.branchDecision === "demoted" ? 1 : 0;
     return {
-      scale: layout.scale + t * 0.06,
-      opacity: Math.min(1, layout.opacity + t * 0.12),
-      fontWeight: Math.round(layout.fontWeight + t * 60),
+      scale: Math.max(0.68, layout.scale + t * 0.05 + promoted * 0.06 - demoted * 0.05),
+      opacity: Math.min(1, Math.max(0.48, layout.opacity + t * 0.10 + promoted * 0.10 - demoted * 0.12)),
+      fontWeight: Math.round(layout.fontWeight + t * 50 + promoted * 55 - demoted * 45),
     };
   };
 
   const primaryLayout = layoutById.get(primary.branch);
   const primaryBreathe = primaryLayout ? breathe(primaryLayout) : { scale: 1, opacity: 1, fontWeight: 650 };
   const primaryTokens = getEvidenceTokens(primary, primaryLayout?.tokenDensity ?? 8);
+  const primaryDecision = branchDecisionsById[primary.branch] ?? null;
   const isFocPrimary =
     focusTarget?.type === "hypothesis" && focusTarget.id === primary.branch;
   const isHovPrimary =
@@ -1494,6 +1532,8 @@ function DifferentialFocal(props: {
         className={[
           styles.differentialItem,
           styles.focalPrimary,
+          primaryDecision === "promoted" ? styles.hypothesisPromoted : "",
+          primaryDecision === "demoted" ? styles.hypothesisDemoted : "",
           isFocPrimary ? styles.focused : "",
           isHovPrimary ? styles.hovered : "",
           styles.related,
@@ -1514,7 +1554,13 @@ function DifferentialFocal(props: {
         onClick={() => onFocus({ type: "hypothesis", id: primary.branch })}
       >
         <h2 className={styles.focalPrimaryName} style={{ fontWeight: primaryBreathe.fontWeight }}>
+          {primaryDecision === "promoted" && (
+            <span className={styles.hypothesisDecisionGlyph} aria-label="promoted by user">★</span>
+          )}
           {displayBranch(primary.branch)}
+          {primaryDecision === "demoted" && (
+            <span className={styles.hypothesisDecisionLabel}>downvoted</span>
+          )}
         </h2>
         {primaryTokens.length > 0 && (
           <div className={styles.focalPrimaryEvidence}>
@@ -1523,6 +1569,7 @@ function DifferentialFocal(props: {
                 key={t.id}
                 className={[
                   styles.focalEvidenceToken,
+                  t.decision === "promoted" ? styles.focalEvidencePromoted : "",
                   t.weakening || t.treatment === "systemSuperseded" ? styles.focalEvidenceWeakening : "",
                   t.treatment === "systemDismissed" ? styles.focalEvidenceDismissed : "",
                   t.treatment === "userSuppressed" ? styles.focalEvidenceUserSuppressed : "",
@@ -1532,6 +1579,9 @@ function DifferentialFocal(props: {
                 onMouseLeave={() => onHover(null)}
                 onClick={(e) => { e.stopPropagation(); onFocus({ type: "claim", id: t.id }); }}
               >
+                {t.decision === "promoted" && (
+                  <span className={styles.decisionGlyph} aria-label="promoted by user">★</span>
+                )}
                 {t.text}
               </button>
             ))}
@@ -1579,6 +1629,8 @@ function DifferentialFocal(props: {
               tierCls,
               layout.semanticRole === "dangerousAlternative" ? styles.dangerousAlternative : "",
               layout.semanticRole === "ruledDown" ? styles.ruledDownHypothesis : "",
+              layout.branchDecision === "promoted" ? styles.hypothesisPromoted : "",
+              layout.branchDecision === "demoted" ? styles.hypothesisDemoted : "",
               layout.suppressionState === "userSuppressed" ? styles.userSuppressedHypothesis : "",
               isFoc ? styles.focused : "",
               isHov ? styles.hovered : "",
@@ -1588,8 +1640,8 @@ function DifferentialFocal(props: {
               "--y": `${layout.yPercent}%`,
               "--parallax": `${layout.parallaxDepth}px`,
               "--slot-scale": `${b.scale}`,
-              "--z-depth": `${layout.zIndex >= 3 ? -30 : -60}px`,
-              "--blur": `${layout.zIndex >= 3 ? 0.4 : 0.7}px`,
+              "--z-depth": "0px",
+              "--blur": "0px",
               maxWidth: layout.maxWidth,
               zIndex: layout.zIndex,
             } as React.CSSProperties}
@@ -1601,6 +1653,7 @@ function DifferentialFocal(props: {
               id: h.branch, rank: layout.rank, prevRank: layout.previousRank,
               role: layout.semanticRole, prevRole: layout.previousSemanticRole,
               zone: layout.destinationZone, prevZone: layout.previousZone,
+              decision: layout.branchDecision,
               moved: layout.destinationZone !== layout.previousZone,
               reason: layout.previousSemanticRole == null ? "initial"
                 : layout.semanticRole !== layout.previousSemanticRole ? `role: ${layout.previousSemanticRole} → ${layout.semanticRole}`
@@ -1614,7 +1667,13 @@ function DifferentialFocal(props: {
               className={tier === "secondary" ? styles.focalSecondaryName : styles.focalTertiaryName}
               style={{ fontWeight: b.fontWeight }}
             >
+              {layout.branchDecision === "promoted" && (
+                <span className={styles.hypothesisDecisionGlyph} aria-label="promoted by user">★</span>
+              )}
               {displayBranch(h.branch)}
+              {layout.branchDecision === "demoted" && (
+                <span className={styles.hypothesisDecisionLabel}>downvoted</span>
+              )}
             </div>
             {tokens.length > 0 && (
               <div className={styles.focalSecondaryEvidence}>
@@ -1623,6 +1682,7 @@ function DifferentialFocal(props: {
                     key={t.id}
                     className={[
                       styles.focalSecondaryToken,
+                      t.decision === "promoted" ? styles.focalEvidencePromoted : "",
                       t.weakening || t.treatment === "systemSuperseded" ? styles.focalEvidenceWeakening : "",
                       t.treatment === "systemDismissed" ? styles.focalEvidenceDismissed : "",
                       t.treatment === "userSuppressed" ? styles.focalEvidenceUserSuppressed : "",
@@ -1632,6 +1692,9 @@ function DifferentialFocal(props: {
                     onMouseLeave={() => onHover(null)}
                     onClick={(e) => { e.stopPropagation(); onFocus({ type: "claim", id: t.id }); }}
                   >
+                    {t.decision === "promoted" && (
+                      <span className={styles.decisionGlyph} aria-label="promoted by user">★</span>
+                    )}
                     {t.text}
                   </button>
                 ))}
@@ -1956,12 +2019,13 @@ function ContextPanel(props: {
                       ].filter(Boolean).join(" ")}
                     >
                       <button
-                        className={isReviewed ? styles.soapCheckboxChecked : styles.soapCheckbox}
+                        className={isReviewed ? styles.soapReviewBtnReviewed : styles.soapReviewBtn}
                         type="button"
-                        aria-label={isReviewed ? "Mark sentence as not reviewed" : "Mark sentence as reviewed"}
+                        aria-label={isReviewed ? "Sentence reviewed" : "Mark sentence as reviewed"}
                         aria-pressed={isReviewed}
                         onClick={() => toggleReviewed(s.sentence_id)}
                       >
+                        <span>{isReviewed ? "Reviewed" : "Review"}</span>
                         {isReviewed && <span style={{ color: "#FFFFFF", fontSize: 10, lineHeight: 1 }}>✓</span>}
                       </button>
                       <button
@@ -2711,8 +2775,12 @@ export function ReasoningCanvas() {
   const data = useCanvasData();
   const clearSelection = useSession((s) => s.clearSelection);
   const userSuppressedClaimIds = useSession((s) => s.userSuppressedClaimIds);
+  const claimDecisionsById = useSession((s) => s.claimDecisionsById);
+  const branchDecisionsById = useSession((s) => s.branchDecisionsById);
   const unsuppressClaim = useSession((s) => s.unsuppressClaim);
   const suppressClaim = useSession((s) => s.suppressClaim);
+  const recordClaimDecision = useSession((s) => s.recordClaimDecision);
+  const recordBranchDecision = useSession((s) => s.recordBranchDecision);
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
@@ -2745,14 +2813,28 @@ export function ReasoningCanvas() {
   }, []);
 
 
-  const handleConfirmClaim = useCallback((claimId: string) => {
-    unsuppressClaim(claimId);
-    useSession.getState().setClaimStatus(claimId, "confirmed");
-  }, [unsuppressClaim]);
+  const handlePromoteTarget = useCallback((target: FocusTarget, claimIds: string[]) => {
+    if (target.type === "hypothesis") {
+      recordBranchDecision(target.id, "promoted");
+      return;
+    }
+    for (const claimId of claimIds) {
+      unsuppressClaim(claimId);
+      recordClaimDecision(claimId, "promoted");
+      useSession.getState().setClaimStatus(claimId, "confirmed");
+    }
+  }, [recordBranchDecision, recordClaimDecision, unsuppressClaim]);
 
-  const handleDismissClaim = useCallback((claimId: string) => {
-    suppressClaim(claimId);
-  }, [suppressClaim]);
+  const handleDemoteTarget = useCallback((target: FocusTarget, claimIds: string[]) => {
+    if (target.type === "hypothesis") {
+      recordBranchDecision(target.id, "demoted");
+      return;
+    }
+    for (const claimId of claimIds) {
+      suppressClaim(claimId);
+      recordClaimDecision(claimId, "suppressed");
+    }
+  }, [recordBranchDecision, recordClaimDecision, suppressClaim]);
 
   const handlePointerMove = useCallback(() => {
     if (suppressHoverRef.current) suppressHoverRef.current = false;
@@ -2896,6 +2978,7 @@ export function ReasoningCanvas() {
           claimsById={data.claimsById}
           strikeOrigin={data.strikeOrigin}
           claimTreatments={claimTreatments}
+          claimDecisionsById={claimDecisionsById}
           hoverTarget={hoverTarget}
           focusTarget={focusTarget}
           relatedClaims={relatedClaims}
@@ -2909,6 +2992,8 @@ export function ReasoningCanvas() {
           allClaims={allClaims}
           claimsById={data.claimsById}
           claimTreatments={claimTreatments}
+          branchDecisionsById={branchDecisionsById}
+          claimDecisionsById={claimDecisionsById}
           hoverTarget={hoverTarget}
           focusTarget={focusTarget}
           data={data}
@@ -2948,8 +3033,8 @@ export function ReasoningCanvas() {
             target={focusTarget}
             data={data}
             onClose={closeFocus}
-            onPromote={handleConfirmClaim}
-            onDemote={handleDismissClaim}
+            onPromote={handlePromoteTarget}
+            onDemote={handleDemoteTarget}
             claimTreatments={claimTreatments}
             restoreFocusTo={restoreFocusRef.current}
           />

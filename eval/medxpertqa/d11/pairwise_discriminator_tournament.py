@@ -1,12 +1,13 @@
 """D11 Stage 3 -- Pairwise discriminator tournament.
 
-Deterministic pair selection (no model call), then one Groq call per pair
+Deterministic pair selection (no model call), then one model call per pair
 to generate the clinical discriminator between two candidate hypotheses.
 """
 from __future__ import annotations
 
 import os
 import re
+from typing import Callable
 
 import structlog
 
@@ -24,6 +25,8 @@ GROQ_MODEL = "qwen/qwen3-32b"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+ChatFn = Callable[[str, str, int], str]
 
 MAX_PAIRS = 5
 
@@ -186,10 +189,12 @@ def run_pairwise_tournament(
     abstraction: ClinicalAbstraction,
     candidates: list[CandidateHypothesis],
     case_id: str = "",
+    chat_fn: ChatFn | None = None,
 ) -> list[PairwiseDiscriminator]:
-    """Generate discriminator for each pair via Groq."""
+    """Generate discriminator for each pair."""
     cand_map = {c.candidate_id: c for c in candidates}
     findings_str = ", ".join(abstraction.key_findings) if abstraction.key_findings else "none specified"
+    _fn = chat_fn or (lambda p, l, m: _call_groq(p, label=l, max_tokens=m))
     results: list[PairwiseDiscriminator] = []
 
     for pair in pairs:
@@ -209,7 +214,7 @@ def run_pairwise_tournament(
         )
 
         try:
-            raw = _call_groq(prompt, label=f"discriminator:{case_id}:{pair[0]}v{pair[1]}")
+            raw = _fn(prompt, f"discriminator:{case_id}:{pair[0]}v{pair[1]}", 2048)
             disc = _parse_discriminator(raw, pair)
             results.append(disc)
         except Exception as e:

@@ -49,6 +49,64 @@ class CaseLabel(str, Enum):
     BASELINE_ONLY_CORRECT = "BASELINE_ONLY_CORRECT"
     CANDIDATE_COLLAPSE = "CANDIDATE_COLLAPSE"
     REPAIR_BLOCKED_BY_ATTRIBUTOR = "REPAIR_BLOCKED_BY_ATTRIBUTOR"
+    # Infra-aware labels
+    RUN_INCOMPLETE_INFRA = "RUN_INCOMPLETE_INFRA"
+    VERTEX_QUOTA = "VERTEX_QUOTA"
+    VERTEX_AUTH_ERROR = "VERTEX_AUTH_ERROR"
+    VERTEX_TIMEOUT = "VERTEX_TIMEOUT"
+    VERTEX_PROVIDER_ERROR = "VERTEX_PROVIDER_ERROR"
+    AMBIGUOUS_INFRA = "AMBIGUOUS_INFRA"
+    # Mechanism labels
+    NO_LEADERS_FOUND = "NO_LEADERS_FOUND"
+    PAIRWISE_TOURNAMENT_INACTIVE = "PAIRWISE_TOURNAMENT_INACTIVE"
+    EVIDENCE_ATTRIBUTION_INCOMPLETE = "EVIDENCE_ATTRIBUTION_INCOMPLETE"
+    REPAIR_THEATER = "REPAIR_THEATER"
+    REPAIR_DROPPED = "REPAIR_DROPPED"
+    REPAIR_GENERIC = "REPAIR_GENERIC"
+    SUFFICIENCY_UNDERCONFIDENT = "SUFFICIENCY_UNDERCONFIDENT"
+    REPAIR_BLOCKED_BY_EMPTY_PAIRS = "REPAIR_BLOCKED_BY_EMPTY_PAIRS"
+    # Wrong-leader labels
+    CONFIDENT_WRONG_LEADER = "CONFIDENT_WRONG_LEADER"
+    GOLD_MARKED_TRAP = "GOLD_MARKED_TRAP"
+    GOLD_MARKED_CONTRADICTED = "GOLD_MARKED_CONTRADICTED"
+    GOLD_INSUFFICIENT = "GOLD_INSUFFICIENT"
+    WRONG_LEADER_OVERWEIGHTED = "WRONG_LEADER_OVERWEIGHTED"
+    PAIRWISE_DISCRIMINATOR_WRONG = "PAIRWISE_DISCRIMINATOR_WRONG"
+    SUFFICIENCY_OVERCONFIDENT_STRONG_WRONG = "SUFFICIENCY_OVERCONFIDENT_STRONG_WRONG"
+    BOARD_GENERATED_WRONG_EVIDENCE = "BOARD_GENERATED_WRONG_EVIDENCE"
+    # Board coverage labels
+    BOARD_UNDER_COVERAGE = "BOARD_UNDER_COVERAGE"
+    BOARD_MISSING_GOLD_OFFLINE = "BOARD_MISSING_GOLD_OFFLINE"
+    BOARD_EMPTY_CANDIDATES = "BOARD_EMPTY_CANDIDATES"
+    BOARD_REPAIR_FAILED = "BOARD_REPAIR_FAILED"
+    BOARD_COVERAGE_COMPLETE = "BOARD_COVERAGE_COMPLETE"
+    CANDIDATE_NOT_FAIRLY_EVALUATED = "CANDIDATE_NOT_FAIRLY_EVALUATED"
+    CONFIDENT_WRONG_LEADER_FROM_PARTIAL_BOARD = "CONFIDENT_WRONG_LEADER_FROM_PARTIAL_BOARD"
+    BOARD_REPAIR_PARSE_FAILED = "BOARD_REPAIR_PARSE_FAILED"
+    BOARD_REPAIR_PARTIAL = "BOARD_REPAIR_PARTIAL"
+    BOARD_REPAIR_FALLBACK_USED = "BOARD_REPAIR_FALLBACK_USED"
+    CANDIDATE_EXPLICITLY_INSUFFICIENT = "CANDIDATE_EXPLICITLY_INSUFFICIENT"
+    CANDIDATE_SILENTLY_OMITTED = "CANDIDATE_SILENTLY_OMITTED"
+    BOARD_REPAIR_EXHAUSTED = "BOARD_REPAIR_EXHAUSTED"
+    FALLBACK_CANDIDATE_PRESENT = "FALLBACK_CANDIDATE_PRESENT"
+    FALLBACK_IN_TOP_REASONING = "FALLBACK_IN_TOP_REASONING"
+    STRONG_WITH_FALLBACK_BLOCKED = "STRONG_WITH_FALLBACK_BLOCKED"
+    SUFFICIENCY_OVERCONFIDENT_WITH_FALLBACK = "SUFFICIENCY_OVERCONFIDENT_WITH_FALLBACK"
+    # D12 calibration labels
+    ORDER_SENSITIVE_LEADER = "ORDER_SENSITIVE_LEADER"
+    UNSTABLE_EVIDENCE_ATTRIBUTION = "UNSTABLE_EVIDENCE_ATTRIBUTION"
+    SUPPORT_CONTRADICTION_FLIP = "SUPPORT_CONTRADICTION_FLIP"
+    STABILITY_DOWNGRADED = "STABILITY_DOWNGRADED"
+    D12_REOPENED_AMBIGUITY = "D12_REOPENED_AMBIGUITY"
+    MEDICAL_MODEL_HELPED = "MEDICAL_MODEL_HELPED"
+    MEDICAL_MODEL_ONLY_BETTER = "MEDICAL_MODEL_ONLY_BETTER"
+    D12_CALIBRATION_HELPED = "D12_CALIBRATION_HELPED"
+    D12_CALIBRATION_HURT = "D12_CALIBRATION_HURT"
+    D12_FALLBACK_TO_D11 = "D12_FALLBACK_TO_D11"
+    ARCHITECTURE_INVALID_GOLD_LEAKAGE = "ARCHITECTURE_INVALID_GOLD_LEAKAGE"
+    STABILITY_UNANIMOUS = "STABILITY_UNANIMOUS"
+    STABILITY_MAJORITY = "STABILITY_MAJORITY"
+    STABILITY_WEAK = "STABILITY_WEAK"
 
 
 # ── Data structures ─────────────────────────────────────────────────────
@@ -71,6 +129,11 @@ class CaseResult:
     echo_rate: float = 0.0
     discriminator_count: int = 0
     error: str = ""  # any error during processing
+    # Infra tracking
+    vertex_error: str = ""
+    vertex_calls: int = 0
+    cache_hits: int = 0
+    cache_misses: int = 0
 
 
 @dataclass
@@ -269,6 +332,41 @@ def _label_case(case: CaseResult, variants: list[str]) -> list[CaseLabel]:
             and case.unresolved_pairs_before == 0
             and case.sufficiency_quality in ("insufficient", "")):
         labels.append(CaseLabel.REPAIR_BLOCKED_BY_ATTRIBUTOR)
+
+    # Infra labels
+    if case.vertex_error:
+        labels.append(CaseLabel.AMBIGUOUS_INFRA)
+        if "quota" in case.vertex_error.lower():
+            labels.append(CaseLabel.VERTEX_QUOTA)
+        elif "auth" in case.vertex_error.lower():
+            labels.append(CaseLabel.VERTEX_AUTH_ERROR)
+        elif "timeout" in case.vertex_error.lower():
+            labels.append(CaseLabel.VERTEX_TIMEOUT)
+        else:
+            labels.append(CaseLabel.VERTEX_PROVIDER_ERROR)
+
+    # No leaders found: candidates exist but no leaders and no unresolved pairs
+    if (case.repair_triggered and case.unresolved_pairs_after == 0
+            and case.unresolved_pairs_before == 0
+            and case.repair_claim_count == 0
+            and case.sufficiency_quality not in ("strong",)):
+        labels.append(CaseLabel.NO_LEADERS_FOUND)
+
+    # Repair blocked by empty pairs
+    if (case.repair_triggered and case.unresolved_pairs_before == 0
+            and case.repair_claim_count == 0
+            and case.sufficiency_quality in ("insufficient", "generic", "")):
+        labels.append(CaseLabel.REPAIR_BLOCKED_BY_EMPTY_PAIRS)
+
+    # Repair theater: repair triggered but unresolved pairs did not decrease
+    if (case.repair_triggered and case.repair_claim_count > 0
+            and case.unresolved_pairs_after >= case.unresolved_pairs_before
+            and case.unresolved_pairs_before > 0):
+        labels.append(CaseLabel.REPAIR_THEATER)
+
+    # Pairwise tournament inactive
+    if case.discriminator_count == 0 and repair_variant and repair_variant in case.predictions:
+        labels.append(CaseLabel.PAIRWISE_TOURNAMENT_INACTIVE)
 
     return labels
 

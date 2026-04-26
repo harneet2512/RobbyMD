@@ -1,4 +1,4 @@
-"""D11 Stage 1 -- Clinical abstraction via Qwen3-32B on Groq.
+"""D11 Stage 1 -- Clinical abstraction via Qwen3-32B.
 
 Extracts structured clinical features from a vignette without answering
 the question or ranking any option.
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Callable
 
 import structlog
 
@@ -17,6 +18,8 @@ log = structlog.get_logger(__name__)
 
 GROQ_MODEL = "qwen/qwen3-32b"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+ChatFn = Callable[[str, str, int], str]
 
 _ABSTRACTION_PROMPT = """\
 You are a clinical case analyst. Given a clinical vignette, extract structured features.
@@ -101,10 +104,12 @@ def abstract_clinical_case(
     vignette: str,
     options: dict[str, str] | None = None,
     case_id: str = "",
+    chat_fn: ChatFn | None = None,
 ) -> ClinicalAbstraction:
     """Call Qwen3-32B to abstract clinical case into structured features."""
     prompt = _ABSTRACTION_PROMPT.format(vignette=vignette)
-    raw = _call_groq(prompt, label=f"abstraction:{case_id}")
+    _fn = chat_fn or (lambda p, l, m: _call_groq(p, label=l, max_tokens=m))
+    raw = _fn(prompt, f"abstraction:{case_id}", 2048)
 
     clinical_problem = _parse_line(raw, "CLINICAL_PROBLEM") or "unknown"
     key_findings = _parse_csv(_parse_line(raw, "KEY_FINDINGS"))

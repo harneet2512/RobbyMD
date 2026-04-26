@@ -270,6 +270,13 @@ def attribute_evidence(
         generic: list[Claim] = []
         missing: list[str] = []
 
+        # Check if board entirely missed this candidate
+        board_has_record = (
+            (mech is not None and (mech.supporting_clues or mech.contradicting_clues))
+            or (skep is not None and (skep.missing_required_clues or skep.contradictions))
+            or (trap is not None and trap.is_trap)
+        )
+
         # --- Mechanism specialist ---
         if mech:
             for clue in mech.supporting_clues:
@@ -332,9 +339,12 @@ def attribute_evidence(
                     )
                 )
 
-        net_status = _determine_net_status(
-            cid, supporting, contradicting, missing, is_trap,
-        )
+        if not board_has_record:
+            net_status = "board_missing"
+        else:
+            net_status = _determine_net_status(
+                cid, supporting, contradicting, missing, is_trap,
+            )
 
         results.append(
             CandidateEvidence(

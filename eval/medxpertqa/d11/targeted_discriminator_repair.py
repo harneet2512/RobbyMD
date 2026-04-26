@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Callable
 
 import structlog
 
@@ -24,6 +25,8 @@ GROQ_MODEL = "qwen/qwen3-32b"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+ChatFn = Callable[[str, str, int], str]
 
 MAX_REPAIR_PAIRS = 5
 
@@ -101,6 +104,7 @@ def repair_discriminators(
     abstraction: ClinicalAbstraction,
     candidates: list[CandidateHypothesis],
     case_id: str = "",
+    chat_fn: ChatFn | None = None,
 ) -> list[RepairClaim]:
     """Generate targeted discriminators for unresolved/missing pairs.
 
@@ -122,6 +126,7 @@ def repair_discriminators(
     all_pairs = all_pairs[:MAX_REPAIR_PAIRS]
 
     results: list[RepairClaim] = []
+    _fn = chat_fn or (lambda p, l, m: _call_groq(p, label=l, max_tokens=m))
 
     for pair in all_pairs:
         cand_a = cand_map.get(pair[0])
@@ -140,7 +145,7 @@ def repair_discriminators(
         )
 
         try:
-            raw = _call_groq(prompt, label=f"repair:{case_id}:{pair[0]}v{pair[1]}")
+            raw = _fn(prompt, f"repair:{case_id}:{pair[0]}v{pair[1]}", 2048)
             claim_text = _parse_line(raw, "DISCRIMINATOR") or "unresolved"
             supports = _parse_line(raw, "SUPPORTS") or "unclear"
             rules_out = _parse_line(raw, "RULES_OUT") or "unclear"

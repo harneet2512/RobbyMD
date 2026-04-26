@@ -240,6 +240,8 @@ def audit_sufficiency(
     generic_count = len(generic_claims)
     decisive_count = len(decisive_claims)
 
+    board_missing = [e for e in evidence if e.net_status == "board_missing"]
+
     bundle_quality, repair_required = _determine_bundle_quality(
         leaders=leaders,
         runners=runners,
@@ -249,6 +251,27 @@ def audit_sufficiency(
         decisive_count=decisive_count,
         supported=supported,
     )
+
+    # Fallback candidates: board_missing or those with repair failure note
+    fallback_ids = {e.candidate_id for e in evidence if e.net_status == "board_missing"}
+    for e in evidence:
+        for clue in e.missing_required_clues:
+            if "board repair failed" in clue.lower():
+                fallback_ids.add(e.candidate_id)
+
+    # Block strong if any fallback candidate is in top reasoning
+    top_ids = set(leaders + runners)
+    for pair in unresolved_pairs:
+        top_ids.update(pair)
+    fallback_in_top = fallback_ids & top_ids
+
+    if fallback_ids and bundle_quality == "strong":
+        if fallback_in_top:
+            bundle_quality = "underdetermined"
+            repair_required = True
+        elif board_missing:
+            bundle_quality = "underdetermined"
+            repair_required = True
 
     audit = SufficiencyAudit(
         bundle_quality=bundle_quality,

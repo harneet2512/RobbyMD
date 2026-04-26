@@ -4,26 +4,40 @@
 
 @layer base {
   :root {
-    --bg: 190 12% 6%;
-    --surface: 190 10% 6%;
-    --surface-2: 190 8% 9%;
-    --border: 190 8% 19%;
-    --border-strong: 190 8% 28%;
-    --fg: 170 13% 86%;
-    --fg-muted: 176 7% 58%;
-    --fg-subtle: 180 4% 45%;
+    /* Light-mode diagnostic trace surface */
+    --bg: #F7F5F2;
+    --surface: #FDFCFA;
+    --surface-subtle: #EFECE6;
+    --border: #DDD8D0;
+    --border-strong: #C4BDB4;
 
-    --status-active: 170 13% 86%;
-    --status-superseded: 176 7% 58%;
-    --status-confirmed: 170 13% 86%;
-    --status-dismissed: 180 4% 45%;
+    /* Text — violet undertone */
+    --text: #1A1A1E;
+    --text-soft: #55535E;
+    --text-muted: #87848F;
+    --text-faint: #ACA9B3;
 
-    --accent: 190 35% 63%;
-    --accent-soft: 190 35% 63%;
+    /* Cognition accent — desaturated indigo / gray-violet */
+    --accent: #5B5470;
+    --accent-soft: #E8E5F0;
+    --accent-dim: #706A85;
 
-    --disclaimer-bg: 190 10% 6%;
-    --disclaimer-fg: 170 13% 86%;
-    --disclaimer-border: 190 8% 19%;
+    /* Claim states */
+    --active: #2D2A35;
+    --superseded: #8A8692;
+    --dismissed: #9A969F;
+
+    /* Focus/provenance */
+    --focus: #3E3B4A;
+    --focus-ring: #5B5470;
+
+    /* Functional */
+    --review-mark: #4A6B4A;
+    --strike: #B5B1BA;
+
+    /* Conversation rail — dark ink surface */
+    --rail-ink: #1A1A1E;
+    --rail-ink-text: #EFECE6;
   }
 
   html,
@@ -33,16 +47,17 @@
   }
 
   body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
-    font-variant-ligatures: common-ligatures;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    background-image: none;
   }
 
   ::selection {
-    background: hsl(var(--accent) / 0.28);
-    color: hsl(var(--fg));
+    background: oklch(42% 0.04 290 / 0.2);
+    color: var(--text);
   }
 }
 
@@ -50,26 +65,19 @@
   .scroll-y {
     @apply overflow-y-auto;
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border-strong)) transparent;
+    scrollbar-color: var(--border) transparent;
   }
 
   .scroll-y::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
   }
 
   .scroll-y::-webkit-scrollbar-thumb {
-    background: hsl(var(--border-strong));
+    background: var(--border);
+    border-radius: 3px;
   }
 
   .scroll-y::-webkit-scrollbar-track {
     background: transparent;
-  }
-
-  .prov-highlight {
-    @apply bg-accent/15 ring-1 ring-accent/50;
-  }
-
-  .prov-dim {
-    @apply opacity-40;
   }
 }

@@ -20,6 +20,8 @@ import type {
  * selectedTurnId and clears the others, etc.
  */
 export type SelectionAxis = "turn" | "claim" | "sentence" | null;
+export type UserClaimDecision = "promoted" | "suppressed";
+export type UserBranchDecision = "promoted" | "demoted";
 
 interface SessionState {
   // identity
@@ -43,12 +45,20 @@ interface SessionState {
   selectedTurnId: string | null;
   selectedClaimId: string | null;
   selectedSentenceId: string | null;
+  userSuppressedClaimIds: Set<string>;
+  claimDecisionsById: Record<string, UserClaimDecision>;
+  branchDecisionsById: Record<string, UserBranchDecision>;
 
   // ingress — called by api/client.ts when events arrive
   upsertTurn: (turn: Turn) => void;
   upsertClaim: (claim: Claim) => void;
   appendEdge: (edge: SupersessionEdge) => void;
   setClaimStatus: (claimId: string, status: Claim["status"]) => void;
+  suppressClaim: (claimId: string) => void;
+  unsuppressClaim: (claimId: string) => void;
+  clearUserSuppression: () => void;
+  recordClaimDecision: (claimId: string, decision: UserClaimDecision | null) => void;
+  recordBranchDecision: (branchId: string, decision: UserBranchDecision | null) => void;
   upsertSentence: (sentence: NoteSentence) => void;
   setRanking: (ranking: BranchRanking) => void;
   setVerifier: (verifier: VerifierOutput) => void;
@@ -79,6 +89,9 @@ export const useSession = create<SessionState>((set) => ({
   selectedTurnId: null,
   selectedClaimId: null,
   selectedSentenceId: null,
+  userSuppressedClaimIds: new Set(),
+  claimDecisionsById: {},
+  branchDecisionsById: {},
 
   upsertTurn: (turn) =>
     set((s) => {
@@ -111,6 +124,38 @@ export const useSession = create<SessionState>((set) => ({
       return {
         claims: { ...s.claims, [claimId]: { ...existing, status } },
       };
+    }),
+
+  suppressClaim: (claimId) =>
+    set((s) => {
+      const next = new Set(s.userSuppressedClaimIds);
+      next.add(claimId);
+      return { userSuppressedClaimIds: next };
+    }),
+
+  unsuppressClaim: (claimId) =>
+    set((s) => {
+      const next = new Set(s.userSuppressedClaimIds);
+      next.delete(claimId);
+      return { userSuppressedClaimIds: next };
+    }),
+
+  clearUserSuppression: () => set({ userSuppressedClaimIds: new Set() }),
+
+  recordClaimDecision: (claimId, decision) =>
+    set((s) => {
+      const next = { ...s.claimDecisionsById };
+      if (decision) next[claimId] = decision;
+      else delete next[claimId];
+      return { claimDecisionsById: next };
+    }),
+
+  recordBranchDecision: (branchId, decision) =>
+    set((s) => {
+      const next = { ...s.branchDecisionsById };
+      if (decision) next[branchId] = decision;
+      else delete next[branchId];
+      return { branchDecisionsById: next };
     }),
 
   upsertSentence: (sentence) =>
@@ -180,6 +225,14 @@ export const useSession = create<SessionState>((set) => ({
       selectedTurnId: null,
       selectedClaimId: null,
       selectedSentenceId: null,
+      userSuppressedClaimIds: new Set(),
+      claimDecisionsById: {},
+      branchDecisionsById: {},
     }),
-  endSession: () => set({ sessionId: null }),
+  endSession: () => set({
+    sessionId: null,
+    userSuppressedClaimIds: new Set(),
+    claimDecisionsById: {},
+    branchDecisionsById: {},
+  }),
 }));

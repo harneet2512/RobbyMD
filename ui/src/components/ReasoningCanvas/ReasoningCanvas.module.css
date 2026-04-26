@@ -52,12 +52,20 @@
 }
 
 .brandMark {
-  font-size: 14px;
-  font-weight: 700;
-  color: #5B5470;
-  letter-spacing: -0.02em;
-  margin-right: 16px;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 20px;
+  padding-right: 18px;
+  border-right: 1px solid #e8e5e0;
   flex-shrink: 0;
+  height: 100%;
+}
+
+.brandLogo {
+  display: block;
+  width: 128px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .patientName {
@@ -65,7 +73,7 @@
   font-weight: 600;
   color: #1a1a1e;
   letter-spacing: -0.01em;
-  margin-right: 12px;
+  margin-right: 14px;
   flex-shrink: 0;
 }
 
@@ -338,8 +346,8 @@
   grid-area: center;
   display: grid;
   grid-template-rows:
-    clamp(140px, 22vh, 260px)
-    minmax(clamp(300px, 36vh, 500px), 1fr)
+    clamp(210px, 34vh, 360px)
+    minmax(clamp(260px, 28vh, 430px), 1fr)
     clamp(60px, 8vh, 100px);
   overflow: hidden;
   min-width: 0;
@@ -371,18 +379,18 @@
 }
 
 .evidenceFlow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px 16px;
   align-items: flex-start;
 }
 
 .evidenceUnit {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   gap: 3px;
-  min-width: 80px;
-  max-width: 180px;
+  min-width: 0;
+  max-width: none;
 }
 
 .evidenceUnitLabel {
@@ -502,6 +510,8 @@
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid #f0ede8;
+  max-height: 42px;
+  overflow: hidden;
 }
 
 .coverageLabel {
@@ -585,7 +595,6 @@
 .differential {
   min-height: 0;
   overflow: visible;
-  clip-path: inset(0);
   min-width: 0;
   display: block;
   padding: 24px 32px 16px;
@@ -681,6 +690,15 @@
   width: min(460px, 42vw);
   max-height: 55%;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.focalPrimaryName,
+.focalPrimaryEvidence,
+.reasoningNarrative,
+.whyMoved,
+.missingFeatures {
+  pointer-events: auto;
 }
 
 .focalPrimaryName {
@@ -744,6 +762,23 @@
   box-shadow: inset 0 -2px 0 0 rgba(138, 110, 74, 0.55);
 }
 
+.focalEvidencePromoted,
+.claimTokenPromoted {
+  border-color: #b9b1c8;
+  background: #f8f6fb;
+  box-shadow: inset 0 -2px 0 0 rgba(91, 84, 112, 0.28);
+}
+
+.decisionGlyph,
+.hypothesisDecisionGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #5B5470;
+  font-size: 0.86em;
+  line-height: 1;
+}
+
 /* spatial positioning for non-primary hypotheses */
 
 .spatialSecondary {
@@ -794,15 +829,52 @@
   text-transform: uppercase;
 }
 
+.hypothesisPromoted .focalSecondaryName,
+.hypothesisPromoted .focalTertiaryName,
+.hypothesisPromoted .focalPrimaryName {
+  color: #1a1a1e;
+}
+
+.hypothesisPromoted .focalSecondaryName::after,
+.hypothesisPromoted .focalTertiaryName::after {
+  content: " promoted";
+  margin-left: 5px;
+  color: #5B5470;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hypothesisDecisionGlyph {
+  margin-right: 6px;
+  transform: translateY(-1px);
+}
+
+.hypothesisDecisionLabel {
+  display: inline-flex;
+  margin-left: 7px;
+  color: #8a6e4a;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .ruledDownHypothesis,
-.userSuppressedHypothesis {
+.userSuppressedHypothesis,
+.hypothesisDemoted {
   color: #8a8279;
 }
 
 .ruledDownHypothesis .focalSecondaryName,
 .userSuppressedHypothesis .focalSecondaryName,
+.hypothesisDemoted .focalSecondaryName,
 .ruledDownHypothesis .focalTertiaryName,
-.userSuppressedHypothesis .focalTertiaryName {
+.userSuppressedHypothesis .focalTertiaryName,
+.hypothesisDemoted .focalTertiaryName,
+.hypothesisDemoted .focalPrimaryName {
   text-decoration: line-through;
   text-decoration-color: #8a6e4a;
   text-decoration-thickness: 2px;
@@ -1747,14 +1819,21 @@
   padding: 4px 0;
 }
 
-.soapCheckbox {
+.soapCheckbox,
+.soapReviewBtn {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  border: 1.5px solid #c4bdb4;
+  min-width: 58px;
+  height: 22px;
+  margin-top: 1px;
+  padding: 0 8px;
+  border: 1px solid #ddd8d0;
   border-radius: 3px;
-  background: #FFFFFF;
+  background: #f7f5f2;
+  color: #87848f;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1763,14 +1842,27 @@
               border-color 120ms ease-out;
 }
 
-.soapCheckbox:hover {
+.soapCheckbox:hover,
+.soapReviewBtn:hover {
   border-color: #5B5470;
+  color: #5B5470;
 }
 
-.soapCheckboxChecked {
-  composes: soapCheckbox;
+.soapCheckboxChecked,
+.soapReviewBtnReviewed {
+  composes: soapReviewBtn;
   background: #5B5470;
   border-color: #5B5470;
+  color: #FFFFFF !important;
+}
+
+.soapReviewBtnReviewed span {
+  display: none;
+}
+
+.soapReviewBtnReviewed::before {
+  content: "Reviewed";
+  color: #FFFFFF;
 }
 
 .soapSentenceText {
@@ -1811,7 +1903,7 @@
   flex-wrap: wrap;
   gap: 3px;
   margin-top: 2px;
-  margin-left: 24px;
+  margin-left: 66px;
 }
 
 .soapSourcePill {
@@ -2123,8 +2215,8 @@
   }
   .center {
     grid-template-rows:
-      clamp(120px, 20vh, 220px)
-      minmax(clamp(260px, 32vh, 440px), 1fr)
+      clamp(180px, 30vh, 300px)
+      minmax(clamp(250px, 28vh, 400px), 1fr)
       clamp(50px, 7vh, 90px);
   }
   .center,
@@ -2176,7 +2268,12 @@
     padding: 0 12px;
   }
   .brandMark {
-    margin-right: 10px;
+    margin-right: 12px;
+    padding-right: 12px;
+  }
+  .brandLogo {
+    width: 108px;
+    height: 26px;
   }
   .patientName {
     max-width: 110px;

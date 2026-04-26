@@ -28,3 +28,21 @@ class ActiveClaim:
     polarity: bool = True  # True=present, False=absent/negated
     confidence: float = 1.0
     source_turn_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PhysicianOverride:
+    """A physician's explicit steering of a differential branch.
+
+    `direction` is "upgrade" or "downgrade". `weight` is the log-odds
+    adjustment (default 2.0 ≈ LR of 7.4). Enters the same audit trail
+    as LR-based evidence so the full reasoning trace — machine AND human
+    — is reconstructible.
+    """
+
+    decision_id: str
+    branch: str
+    direction: str  # "upgrade" | "downgrade"
+    weight: float = 2.0
+    physician_id: str = ""
+    rationale: str = ""

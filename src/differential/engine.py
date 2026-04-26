@@ -25,7 +25,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from src.differential.lr_table import LRRow, LRTable
-from src.differential.types import ActiveClaim
+from src.differential.types import ActiveClaim, PhysicianOverride
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,22 +103,24 @@ def _apply_row(claim: ActiveClaim, row: LRRow) -> AppliedLR | None:
 def rank_branches(
     active_claims: Iterable[ActiveClaim],
     lr_table: LRTable,
+    overrides: Iterable[PhysicianOverride] = (),
 ) -> BranchRanking:
-    """Compute LR-weighted branch ranking.
+    """Compute LR-weighted branch ranking with optional physician steering.
 
     Deterministic: any iterable that yields claims in the same order as another
     yields the same result. We explicitly materialise and sort by `claim_id` to
     neutralise iteration-order noise from upstream callers — required by
     rules.md §5.1.
+
+    Physician overrides enter the same log-odds accumulator as LR evidence.
+    An upgrade adds weight to a branch; a downgrade subtracts. Both appear
+    in the AppliedLR audit trail so the full reasoning chain — machine AND
+    physician — is reconstructible.
     """
-    # Empty LR table → empty ranking. Engine no-ops gracefully when the active
-    # pack has no differentials (e.g. personal_assistant). Addresses audit finding
-    # #1 from commit 767d3e8.
     branches = lr_table.branches
     if not branches:
         return BranchRanking(scores=())
 
-    # Materialise + deterministic sort so we don't depend on upstream ordering.
     claims = sorted(active_claims, key=lambda c: (c.claim_id, c.predicate_path, c.polarity))
 
     log_scores: dict[str, float] = dict.fromkeys(branches, 0.0)
@@ -132,13 +134,29 @@ def rank_branches(
             log_scores[hit.branch] += hit.log_lr
             applied[hit.branch].append(hit)
 
-    # Softmax across branches with a numerical-stability shift by max log-score.
+    # Physician overrides: same math, same audit trail.
+    for ov in sorted(overrides, key=lambda o: (o.decision_id, o.branch)):
+        if ov.branch not in log_scores:
+            continue
+        sign = 1.0 if ov.direction == "upgrade" else -1.0
+        log_delta = sign * ov.weight
+        log_scores[ov.branch] += log_delta
+        applied[ov.branch].append(AppliedLR(
+            claim_id=ov.decision_id,
+            branch=ov.branch,
+            feature=f"physician_{ov.direction}",
+            predicate_path="physician_override",
+            lr_value=math.exp(log_delta),
+            log_lr=log_delta,
+            direction=ov.direction,
+            approximation=False,
+        ))
+
     max_log = max(log_scores.values())
     unnorm = {b: math.exp(log_scores[b] - max_log) for b in log_scores}
     z = sum(unnorm.values())
     posteriors = {b: unnorm[b] / z for b in unnorm}
 
-    # Branch-level ordering: posterior desc, branch-id asc (stable tiebreak).
     scored = tuple(
         BranchScore(
             branch=b,
