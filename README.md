@@ -36,40 +36,55 @@ TBD.
 
 ## Evaluation
 
-### LongMemEval-S (ICLR 2025) — 88.4% overall, 3rd on the leaderboard
+### LongMemEval-S (ICLR 2025)
 
-Full 500-question auditable benchmark run. Reader: GPT-5-mini via OpenRouter. Judge: GPT-4o (official protocol). Total cost: $10.21.
+LongMemEval-S (Wu et al., ICLR 2025, [arXiv 2410.10813](https://arxiv.org/abs/2410.10813)) evaluates five core long-term memory abilities: information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention. 500 questions, GPT-4o judge, per-category accuracy.
 
-| Type | Score | Baseline | Delta |
-|------|-------|----------|-------|
-| single-session-user | 69/70 (98.6%) | 92.9% | +5.7pp |
-| single-session-assistant | 55/56 (98.2%) | 96.4% | +1.8pp |
-| single-session-preference | 22/30 (73.3%) | 0.0% | +73.3pp |
-| multi-session | 106/133 (79.7%) | 56.4% | +23.3pp |
-| temporal-reasoning | 117/133 (88.0%) | 50.4% | +37.6pp |
-| knowledge-update | 73/78 (93.6%) | 87.2% | +6.4pp |
-| **Overall** | **442/500 (88.4%)** | **65.8%** | **+22.6pp** |
-| Task-averaged | 88.6% | 63.9% | +24.7pp |
-| Abstention | 90.0% (27/30) | 86.7% | +3.3pp |
+**Published systems on this benchmark:**
 
-**Leaderboard position:**
+| System | Architecture | Score | Paper |
+|--------|-------------|-------|-------|
+| Mastra OM | Context compression + observer agent | 94.9% | [mastra.ai/research](https://mastra.ai/research/observational-memory) |
+| Mem0 | Flat fact store + multi-signal retrieval | 93.4% | [arXiv 2504.19413](https://arxiv.org/abs/2504.19413) |
+| EverMemOS | Engram-inspired MemCell lifecycle | 83.0% | [arXiv 2601.02163](https://arxiv.org/abs/2601.02163) |
+| TiMem | 5-level temporal memory tree | 76.9% | [arXiv 2601.02845](https://arxiv.org/abs/2601.02845) |
+| Zep/Graphiti | Bi-temporal knowledge graph | 71.2% | [arXiv 2501.13956](https://arxiv.org/abs/2501.13956) |
+| Full-context GPT-4o + CoN | No memory system (raw context) | 64.0% | Wu et al. 2025 |
 
-| System | Score |
-|--------|-------|
-| Mastra OM (gpt-5-mini) | 94.9% |
-| Mem0 (gpt-5-mini) | 93.4% |
-| **RobbyMD (ours)** | **88.4%** |
-| EverMemOS | 83.0% |
-| TiMem | 76.9% |
-| Zep/Graphiti | 71.2% |
+**Our run: 442/500 (88.4%)**
 
-**4 research-backed improvements over baseline:**
-1. **Temporal context** — injects `question_date` + relative offsets per excerpt (Mastra OM three-date pattern)
-2. **Dense+BM25 hybrid retrieval** — replaces TF-IDF with semantic embeddings + keyword fusion (Mem0 triple-scoring pattern)
-3. **Chain-of-thought reading** — reader writes relevant-only notes before answering (LongMemEval paper CoN recommendation)
-4. **Strict short-answer scoring** — deterministic boundary matching for gold answers ≤3 tokens
+| Type | Score |
+|------|-------|
+| single-session-user | 69/70 (98.6%) |
+| single-session-assistant | 55/56 (98.2%) |
+| single-session-preference | 22/30 (73.3%) |
+| multi-session | 106/133 (79.7%) |
+| temporal-reasoning | 117/133 (88.0%) |
+| knowledge-update | 73/78 (93.6%) |
+| abstention | 27/30 (90.0%) |
 
-All artifacts, per-call diagnostics, cost logs, and a step-by-step reproduction guide are in `eval/longmemeval/results/`. See `eval/longmemeval/results/REPRODUCTION.md`.
+Reader: GPT-5-mini. Judge: GPT-4o-2024-11-20. Total cost: $10.21. This is a hackathon engineering run, not a research contribution.
+
+**What we built (the layers):**
+
+The system is a 4-layer pipeline over the raw LongMemEval conversation haystack. No pre-built memory framework, no external memory service — everything is from-scratch retrieval and reading.
+
+1. **Retrieval layer** — hybrid dense+BM25 fusion. Local sentence-transformer embeddings (all-MiniLM-L6-v2, 384-dim) provide semantic similarity; sklearn TF-IDF provides keyword matching. Scores are min-max normalized and fused at 0.7/0.3 weighting. Top-30 rounds retrieved per question. This replaces the naive single-signal TF-IDF retrieval that the baseline used.
+
+2. **Temporal grounding layer** — every retrieved excerpt is annotated with its raw timestamp AND a computed relative offset from the question's `question_date` (e.g., "3 weeks ago"). Temporal gap markers are inserted between non-adjacent sessions (e.g., "[2 weeks later]"). This gives the reader an explicit temporal frame for duration computation and recency judgment, rather than forcing it to parse raw date strings.
+
+3. **Chain-of-thought reading layer** — the reader (GPT-5-mini) first writes compact notes extracting only relevant facts from the evidence, then answers from those notes. This is a single-call chain-of-thought pattern inspired by Chain-of-Note (Yu et al. 2023, [arXiv 2311.09210](https://arxiv.org/abs/2311.09210)), adapted to extract-then-answer rather than per-document assessment.
+
+4. **Scoring correction layer** — for short gold answers (3 tokens or fewer), a deterministic strict-matching check catches cases where the GPT-4o judge incorrectly accepts or rejects based on loose semantic overlap. This is measurement cleanup, not model improvement (+5 cases out of 500).
+
+**What we learned (honest gaps):**
+
+- **Preference questions (73.3%)** are the hardest single category. The reader now uses stated preferences instead of saying "I don't know" (was 0%), but rubric alignment with the judge is inconsistent.
+- **Multi-session counting (79.7%)** fails when the reader misses items buried in noisy conversation rounds. Fact extraction before reading (Mem0's approach) would help but introduces positional bias in long evidence — the extractor over-attends to early rounds and drops facts from later rounds.
+- **The reader model matters enormously.** Published systems jumped 10+ points by switching from GPT-4o to GPT-5-mini with zero architecture changes. Our improvements would score ~70-75% with GPT-4o, not 88%.
+- **We don't do indexing-time fact extraction.** Mem0 and the LongMemEval paper both extract atomic facts at ingestion time, creating cleaner retrieval keys. We retrieve raw conversation rounds and present them to the reader. This is the primary architectural gap between us and the 93%+ systems.
+
+All artifacts, per-call diagnostics, cost logs, and a reproduction guide are in `eval/longmemeval/results/`. See [`eval/longmemeval/results/REPRODUCTION.md`](eval/longmemeval/results/REPRODUCTION.md).
 
 ### ACI-Bench (Nature Sci Data 2023)
 
