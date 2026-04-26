@@ -1,0 +1,47 @@
+{
+  "timestamp": "1777192552.2119632",
+  "cases_completed": 500,
+  "cases_correct": 442,
+  "accuracy": 0.884,
+  "tokens": {
+    "reader_input": 8115918,
+    "reader_output_est": 200000,
+    "judge_input_est": 150000,
+    "judge_output_est": 2500,
+    "total_api": 8468418,
+    "embeddings": "local_free"
+  },
+  "cost_usd": {
+    "reader_input": 8.9275,
+    "reader_output": 0.88,
+    "judge_input": 0.375,
+    "judge_output": 0.025,
+    "embeddings": 0.0,
+    "total_spent": 10.2075,
+    "projected_500": 10.2075
+  },
+  "pricing": {
+    "openai/gpt-5-mini": {
+      "input": 1.1,
+      "output": 4.4
+    },
+    "openai/gpt-4o-2024-11-20": {
+      "input": 2.5,
+      "output": 10.0
+    },
+    "all-MiniLM-L6-v2": {
+      "input": 0.0,
+      "output": 0.0
+    }
+  },
+  "per_type_avg_tokens": {
+    "knowledge-update": 16502,
+    "multi-session": 16741,
+    "single-session-assistant": 14313,
+    "single-session-preference": 17019,
+    "single-session-user": 15608,
+    "temporal-reasoning": 16523
+  },
+  "avg_cost_per_question": 0.0204,
+  "avg_time_per_question_s": 82.9
+}

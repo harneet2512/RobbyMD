@@ -1,0 +1,28 @@
+{
+  "timestamp_utc": "2026-04-26T07:23:38.646198+00:00",
+  "git_hash": "1db0060565074b1696377adc1689a1f231e7d19e",
+  "git_dirty": true,
+  "file_hashes": {
+    "dataset": "d6f21ea9d60a0d56",
+    "scorer": "43f1f828e819b254",
+    "final_runner": "e7cc9b8986be8ed0"
+  },
+  "prompt_hash": "06621172a96e8a41",
+  "models": {
+    "reader": "openai/gpt-5-mini",
+    "judge": "openai/gpt-4o-2024-11-20"
+  },
+  "retrieval": {
+    "method": "dense_bm25_hybrid",
+    "semantic_weight": 0.7,
+    "bm25_weight": 0.3,
+    "top_k": 30,
+    "embed_model": "all-MiniLM-L6-v2"
+  },
+  "improvements": [
+    "question_date_temporal_context",
+    "dense_bm25_hybrid_retrieval",
+    "per_round_chain_of_note",
+    "gpt5_mini_reader"
+  ]
+}
