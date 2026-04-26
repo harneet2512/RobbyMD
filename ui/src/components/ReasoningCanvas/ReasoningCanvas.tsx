@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "framer-motion";
 import { useSession } from "@/store/session";
 import type {
@@ -21,6 +22,12 @@ type FocusTarget =
   | { type: "verifier"; id: "current" };
 
 type HoverTarget = FocusTarget | null;
+type ClaimTreatment =
+  | "normal"
+  | "confirmed"
+  | "systemSuperseded"
+  | "systemDismissed"
+  | "userSuppressed";
 
 interface CanvasData {
   turns: Turn[];
@@ -173,6 +180,35 @@ function strikeColorClass(origin: EdgeType | undefined): string {
   }
 }
 
+function strikeOriginLabel(origin: EdgeType | undefined): string {
+  switch (origin) {
+    case "patient_correction":
+      return "corrected";
+    case "dismissed_by_clinician":
+      return "clinician dismissed";
+    case "contradicts":
+      return "contradicted";
+    case "semantic_replace":
+      return "superseded";
+    case "rules_out":
+      return "ruled down";
+    case "physician_confirm":
+      return "clinician confirmed";
+    case "refines":
+      return "refined";
+    default:
+      return "superseded";
+  }
+}
+
+function claimTreatment(claim: Claim, userSuppressedClaimIds: Set<string>): ClaimTreatment {
+  if (userSuppressedClaimIds.has(claim.claim_id)) return "userSuppressed";
+  if (claim.status === "superseded") return "systemSuperseded";
+  if (claim.status === "dismissed") return "systemDismissed";
+  if (claim.status === "confirmed") return "confirmed";
+  return "normal";
+}
+
 function buildChains(edges: SupersessionEdge[]) {
   const next = new Map<string, string>();
   const prev = new Map<string, string>();
@@ -284,11 +320,9 @@ function useCanvasData(): CanvasData {
       tg.push(c);
       claimsByTurn.set(c.source_turn_id, tg);
 
-      if (normStatus(c.status) === "active") {
-        const pg = claimsByPredicate.get(c.predicate) ?? [];
-        pg.push(c);
-        claimsByPredicate.set(c.predicate, pg);
-      }
+      const pg = claimsByPredicate.get(c.predicate) ?? [];
+      pg.push(c);
+      claimsByPredicate.set(c.predicate, pg);
     }
 
     const strikeOrigin = new Map<string, EdgeType>();
@@ -459,6 +493,7 @@ function FocusOverlay({
   onClose,
   onPromote,
   onDemote,
+  claimTreatments,
   restoreFocusTo,
 }: {
   target: FocusTarget;
@@ -466,6 +501,7 @@ function FocusOverlay({
   onClose: () => void;
   onPromote: (claimId: string) => void;
   onDemote: (claimId: string) => void;
+  claimTreatments: Map<string, ClaimTreatment>;
   restoreFocusTo: HTMLElement | null;
 }) {
   const verifier = useSession((s) => s.verifier);
@@ -477,7 +513,18 @@ function FocusOverlay({
 
   const claimId = target.type === "claim" ? target.id : null;
   const claim = claimId ? data.claimsById.get(claimId) : null;
-  const canSteer = !!claim;
+  const treatment = claimId ? claimTreatments.get(claimId) ?? "normal" : "normal";
+  const targetClaimIds =
+    target.type === "claim"
+      ? [target.id]
+      : target.type === "hypothesis"
+        ? data.hypotheses.find((h) => h.branch === target.id)?.applied.map((a) => a.claim_id) ?? []
+        : target.type === "sentence"
+          ? data.sentences.find((s) => s.sentence_id === target.id)?.source_claim_ids ?? []
+          : [];
+  const canSteer = targetClaimIds.length > 0;
+  const titleId = `focus-panel-title-${target.type}-${target.id}`;
+  const summaryId = `focus-panel-summary-${target.type}-${target.id}`;
 
   const contextLabel = target.type === "claim" && claim
     ? `${claim.predicate.replaceAll("_", " ")}: ${fmtValue(claim.value)}`
@@ -509,7 +556,7 @@ function FocusOverlay({
   const handleTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Tab" || !cardRef.current) return;
     const focusable = Array.from(
-      cardRef.current.querySelectorAll<HTMLElement>('button:not([disabled])'),
+      cardRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'),
     );
     if (focusable.length === 0) return;
     const first = focusable[0]!;
@@ -518,7 +565,9 @@ function FocusOverlay({
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <>
       <motion.div
         className={styles.focusBackdrop}
@@ -533,17 +582,28 @@ function FocusOverlay({
         className={styles.focusPanel}
         role="dialog"
         aria-modal="true"
-        aria-label="Clinical decision panel"
+        aria-labelledby={titleId}
+        aria-describedby={summaryId}
         initial={cardInitial}
         animate={cardAnimate}
         exit={cardExit}
         transition={{ duration: reduceMotion ? 0.01 : 0.18, ease: EXPO_OUT }}
         onKeyDown={handleTab}
       >
-        <div className={styles.focusPanelContext}>{contextLabel}</div>
+        <div className={styles.focusPanelEyebrow}>Decision Point</div>
+        <div id={titleId} className={styles.focusPanelContext}>{contextLabel}</div>
+        {claim && treatment !== "normal" && treatment !== "confirmed" && (
+          <div className={styles.focusPanelState}>
+            {treatment === "userSuppressed"
+              ? "Suppressed by user"
+              : treatment === "systemDismissed"
+                ? "Dismissed by system"
+                : strikeOriginLabel(data.strikeOrigin.get(claim.claim_id))}
+          </div>
+        )}
 
         {/* Compact provenance summary — first 2 steps */}
-        <div className={styles.focusPanelSummary}>
+        <div id={summaryId} className={styles.focusPanelSummary}>
           {steps.slice(0, 2).map((step, i) => (
             <span key={i} className={styles.focusPanelStep}>
               <span className={styles.focusPanelStepLabel}>{step.label}</span> {step.text}
@@ -572,14 +632,14 @@ function FocusOverlay({
               <button
                 className={styles.focusActionRight}
                 type="button"
-                onClick={() => { onPromote(claimId!); onClose(); }}
+                onClick={() => { targetClaimIds.forEach(onPromote); onClose(); }}
               >
                 Right
               </button>
               <button
                 className={styles.focusActionWrong}
                 type="button"
-                onClick={() => { onDemote(claimId!); onClose(); }}
+                onClick={() => { targetClaimIds.forEach(onDemote); onClose(); }}
               >
                 Wrong
               </button>
@@ -603,7 +663,8 @@ function FocusOverlay({
           </button>
         </div>
       </motion.div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -857,7 +918,6 @@ function TranscriptPanel(props: {
                         key={claim.claim_id}
                         data-claim-id={claim.claim_id}
                         type="button"
-                        style={{ opacity: st === "superseded" ? 0.55 : st === "dismissed" ? 0.45 : undefined }}
                         onMouseEnter={() =>
                           onHover({ type: "claim", id: claim.claim_id })
                         }
@@ -890,6 +950,7 @@ function ClaimsArea(props: {
   claimsByPredicate: Map<string, Claim[]>;
   claimsById: Map<string, Claim>;
   strikeOrigin: Map<string, EdgeType>;
+  claimTreatments: Map<string, ClaimTreatment>;
   hoverTarget: HoverTarget;
   focusTarget: FocusTarget | null;
   relatedClaims: Set<string>;
@@ -900,6 +961,7 @@ function ClaimsArea(props: {
   const {
     claimsByPredicate,
     strikeOrigin,
+    claimTreatments,
     hoverTarget,
     focusTarget,
     relatedClaims,
@@ -951,10 +1013,23 @@ function ClaimsArea(props: {
                 const isHov =
                   hoverTarget?.type === "claim" &&
                   hoverTarget.id === claim.claim_id;
-                const isSup = normStatus(claim.status) === "superseded";
+                const treatment = claimTreatments.get(claim.claim_id) ?? "normal";
+                const isSystemSup = treatment === "systemSuperseded";
+                const isSystemDismissed = treatment === "systemDismissed";
+                const isUserSuppressed = treatment === "userSuppressed";
+                const stateLabel = isUserSuppressed
+                  ? "user suppressed"
+                  : isSystemDismissed
+                    ? "system dismissed"
+                    : isSystemSup
+                      ? strikeOriginLabel(strikeOrigin.get(claim.claim_id))
+                      : "";
                 const cls = [
-                  isSup ? styles.claimTokenSuperseded : styles.claimToken,
-                  isSup ? strikeColorClass(strikeOrigin.get(claim.claim_id)) : "",
+                  styles.claimToken,
+                  isSystemSup ? styles.claimTokenSuperseded : "",
+                  isSystemDismissed ? styles.claimTokenDismissed : "",
+                  isUserSuppressed ? styles.claimTokenUserSuppressed : "",
+                  isSystemSup ? strikeColorClass(strikeOrigin.get(claim.claim_id)) : "",
                   isRel ? styles.related : "",
                   isFoc ? styles.focused : "",
                   isHov ? styles.hovered : "",
@@ -978,6 +1053,7 @@ function ClaimsArea(props: {
                     }
                   >
                     {fmtValue(claim.value)}
+                    {stateLabel && <span className={styles.claimStateMarker}>{stateLabel}</span>}
                   </button>
                 );
               })}
@@ -991,25 +1067,188 @@ function ClaimsArea(props: {
 
 /* ── differential focal space (center middle) ── */
 
-function computeSpatialPositions(count: number) {
-  const positions: Array<{ xPx: number; yPx: number }> = [];
-  const startAngle = -90;
-  const spread = Math.min(320, 100 + count * 40);
-  const baseAngle = 360 / Math.max(count, 1);
-  for (let i = 0; i < count; i++) {
-    const tier = i < 2 ? "secondary" : "tertiary";
-    const distPx = tier === "secondary" ? spread * 0.55 : spread * 0.85;
-    const angle = startAngle + baseAngle * i + (i % 2 === 0 ? 10 : -10);
-    const rad = (angle * Math.PI) / 180;
-    positions.push({ xPx: Math.round(Math.cos(rad) * distPx), yPx: Math.round(Math.sin(rad) * distPx) });
+type DifferentialRole =
+  | "leading"
+  | "risingChallenger"
+  | "dangerousAlternative"
+  | "falling"
+  | "ruledDown"
+  | "unresolved"
+  | "peripheral";
+
+type DifferentialZone =
+  | "primary"
+  | "upperLeft"
+  | "upperRight"
+  | "lowerLeft"
+  | "lowerRight"
+  | "sideLeft"
+  | "sideRight"
+  | "farUpperLeft"
+  | "farUpperRight"
+  | "farLowerLeft"
+  | "farLowerRight"
+  | "farSideLeft"
+  | "farSideRight";
+
+interface DifferentialSlot {
+  zone: DifferentialZone;
+  xPercent: number;
+  yPercent: number;
+  scale: number;
+  opacity: number;
+  fontWeight: number;
+  zIndex: number;
+  maxWidth: number;
+  tokenDensity: number;
+  parallaxDepth: number;
+}
+
+interface DifferentialLayout extends DifferentialSlot {
+  id: string;
+  label: string;
+  rank: number;
+  previousRank: number | null;
+  semanticRole: DifferentialRole;
+  previousSemanticRole: DifferentialRole | null;
+  evidenceStrength: number;
+  dangerLevel: number;
+  suppressionState: ClaimTreatment;
+  destinationZone: DifferentialZone;
+  previousZone: DifferentialZone | null;
+  x: number;
+  y: number;
+}
+
+const PRIMARY_SLOT: DifferentialSlot = {
+  zone: "primary",
+  xPercent: 50,
+  yPercent: 45,
+  scale: 1,
+  opacity: 1,
+  fontWeight: 650,
+  zIndex: 8,
+  maxWidth: 460,
+  tokenDensity: 8,
+  parallaxDepth: 3,
+};
+
+const SECONDARY_SLOTS: DifferentialSlot[] = [
+  { zone: "upperLeft", xPercent: 28, yPercent: 24, scale: 0.9, opacity: 0.82, fontWeight: 520, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "upperRight", xPercent: 72, yPercent: 24, scale: 0.9, opacity: 0.82, fontWeight: 520, zIndex: 5, maxWidth: 220, tokenDensity: 3, parallaxDepth: 5 },
+  { zone: "lowerLeft", xPercent: 29, yPercent: 70, scale: 0.88, opacity: 0.78, fontWeight: 500, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "lowerRight", xPercent: 71, yPercent: 70, scale: 0.88, opacity: 0.78, fontWeight: 500, zIndex: 4, maxWidth: 220, tokenDensity: 2, parallaxDepth: 4 },
+  { zone: "sideLeft", xPercent: 16, yPercent: 48, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
+  { zone: "sideRight", xPercent: 84, yPercent: 48, scale: 0.86, opacity: 0.76, fontWeight: 490, zIndex: 3, maxWidth: 190, tokenDensity: 2, parallaxDepth: 3 },
+];
+
+const TERTIARY_SLOTS: DifferentialSlot[] = [
+  { zone: "farUpperLeft", xPercent: 15, yPercent: 18, scale: 0.78, opacity: 0.62, fontWeight: 430, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farUpperRight", xPercent: 85, yPercent: 18, scale: 0.78, opacity: 0.62, fontWeight: 430, zIndex: 2, maxWidth: 170, tokenDensity: 1, parallaxDepth: 2 },
+  { zone: "farLowerLeft", xPercent: 16, yPercent: 79, scale: 0.76, opacity: 0.58, fontWeight: 420, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farLowerRight", xPercent: 84, yPercent: 79, scale: 0.76, opacity: 0.58, fontWeight: 420, zIndex: 1, maxWidth: 165, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideLeft", xPercent: 9, yPercent: 50, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
+  { zone: "farSideRight", xPercent: 91, yPercent: 50, scale: 0.74, opacity: 0.56, fontWeight: 410, zIndex: 1, maxWidth: 150, tokenDensity: 0, parallaxDepth: 1 },
+];
+
+const DANGEROUS_BRANCH_PATTERNS = [
+  "acute_coronary",
+  "myocardial",
+  "mi",
+  "pulmonary_embolism",
+  "pe",
+  "aortic",
+  "dissection",
+  "pneumothorax",
+  "stroke",
+  "sepsis",
+];
+
+function dangerLevelForBranch(branch: string) {
+  const normalized = branch.toLowerCase();
+  return DANGEROUS_BRANCH_PATTERNS.some((pattern) => normalized.includes(pattern)) ? 2 : 0;
+}
+
+function strongestTreatment(claimIds: string[], claimsById: Map<string, Claim>, claimTreatments: Map<string, ClaimTreatment>): ClaimTreatment {
+  let result: ClaimTreatment = "normal";
+  for (const id of claimIds) {
+    const claim = claimsById.get(id);
+    if (!claim) continue;
+    const treatment = claimTreatments.get(id) ?? "normal";
+    if (treatment === "userSuppressed") return treatment;
+    if (treatment === "systemDismissed") result = "systemDismissed";
+    else if (treatment === "systemSuperseded" && result === "normal") result = "systemSuperseded";
   }
-  return positions;
+  return result;
+}
+
+function roleForHypothesis(
+  h: BranchScore,
+  rank: number,
+  previousRank: number | null,
+  dangerLevel: number,
+  suppressionState: ClaimTreatment,
+): DifferentialRole {
+  if (rank === 0) return "leading";
+  if (suppressionState === "userSuppressed" || suppressionState === "systemDismissed") return "ruledDown";
+  if (dangerLevel > 0 && rank <= 5) return "dangerousAlternative";
+  if (previousRank !== null && rank < previousRank) return "risingChallenger";
+  if (previousRank !== null && rank > previousRank) return "falling";
+  if (rank <= 2) return "risingChallenger";
+  if (rank <= 5 || h.applied.length > 0) return "unresolved";
+  return "peripheral";
+}
+
+function buildDifferentialLayouts(
+  hypotheses: BranchScore[],
+  claimsById: Map<string, Claim>,
+  claimTreatments: Map<string, ClaimTreatment>,
+  previous: Map<string, DifferentialLayout>,
+): DifferentialLayout[] {
+  const secondarySlots = [...SECONDARY_SLOTS];
+  const tertiarySlots = [...TERTIARY_SLOTS];
+
+  return hypotheses.map((h, rank) => {
+    const previousLayout = previous.get(h.branch) ?? null;
+    const claimIds = h.applied.map((a) => a.claim_id);
+    const suppressionState = strongestTreatment(claimIds, claimsById, claimTreatments);
+    const evidenceStrength = h.applied.reduce((sum, applied) => sum + Math.abs(applied.log_lr), 0);
+    const dangerLevel = dangerLevelForBranch(h.branch);
+    const semanticRole = roleForHypothesis(h, rank, previousLayout?.rank ?? null, dangerLevel, suppressionState);
+    let slot: DifferentialSlot;
+
+    if (semanticRole === "leading") {
+      slot = PRIMARY_SLOT;
+    } else if (semanticRole === "risingChallenger" || semanticRole === "dangerousAlternative" || semanticRole === "unresolved") {
+      slot = secondarySlots.shift() ?? tertiarySlots.shift() ?? TERTIARY_SLOTS[TERTIARY_SLOTS.length - 1]!;
+    } else {
+      slot = tertiarySlots.shift() ?? secondarySlots.shift() ?? TERTIARY_SLOTS[TERTIARY_SLOTS.length - 1]!;
+    }
+
+    return {
+      ...slot,
+      id: h.branch,
+      label: h.branch.replaceAll("_", " "),
+      rank,
+      previousRank: previousLayout?.rank ?? null,
+      semanticRole,
+      previousSemanticRole: previousLayout?.semanticRole ?? null,
+      evidenceStrength,
+      dangerLevel,
+      suppressionState,
+      destinationZone: slot.zone,
+      previousZone: previousLayout?.destinationZone ?? null,
+      x: slot.xPercent,
+      y: slot.yPercent,
+    };
+  });
 }
 
 function DifferentialFocal(props: {
   hypotheses: BranchScore[];
   allClaims: Claim[];
   claimsById: Map<string, Claim>;
+  claimTreatments: Map<string, ClaimTreatment>;
   hoverTarget: HoverTarget;
   focusTarget: FocusTarget | null;
   data: CanvasData;
@@ -1020,6 +1259,7 @@ function DifferentialFocal(props: {
     hypotheses,
     allClaims,
     claimsById,
+    claimTreatments,
     hoverTarget,
     focusTarget,
     onHover,
@@ -1029,14 +1269,15 @@ function DifferentialFocal(props: {
   const reduceMotion = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const rafId = useRef<number | null>(null);
+  const previousLayoutsRef = useRef<Map<string, DifferentialLayout>>(new Map());
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (reduceMotion || rafId.current !== null) return;
     rafId.current = requestAnimationFrame(() => {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) { rafId.current = null; return; }
-      const x = ((e.clientX - rect.left - rect.width / 2) / rect.width).toFixed(3);
-      const y = ((e.clientY - rect.top - rect.height / 2) / rect.height).toFixed(3);
+      const x = Math.max(-1, Math.min(1, (e.clientX - rect.left - rect.width / 2) / rect.width)).toFixed(3);
+      const y = Math.max(-1, Math.min(1, (e.clientY - rect.top - rect.height / 2) / rect.height)).toFixed(3);
       containerRef.current?.style.setProperty("--mx", x);
       containerRef.current?.style.setProperty("--my", y);
       rafId.current = null;
@@ -1053,6 +1294,15 @@ function DifferentialFocal(props: {
     return () => { if (rafId.current !== null) cancelAnimationFrame(rafId.current); };
   }, []);
 
+  const layouts = useMemo(
+    () => buildDifferentialLayouts(hypotheses, claimsById, claimTreatments, previousLayoutsRef.current),
+    [hypotheses, claimsById, claimTreatments],
+  );
+
+  useEffect(() => {
+    previousLayoutsRef.current = new Map(layouts.map((layout) => [layout.id, layout]));
+  }, [layouts]);
+
   if (hypotheses.length === 0) {
     return (
       <div className={styles.differential} data-surface="differential">
@@ -1065,24 +1315,26 @@ function DifferentialFocal(props: {
 
   const primary = hypotheses[0]!;
   const rest = hypotheses.slice(1);
-  const positions = computeSpatialPositions(rest.length);
+  const layoutById = new Map(layouts.map((layout) => [layout.id, layout]));
 
-  const getEvidenceTokens = (h: BranchScore, isPrimary: boolean) => {
-    const ids = isPrimary
+  const getEvidenceTokens = (h: BranchScore, tokenDensity: number) => {
+    const ids = tokenDensity >= 6
       ? relClaimIds(h, allClaims)
       : h.applied.map((x) => x.claim_id);
     return ids
       .map((id) => claimsById.get(id))
       .filter(isClaim)
-      .slice(0, isPrimary ? 8 : 4)
+      .slice(0, tokenDensity)
       .map((c) => ({
         id: c.claim_id,
         text: fmtValue(c.value),
+        treatment: claimTreatments.get(c.claim_id) ?? "normal",
         weakening: c.value.startsWith("negated:") || normStatus(c.status) === "superseded",
       }));
   };
 
-  const primaryTokens = getEvidenceTokens(primary, true);
+  const primaryLayout = layoutById.get(primary.branch) ?? PRIMARY_SLOT;
+  const primaryTokens = getEvidenceTokens(primary, primaryLayout.tokenDensity);
   const isFocPrimary =
     focusTarget?.type === "hypothesis" && focusTarget.id === primary.branch;
   const isHovPrimary =
@@ -1100,18 +1352,28 @@ function DifferentialFocal(props: {
       {/* Primary hypothesis — center, sharp, closest */}
       <motion.div
         className={[
+          styles.differentialItem,
           styles.focalPrimary,
           isFocPrimary ? styles.focused : "",
           isHovPrimary ? styles.hovered : "",
           styles.related,
         ].filter(Boolean).join(" ")}
-        animate={{ opacity: 1 }}
+        style={{
+          "--x": `${primaryLayout.xPercent}%`,
+          "--y": `${primaryLayout.yPercent}%`,
+          "--parallax": `${primaryLayout.parallaxDepth}px`,
+          "--slot-scale": `${primaryLayout.scale}`,
+          "--z-depth": "0px",
+          maxWidth: primaryLayout.maxWidth,
+          zIndex: primaryLayout.zIndex,
+        } as React.CSSProperties}
+        animate={{ opacity: primaryLayout.opacity }}
         transition={{ duration: reduceMotion ? 0.01 : 0.26, ease: EXPO_OUT }}
         onMouseEnter={() => onHover({ type: "hypothesis", id: primary.branch })}
         onMouseLeave={() => onHover(null)}
         onClick={() => onFocus({ type: "hypothesis", id: primary.branch })}
       >
-        <h2 className={styles.focalPrimaryName}>
+        <h2 className={styles.focalPrimaryName} style={{ fontWeight: primaryLayout.fontWeight }}>
           {primary.branch.replaceAll("_", " ")}
         </h2>
         {primaryTokens.length > 0 && (
@@ -1119,7 +1381,12 @@ function DifferentialFocal(props: {
             {primaryTokens.map((t) => (
               <button
                 key={t.id}
-                className={t.weakening ? styles.focalEvidenceWeakening : styles.focalEvidenceToken}
+                className={[
+                  styles.focalEvidenceToken,
+                  t.weakening || t.treatment === "systemSuperseded" ? styles.focalEvidenceWeakening : "",
+                  t.treatment === "systemDismissed" ? styles.focalEvidenceDismissed : "",
+                  t.treatment === "userSuppressed" ? styles.focalEvidenceUserSuppressed : "",
+                ].filter(Boolean).join(" ")}
                 type="button"
                 onMouseEnter={() => onHover({ type: "claim", id: t.id })}
                 onMouseLeave={() => onHover(null)}
@@ -1133,9 +1400,9 @@ function DifferentialFocal(props: {
         {primaryTokens.length >= 3 && (
           <p className={styles.reasoningNarrative}>
             {primary.branch.replaceAll("_", " ")} is the primary consideration based on{" "}
-            {primaryTokens.filter((t) => !t.weakening).map((t) => t.text).join(", ")}
-            {primaryTokens.some((t) => t.weakening)
-              ? `. ${primaryTokens.filter((t) => t.weakening).map((t) => t.text).join(", ")} ${primaryTokens.filter((t) => t.weakening).length > 1 ? "are" : "is"} less consistent.`
+            {primaryTokens.filter((t) => !t.weakening && t.treatment === "normal").map((t) => t.text).join(", ")}
+            {primaryTokens.some((t) => t.weakening || t.treatment !== "normal")
+              ? `. ${primaryTokens.filter((t) => t.weakening || t.treatment !== "normal").map((t) => t.text).join(", ")} ${primaryTokens.filter((t) => t.weakening || t.treatment !== "normal").length > 1 ? "are" : "is"} less consistent.`
               : "."}
           </p>
         )}
@@ -1153,10 +1420,11 @@ function DifferentialFocal(props: {
       </motion.div>
 
       {/* Non-primary hypotheses — spatially positioned around center */}
-      {rest.map((h, i) => {
-        const pos = positions[i]!;
-        const tier = i < 2 ? "secondary" : "tertiary";
-        const tokens = getEvidenceTokens(h, false);
+      {rest.map((h) => {
+        const layout = layoutById.get(h.branch);
+        if (!layout) return null;
+        const tier = SECONDARY_SLOTS.some((slot) => slot.zone === layout.destinationZone) ? "secondary" : "tertiary";
+        const tokens = getEvidenceTokens(h, layout.tokenDensity);
         const isFoc = focusTarget?.type === "hypothesis" && focusTarget.id === h.branch;
         const isHov = hoverTarget?.type === "hypothesis" && hoverTarget.id === h.branch;
         const tierCls = tier === "secondary" ? styles.spatialSecondary : styles.spatialTertiary;
@@ -1164,24 +1432,58 @@ function DifferentialFocal(props: {
         return (
           <motion.div
             key={h.branch}
-            className={[tierCls, isFoc ? styles.focused : "", isHov ? styles.hovered : ""].filter(Boolean).join(" ")}
+            className={[
+              styles.differentialItem,
+              styles.spatialHypothesis,
+              tierCls,
+              layout.semanticRole === "dangerousAlternative" ? styles.dangerousAlternative : "",
+              layout.semanticRole === "ruledDown" ? styles.ruledDownHypothesis : "",
+              layout.suppressionState === "userSuppressed" ? styles.userSuppressedHypothesis : "",
+              isFoc ? styles.focused : "",
+              isHov ? styles.hovered : "",
+            ].filter(Boolean).join(" ")}
             style={{
-              "--sx": `${pos.xPx}px`,
-              "--sy": `${pos.yPx}px`,
+              "--x": `${layout.xPercent}%`,
+              "--y": `${layout.yPercent}%`,
+              "--parallax": `${layout.parallaxDepth}px`,
+              "--slot-scale": `${layout.scale}`,
+              "--z-depth": `${layout.zIndex >= 3 ? -25 : -50}px`,
+              "--blur": `${layout.zIndex >= 3 ? 0.3 : 0.5}px`,
+              maxWidth: layout.maxWidth,
+              zIndex: layout.zIndex,
             } as React.CSSProperties}
-            animate={{ opacity: 1 }}
-            transition={{ duration: reduceMotion ? 0.01 : 0.26, ease: EXPO_OUT }}
+            animate={{ opacity: layout.opacity }}
+            transition={{ duration: reduceMotion ? 0.01 : 0.28, ease: EXPO_OUT }}
+            data-role={layout.semanticRole}
+            data-zone={layout.destinationZone}
             onMouseEnter={() => onHover({ type: "hypothesis", id: h.branch })}
             onMouseLeave={() => onHover(null)}
             onClick={() => onFocus({ type: "hypothesis", id: h.branch })}
           >
-            <div className={tier === "secondary" ? styles.focalSecondaryName : styles.focalTertiaryName}>
+            <div
+              className={tier === "secondary" ? styles.focalSecondaryName : styles.focalTertiaryName}
+              style={{ fontWeight: layout.fontWeight }}
+            >
               {h.branch.replaceAll("_", " ")}
             </div>
-            {tier === "secondary" && tokens.length > 0 && (
+            {tokens.length > 0 && (
               <div className={styles.focalSecondaryEvidence}>
                 {tokens.map((t) => (
-                  <span key={t.id} className={styles.focalSecondaryToken}>{t.text}</span>
+                  <button
+                    key={t.id}
+                    className={[
+                      styles.focalSecondaryToken,
+                      t.weakening || t.treatment === "systemSuperseded" ? styles.focalEvidenceWeakening : "",
+                      t.treatment === "systemDismissed" ? styles.focalEvidenceDismissed : "",
+                      t.treatment === "userSuppressed" ? styles.focalEvidenceUserSuppressed : "",
+                    ].filter(Boolean).join(" ")}
+                    type="button"
+                    onMouseEnter={() => onHover({ type: "claim", id: t.id })}
+                    onMouseLeave={() => onHover(null)}
+                    onClick={(e) => { e.stopPropagation(); onFocus({ type: "claim", id: t.id }); }}
+                  >
+                    {t.text}
+                  </button>
                 ))}
               </div>
             )}
@@ -1265,6 +1567,7 @@ function ContextPanel(props: {
   pulsingLabels: Set<string>;
   pulsingClaimIds: Set<string>;
   data: CanvasData;
+  claimTreatments: Map<string, ClaimTreatment>;
   onHover: (t: HoverTarget) => void;
   onFocus: (t: FocusTarget) => void;
 }) {
@@ -1278,6 +1581,7 @@ function ContextPanel(props: {
     pulsingLabels,
     pulsingClaimIds,
     data,
+    claimTreatments,
     onHover,
     onFocus,
   } = props;
@@ -1476,6 +1780,13 @@ function ContextPanel(props: {
                 const hasPulse = s.source_claim_ids.some((id) =>
                   pulsingClaimIds.has(id),
                 );
+                const sentenceSuppression = s.source_claim_ids.some((id) => claimTreatments.get(id) === "userSuppressed")
+                  ? "userSuppressed"
+                  : s.source_claim_ids.some((id) => claimTreatments.get(id) === "systemDismissed")
+                    ? "systemDismissed"
+                    : s.source_claim_ids.some((id) => claimTreatments.get(id) === "systemSuperseded")
+                      ? "systemSuperseded"
+                      : "normal";
                 const isFoc =
                   focusTarget?.type === "sentence" &&
                   focusTarget.id === s.sentence_id;
@@ -1505,8 +1816,11 @@ function ContextPanel(props: {
                       </button>
                       <button
                         className={[
-                          styles.soapSentenceText,
-                          isFoc ? styles.focused : "",
+                        styles.soapSentenceText,
+                        sentenceSuppression === "userSuppressed" ? styles.soapUserSuppressed : "",
+                        sentenceSuppression === "systemDismissed" ? styles.soapSystemDismissed : "",
+                        sentenceSuppression === "systemSuperseded" ? styles.soapSystemSuperseded : "",
+                        isFoc ? styles.focused : "",
                           isHov ? styles.hovered : "",
                           isRel ? styles.related : "",
                         ].filter(Boolean).join(" ")}
@@ -1527,10 +1841,16 @@ function ContextPanel(props: {
                         {s.source_claim_ids.map((cid) => {
                           const c = data.claimsById.get(cid);
                           if (!c) return null;
+                          const treatment = claimTreatments.get(cid) ?? "normal";
                           return (
                             <button
                               key={cid}
-                              className={styles.soapSourcePill}
+                              className={[
+                                styles.soapSourcePill,
+                                treatment === "userSuppressed" ? styles.sourcePillUserSuppressed : "",
+                                treatment === "systemDismissed" ? styles.sourcePillSystemDismissed : "",
+                                treatment === "systemSuperseded" ? styles.sourcePillSystemSuperseded : "",
+                              ].filter(Boolean).join(" ")}
                               type="button"
                               onClick={() => onFocus({ type: "claim", id: cid })}
                             >
@@ -2240,6 +2560,9 @@ function ConversationRail({
 export function ReasoningCanvas() {
   const data = useCanvasData();
   const clearSelection = useSession((s) => s.clearSelection);
+  const userSuppressedClaimIds = useSession((s) => s.userSuppressedClaimIds);
+  const unsuppressClaim = useSession((s) => s.unsuppressClaim);
+  const suppressClaim = useSession((s) => s.suppressClaim);
   const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
@@ -2273,12 +2596,13 @@ export function ReasoningCanvas() {
 
 
   const handleConfirmClaim = useCallback((claimId: string) => {
+    unsuppressClaim(claimId);
     useSession.getState().setClaimStatus(claimId, "confirmed");
-  }, []);
+  }, [unsuppressClaim]);
 
   const handleDismissClaim = useCallback((claimId: string) => {
-    useSession.getState().setClaimStatus(claimId, "dismissed");
-  }, []);
+    suppressClaim(claimId);
+  }, [suppressClaim]);
 
   const handlePointerMove = useCallback(() => {
     if (suppressHoverRef.current) suppressHoverRef.current = false;
@@ -2298,6 +2622,13 @@ export function ReasoningCanvas() {
     () => [...data.claimsById.values()],
     [data.claimsById],
   );
+  const claimTreatments = useMemo(() => {
+    const treatments = new Map<string, ClaimTreatment>();
+    for (const claim of data.claimsById.values()) {
+      treatments.set(claim.claim_id, claimTreatment(claim, userSuppressedClaimIds));
+    }
+    return treatments;
+  }, [data.claimsById, userSuppressedClaimIds]);
 
   // Fix 2c: patient context matching
   const contextMatches = useMemo(
@@ -2384,7 +2715,7 @@ export function ReasoningCanvas() {
   return (
     <MotionConfig reducedMotion="user">
       <main
-        className={[styles.canvas, activeTarget ? styles.revealing : ""]
+        className={[styles.canvas, focusTarget ? styles.focusMode : ""]
           .filter(Boolean)
           .join(" ")}
         onPointerMove={handlePointerMove}
@@ -2412,6 +2743,7 @@ export function ReasoningCanvas() {
           claimsByPredicate={data.claimsByPredicate}
           claimsById={data.claimsById}
           strikeOrigin={data.strikeOrigin}
+          claimTreatments={claimTreatments}
           hoverTarget={hoverTarget}
           focusTarget={focusTarget}
           relatedClaims={relatedClaims}
@@ -2424,6 +2756,7 @@ export function ReasoningCanvas() {
           hypotheses={data.hypotheses}
           allClaims={allClaims}
           claimsById={data.claimsById}
+          claimTreatments={claimTreatments}
           hoverTarget={hoverTarget}
           focusTarget={focusTarget}
           data={data}
@@ -2444,6 +2777,7 @@ export function ReasoningCanvas() {
         pulsingLabels={pulsingLabels}
         pulsingClaimIds={pulsingClaimIds}
         data={data}
+        claimTreatments={claimTreatments}
         onHover={handleHover}
         onFocus={handleFocusTarget}
       />
@@ -2464,6 +2798,7 @@ export function ReasoningCanvas() {
             onClose={closeFocus}
             onPromote={handleConfirmClaim}
             onDemote={handleDismissClaim}
+            claimTreatments={claimTreatments}
             restoreFocusTo={restoreFocusRef.current}
           />
         )}
