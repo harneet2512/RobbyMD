@@ -281,8 +281,8 @@
   left: 4px;
   right: 4px;
   top: 50%;
-  height: 1.5px;
-  background: #b5b1ba;
+  height: 2.5px;
+  background: #9a969f;
   border-radius: 1px;
   transform-origin: left;
   animation: strikethrough 220ms var(--ease-out-expo) forwards;
@@ -293,6 +293,11 @@
   30% { opacity: 1; }
   to { transform: scaleX(1); opacity: 1; }
 }
+
+/* strike color by origin — strengthened for legibility */
+.strikePatient::after { background: #b06a1a !important; height: 2.5px !important; }
+.strikePhysician::after { background: #a8391e !important; height: 2.5px !important; }
+.strikeSystem::after { background: #87848f !important; height: 2.5px !important; }
 
 @keyframes claimFadeIn {
   from { opacity: 0; transform: translateY(3px); }
@@ -341,7 +346,7 @@
 
 .claimsArea {
   flex: 0 0 auto;
-  max-height: 220px;
+  max-height: clamp(120px, 28vh, 300px);
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
@@ -363,28 +368,35 @@
   margin-bottom: 12px;
 }
 
-.claimGroup {
-  margin-bottom: 6px;
+.evidenceFlow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  align-items: flex-start;
 }
 
-.claimGroup:last-child {
-  margin-bottom: 0;
+.evidenceUnit {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
-.claimGroupLabel {
-  display: inline;
-  font-size: 10px;
+.evidenceUnitLabel {
+  display: block;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9.5px;
   font-weight: 500;
   color: #87848f;
-  margin-right: 6px;
   text-transform: capitalize;
+  line-height: 1;
+  margin-bottom: 1px;
 }
 
-.claimGroupTokens {
-  display: inline-flex;
+.evidenceUnitTokens {
+  display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  vertical-align: middle;
+  gap: 3px;
 }
 
 .claimToken {
@@ -425,8 +437,8 @@
   left: 6px;
   right: 6px;
   top: 50%;
-  height: 1.5px;
-  background: #b5b1ba;
+  height: 2.5px;
+  background: #9a969f;
   border-radius: 1px;
   transform-origin: left;
   animation: strikethrough 220ms var(--ease-out-expo) forwards;
@@ -437,17 +449,18 @@
 .differential {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
+  clip-path: inset(0);
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px 32px 16px;
-  scrollbar-width: thin;
-  scrollbar-color: #ddd8d0 transparent;
   position: relative;
+  perspective: 800px;
+  perspective-origin: center 45%;
+  transform-style: preserve-3d;
   background: linear-gradient(
     180deg,
     #FFFFFF 0%,
@@ -506,27 +519,13 @@
   text-align: center;
   max-width: 420px;
   cursor: pointer;
-  padding: 14px 24px;
-  border-radius: 6px;
-  transition: background var(--dur-normal) var(--ease-out-expo),
-              opacity var(--dur-normal) var(--ease-out-expo);
-}
-
-.focalPrimary:hover {
-  background: rgba(91, 84, 112, 0.04);
-}
-
-.focalPrimaryLabel {
-  display: inline-block;
-  margin-bottom: 6px;
-  padding: 3px 12px;
-  color: #5B5470;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: #eee8f0;
-  border-radius: 10px;
+  transform: translateZ(0)
+             translateX(calc(var(--mx, 0) * 4px))
+             translateY(calc(var(--my, 0) * 3px));
+  transition: opacity var(--dur-normal) var(--ease-out-expo),
+              transform 400ms var(--ease-out-expo);
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 
 .focalPrimaryName {
@@ -583,37 +582,57 @@
   opacity: 0.65;
 }
 
-.focalSecondaryRow {
-  position: relative;
+/* spatial positioning for non-primary hypotheses */
+
+.spatialSecondary {
+  position: absolute;
   z-index: 1;
-  display: flex;
-  justify-content: center;
-  gap: 32px;
-  margin-top: 28px;
-  width: 100%;
-}
-
-.focalSecondary {
   text-align: center;
-  padding: 12px 20px;
-  border-radius: 6px;
   cursor: pointer;
-  opacity: 0.65;
+  top: 50%;
+  left: 50%;
+  transform:
+    translate(-50%, -50%)
+    translate(var(--sx, 0px), var(--sy, 0px))
+    translateZ(-30px)
+    scale(0.93)
+    translate(calc(var(--mx, 0) * 8px), calc(var(--my, 0) * 6px));
+  opacity: 0.72;
+  filter: blur(0.3px);
   transition: opacity var(--dur-slow) var(--ease-out-expo),
-              background var(--dur-normal) var(--ease-out-expo);
-  min-width: 120px;
+              filter var(--dur-slow) var(--ease-out-expo),
+              transform 400ms var(--ease-out-expo);
+  will-change: transform, opacity, filter;
+  transform-style: preserve-3d;
 }
 
-.focalSecondary:hover {
-  opacity: 1;
-  background: rgba(91, 84, 112, 0.04);
+.spatialTertiary {
+  position: absolute;
+  z-index: 0;
+  text-align: center;
+  cursor: pointer;
+  top: 50%;
+  left: 50%;
+  transform:
+    translate(-50%, -50%)
+    translate(var(--sx, 0px), var(--sy, 0px))
+    translateZ(-60px)
+    scale(0.85)
+    translate(calc(var(--mx, 0) * 12px), calc(var(--my, 0) * 8px));
+  opacity: 0.42;
+  filter: blur(0.5px);
+  transition: opacity var(--dur-slow) var(--ease-out-expo),
+              filter var(--dur-slow) var(--ease-out-expo),
+              transform 400ms var(--ease-out-expo);
+  will-change: transform, opacity, filter;
+  transform-style: preserve-3d;
 }
 
 .focalSecondaryName {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 450;
   color: #55535e;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   text-transform: capitalize;
 }
 
@@ -634,31 +653,9 @@
   border-radius: 3px;
 }
 
-.focalTertiaryRow {
-  position: relative;
-  z-index: 0;
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-top: 16px;
-}
-
-.focalTertiary {
-  text-align: center;
-  opacity: 0.4;
-  cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 4px;
-  transition: opacity 150ms ease-out;
-}
-
-.focalTertiary:hover {
-  opacity: 0.7;
-}
-
 .focalTertiaryName {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 380;
   color: #87848f;
   text-transform: capitalize;
 }
@@ -1384,17 +1381,17 @@
 
 .revealing .turn,
 .revealing .focalPrimary,
-.revealing .focalSecondary,
-.revealing .focalTertiary,
+.revealing .spatialSecondary,
+.revealing .spatialTertiary,
 .revealing .soapSentenceText,
 .revealing .claimToken,
 .revealing .claimPill,
 .revealing .claimPillSuperseded,
 .revealing .claimPillDismissed,
 .revealing .interactionDot {
-  opacity: 0.2;
+  opacity: 0.55;
   transition: opacity var(--dur-slow) var(--ease-out-expo);
-  filter: saturate(0.3);
+  filter: saturate(0.6);
 }
 
 .revealing .related,
@@ -1676,6 +1673,141 @@
   background: #c4bdb4;
 }
 
+/* ── Layer 3 command panel ── */
+
+.focusBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 30, 0.12);
+  z-index: 50;
+}
+
+.focusPanel {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  max-width: min(420px, calc(100vw - 32px));
+  max-height: 80vh;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid #e8e5e0;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10), 0 1px 6px rgba(0, 0, 0, 0.06);
+  z-index: 51;
+  padding: 20px 24px;
+}
+
+.focusPanelContext {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1e;
+  line-height: 1.3;
+  margin-bottom: 10px;
+  text-transform: capitalize;
+}
+
+.focusPanelSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #55535e;
+}
+
+.focusPanelStep {
+  display: inline;
+}
+
+.focusPanelStepLabel {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #87848f;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.focusPanelThread {
+  border-top: 1px solid #f0ede8;
+  padding-top: 12px;
+  margin-bottom: 12px;
+}
+
+.focusPanelActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #f0ede8;
+}
+
+.focusActionRight {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #3d8b4e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+
+.focusActionRight:hover { background: #347a42; }
+
+.focusActionWrong {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #c25636;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+
+.focusActionWrong:hover { background: #a8391e; }
+
+.focusActionThread {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #55535e;
+  background: transparent;
+  border: 1px solid #ddd8d0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.focusActionThread:hover {
+  border-color: #5B5470;
+  color: #5B5470;
+}
+
+.focusActionClose {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #87848f;
+  background: transparent;
+  border: 1px solid #e8e5e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+
+.focusActionClose:hover {
+  color: #1a1a1e;
+}
+
 /* ── Layer 1 pulse (Fix 5) ── */
 
 .contextPulse {
@@ -1873,10 +2005,16 @@
     padding-right: 18px;
     justify-content: flex-start;
   }
-  .focalSecondaryRow,
-  .focalTertiaryRow {
-    flex-wrap: wrap;
-    gap: 10px;
+  .spatialSecondary,
+  .spatialTertiary {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    filter: none;
+    opacity: 0.6;
+    display: inline-block;
+    margin: 8px 12px;
   }
   .focusOverlayCard {
     width: calc(100vw - 24px);
@@ -1899,5 +2037,13 @@
     animation-duration: 0ms !important;
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
+  }
+  .spatialSecondary,
+  .spatialTertiary {
+    filter: none !important;
+    transform: translate(var(--sx, 0%), var(--sy, 0%)) translate(-50%, -50%) !important;
+  }
+  .focalPrimary {
+    transform: none !important;
   }
 }
