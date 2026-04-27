@@ -1,0 +1,21 @@
+{
+  "hpo": {
+    "diseases": 12997,
+    "total_findings": 281997,
+    "source": "Human Phenotype Ontology (hpo.jax.org)",
+    "license": "HPO License (open for research + clinical use)",
+    "version": "2026-02-16"
+  },
+  "getthediagnosis": {
+    "diseases": 297,
+    "total_findings": 1701,
+    "findings_with_lr": 1125,
+    "source": "GetTheDiagnosis.org (Kohlberg & Hammer, 2016)",
+    "license": "Open access / Creative Commons"
+  },
+  "combined": {
+    "total_diseases": 13294,
+    "total_findings": 283698,
+    "findings_with_computed_lr": 1125
+  }
+}
