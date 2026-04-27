@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from "framer-motion";
 import { useSession } from "@/store/session";
+import { AftercareDrawer } from "@/components/AftercareDrawer/AftercareDrawer";
 import type { UserBranchDecision, UserClaimDecision } from "@/store/session";
 import type {
   BranchScore,
@@ -2092,7 +2093,10 @@ function ContextPanel(props: {
         >
           Send to EHR
         </button>
-        <button className={styles.enableAftercareBtn} type="button">
+        <button className={styles.enableAftercareBtn} type="button" onClick={() => {
+          const event = new CustomEvent("open-aftercare");
+          window.dispatchEvent(event);
+        }}>
           Enable Patient Aftercare
         </button>
       </div>
@@ -2792,6 +2796,13 @@ export function ReasoningCanvas() {
   const [pulsingLabels, setPulsingLabels] = useState<Set<string>>(new Set());
   const [pulsingClaimIds, setPulsingClaimIds] = useState<Set<string>>(new Set());
   const prevMatchedLabelsRef = useRef<Set<string>>(new Set());
+  const [aftercareOpen, setAftercareOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setAftercareOpen(true);
+    window.addEventListener("open-aftercare", handler);
+    return () => window.removeEventListener("open-aftercare", handler);
+  }, []);
 
   const closeFocus = useCallback(() => {
     suppressHoverRef.current = true;
@@ -3040,6 +3051,13 @@ export function ReasoningCanvas() {
           />
         )}
       </AnimatePresence>
+
+      {aftercareOpen && (
+        <AftercareDrawer
+          encounterId={useSession.getState().sessionId ?? "demo"}
+          onClose={() => setAftercareOpen(false)}
+        />
+      )}
       </main>
     </MotionConfig>
   );

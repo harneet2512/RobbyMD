@@ -293,7 +293,7 @@ def _explain_with_opus(
     client = Anthropic()
     context = pkg.summary if pkg else "a clinical visit"
     msg = client.messages.create(
-        model="claude-opus-4-7-20250415",
+        model="claude-opus-4-7",
         max_tokens=200,
         system=(
             "You explain medical terms to patients in plain language. "
@@ -328,7 +328,7 @@ def _detect_drift_with_opus(
     context = pkg.summary if pkg else "a clinical visit"
 
     msg = client.messages.create(
-        model="claude-opus-4-7-20250415",
+        model="claude-opus-4-7",
         max_tokens=100,
         system=(
             "Classify this patient message as either SAFE (within approved "

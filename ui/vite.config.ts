@@ -2,10 +2,6 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
-// Vite config. Path alias keeps import paths short (src/... -> @/...).
-// Server port fixed at 5173 (the Vite default) — Eng_doc.md §9 puts the
-// API server on localhost separately, and our MockServer runs in-process
-// for Phase 1 so no proxy rules are needed yet.
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -16,9 +12,18 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8420",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://127.0.0.1:8420",
+        ws: true,
+      },
+    },
   },
   test: {
-    // Vitest config — CLAUDE.md §5.4 uses Vitest, not Playwright/visual.
     environment: "jsdom",
     globals: true,
     setupFiles: [],

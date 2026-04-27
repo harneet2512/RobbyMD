@@ -26,7 +26,7 @@ import structlog
 log = structlog.get_logger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
-MODEL_ID = "claude-opus-4-7-20250415"
+MODEL_ID = "claude-opus-4-7"
 
 
 def _load_prompt(name: str) -> str:

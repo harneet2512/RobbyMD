@@ -13,29 +13,13 @@ import {
   TURN_FULL,
   VERIFIER_UPDATED,
   type SubstrateEvent,
+  type BranchRanking,
+  type Claim,
+  type EdgeType,
+  type Turn,
+  type NoteSentence,
+  type VerifierOutput,
 } from "@/types/substrate";
-
-/**
- * API client — the transport shim between the substrate (future
- * `src/api/` WebSocket) and the Zustand store.
- *
- * Phase 1: only the MockServer is wired. The real client will replace
- * `MockServer` with a WebSocket to `ws://localhost:PORT/session/:id/events`
- * once `src/api/` lands. The rest of the pipeline (routeEvent below) does
- * not change — it consumes `SubstrateEvent` regardless of transport.
- *
- * Event-bus contract handshake (for when `src/api/` gets built):
- *   Produced by substrate (src/substrate/event_bus.py):
- *     - turn.added            -> store.upsertTurn requires companion turn.full
- *     - claim.created         -> store.upsertClaim requires companion claim.full
- *     - claim.superseded      -> store.appendEdge + setClaimStatus(old, "superseded")
- *     - claim.status_changed  -> store.setClaimStatus
- *     - projection.updated    -> (no store change; triggers verifier re-emit server-side)
- *     - note_sentence.added   -> store.upsertSentence requires companion note_sentence.full
- *   UI expects the server to additionally emit full-entity events
- *   (*.full) alongside the notification-only events. This is *not* in
- *   event_bus.py today — it's the contract ask for src/api/.
- */
 
 export interface Connection {
   sessionId: string;
@@ -46,13 +30,11 @@ function routeEvent(e: SubstrateEvent): void {
   const s = useSession.getState();
   switch (e.event) {
     case TURN_ADDED:
-      // notification-only; waiting for TURN_FULL to land the entity.
       return;
     case TURN_FULL:
       s.upsertTurn(e.payload);
       return;
     case CLAIM_CREATED:
-      // notification-only; waiting for CLAIM_FULL.
       return;
     case CLAIM_FULL:
       s.upsertClaim(e.payload);
@@ -73,7 +55,6 @@ function routeEvent(e: SubstrateEvent): void {
       s.setClaimStatus(e.payload.claim_id, e.payload.status);
       return;
     case PROJECTION_UPDATED:
-      // Triggers ranking + verifier re-emit on the server; no local change.
       return;
     case NOTE_SENTENCE_ADDED:
       return;
@@ -87,12 +68,13 @@ function routeEvent(e: SubstrateEvent): void {
       s.setVerifier(e.payload);
       return;
     default: {
-      // Exhaustiveness — TypeScript will flag an unhandled variant.
       const _never: never = e;
       void _never;
     }
   }
 }
+
+// ── Mock connection (fixture replay, no server needed) ──
 
 export function connectMock(): Connection {
   const server = new MockServer({ playbackMs: 650 });
@@ -104,6 +86,196 @@ export function connectMock(): Connection {
     disconnect: () => {
       unsub();
       server.stop();
+      useSession.getState().endSession();
+    },
+  };
+}
+
+// ── Live connection (WebSocket to FastAPI backend on port 8420) ──
+
+const WS_PORT = 8420;
+const RECONNECT_MS = 2000;
+const MAX_RECONNECT_MS = 30_000;
+
+function mapBackendClaim(c: Record<string, unknown>): Claim {
+  return {
+    claim_id: c.claim_id as string,
+    session_id: c.session_id as string,
+    subject: (c.subject as string) ?? "chest_pain",
+    predicate: c.predicate as string,
+    value: c.value as string,
+    value_normalised: (c.value_normalised as string | null) ?? (c.value as string),
+    confidence: c.confidence as number,
+    source_turn_id: c.source_turn_id as string,
+    status: (c.status as Claim["status"]) ?? "active",
+    created_ts: (c.created_ts_ns as number) ?? (c.created_ts as number) ?? 0,
+    char_start: (c.char_start as number | null) ?? null,
+    char_end: (c.char_end as number | null) ?? null,
+  };
+}
+
+function mapBackendTurn(t: Record<string, unknown>): Turn {
+  return {
+    turn_id: t.turn_id as string,
+    session_id: t.session_id as string,
+    speaker: t.speaker as Turn["speaker"],
+    text: t.text as string,
+    ts: t.ts as number,
+    asr_confidence: (t.asr_confidence as number | null) ?? null,
+  };
+}
+
+function mapBackendRanking(data: Record<string, unknown>): { scores: Array<{ branch: string; log_score: number; posterior: number; applied: unknown[] }> } {
+  const hypotheses = (data.hypotheses ?? data.scores ?? []) as Array<Record<string, unknown>>;
+  return {
+    scores: hypotheses.map((h) => ({
+      branch: h.branch as string,
+      log_score: (h.log_score as number) ?? 0,
+      posterior: (h.posterior as number) ?? 0,
+      applied: (h.applied as unknown[]) ?? [],
+    })),
+  };
+}
+
+function handleBackendMessage(raw: string): void {
+  let msg: { type: string; data: Record<string, unknown> };
+  try {
+    msg = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const { type, data } = msg;
+
+  switch (type) {
+    case "snapshot":
+      handleSnapshot(data);
+      break;
+
+    case "turn.full":
+      routeEvent({ event: TURN_FULL, payload: mapBackendTurn(data) });
+      break;
+
+    case "claim.created":
+      routeEvent({ event: CLAIM_FULL, payload: mapBackendClaim(data) });
+      break;
+
+    case "claim.superseded":
+      routeEvent({
+        event: CLAIM_SUPERSEDED,
+        payload: {
+          old_claim_id: data.old_claim_id as string,
+          new_claim_id: data.new_claim_id as string,
+          edge_type: ((data.edge_type as string) ?? "patient_correction") as EdgeType,
+          identity_score: (data.identity_score as number | null) ?? null,
+        },
+      });
+      break;
+
+    case "claim.status_changed":
+      routeEvent({
+        event: CLAIM_STATUS_CHANGED,
+        payload: {
+          claim_id: data.claim_id as string,
+          status: data.status as Claim["status"],
+        },
+      });
+      break;
+
+    case "ranking.updated":
+      routeEvent({
+        event: RANKING_UPDATED,
+        payload: mapBackendRanking(data) as unknown as BranchRanking,
+      });
+      break;
+
+    case "verifier.updated":
+      routeEvent({
+        event: VERIFIER_UPDATED,
+        payload: data as unknown as VerifierOutput,
+      });
+      break;
+
+    case "note_sentence.full":
+      routeEvent({
+        event: NOTE_SENTENCE_FULL,
+        payload: data as unknown as NoteSentence,
+      });
+      break;
+  }
+}
+
+function handleSnapshot(snap: Record<string, unknown>): void {
+  const turns = (snap.turns ?? []) as Array<Record<string, unknown>>;
+  for (const t of turns) {
+    routeEvent({ event: TURN_FULL, payload: mapBackendTurn(t) });
+  }
+
+  const claims = (snap.claims ?? []) as Array<Record<string, unknown>>;
+  for (const c of claims) {
+    routeEvent({ event: CLAIM_FULL, payload: mapBackendClaim(c) });
+  }
+
+  const ranking = snap.ranking as Record<string, unknown> | undefined;
+  if (ranking) {
+    routeEvent({
+      event: RANKING_UPDATED,
+      payload: mapBackendRanking(ranking) as unknown as BranchRanking,
+    });
+  }
+
+  const verifier = snap.verifier as Record<string, unknown> | null;
+  if (verifier) {
+    routeEvent({
+      event: VERIFIER_UPDATED,
+      payload: verifier as unknown as VerifierOutput,
+    });
+  }
+}
+
+export function connectLive(sessionId: string): Connection {
+  useSession.getState().startSession(sessionId);
+
+  let ws: WebSocket | null = null;
+  let stopped = false;
+  let retryMs = RECONNECT_MS;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function open() {
+    if (stopped) return;
+    const url = `ws://${window.location.hostname}:${WS_PORT}/ws/${sessionId}`;
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      retryMs = RECONNECT_MS;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    ws.onmessage = (ev) => {
+      handleBackendMessage(ev.data as string);
+    };
+
+    ws.onclose = () => {
+      if (stopped) return;
+      retryTimer = setTimeout(() => {
+        retryMs = Math.min(retryMs * 2, MAX_RECONNECT_MS);
+        open();
+      }, retryMs);
+    };
+
+    ws.onerror = () => ws?.close();
+  }
+
+  open();
+
+  return {
+    sessionId,
+    disconnect: () => {
+      stopped = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (ws) ws.close();
       useSession.getState().endSession();
     },
   };

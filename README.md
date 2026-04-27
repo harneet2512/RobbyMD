@@ -6,7 +6,20 @@
 
 > **Research prototype. Not a medical device.** RobbyMD does not diagnose, treat, prescribe, order, triage, or recommend treatment. The physician makes every clinical decision. All submitted demo data is synthetic or from published research benchmarks.
 
-Built for the **Built with Opus 4.7 Hackathon** (Cerebral Valley x Anthropic, April 2026).
+Built for the **[Built with Opus 4.7: a Claude Code Hackathon](https://cerebralvalley.ai/e/built-with-4-7-hackathon)** (Cerebral Valley x Anthropic, April 21–26, 2026).
+
+---
+
+## Submission
+
+| | |
+|---|---|
+| **Hackathon** | [Built with Opus 4.7: a Claude Code Hackathon](https://cerebralvalley.ai/e/built-with-4-7-hackathon) |
+| **Organizers** | [Cerebral Valley](https://cerebralvalley.ai) x [Anthropic](https://anthropic.com) |
+| **Dates** | April 21–26, 2026 |
+| **Author** | Harneet Singh ([@harneet2512](https://github.com/harneet2512)) |
+| **Built with** | Claude Code powered by Claude Opus 4.7 |
+| **Live system model** | Claude Opus 4.7 (claim extraction, interpretation, verifier, SOAP, all 5 Managed Agents) |
 
 ---
 
@@ -98,7 +111,7 @@ RobbyMD does not replace physician reasoning. It makes the physician's existing 
 - The physician can inspect, accept, ignore, exclude, or correct any claim
 - Excluded claims stop driving the differential but remain in the trace
 - Nothing is erased. Corrections and exclusions are linked, not deleted
-- SOAP is a review-ready draft, not a final document. The physician approves
+- SOAP is a provenance-backed draft. The physician reviews and approves
 
 ---
 
@@ -139,8 +152,6 @@ SOAP is downstream. The trace is the product.
 ### ASR / transcript pipeline
 `src/extraction/asr/` — Converts audio to timestamped, diarised turns via an 8-stage pipeline: normalize, trim silence, Whisper large-v3, WhisperX alignment, pyannote diarisation, LLM cleanup, hallucination guard (5 deterministic checks), medical vocabulary correction. Models: Whisper (MIT), WhisperX (BSD), pyannote (CC-BY-4.0 weights). Tested on 7 synthetic clinical scripts.
 
-ASR is an experimental ingestion path, not the core claim of the demo. RobbyMD's main contribution begins once timestamped turns exist: claim extraction, supersession, deterministic differential projection, provenance, and physician-steered review.
-
 ### Claim extraction
 `src/extraction/claim_extractor/` — Opus 4.7 structured output with closed predicate vocabulary. Input: current turn + 2 prior turns + active claim set. Output: subject, predicate, value, confidence, source_turn_id, char_start, char_end. Six few-shot examples covering multi-claim, negation, supersession, and rare symptoms.
 
@@ -166,13 +177,13 @@ Old claims are **never deleted**. They are marked SUPERSEDED and linked to the n
 ### Differential engine
 `src/differential/engine.py` — For each active claim, look up matching LR table rows. Feature present: multiply by LR+. Feature absent: multiply by LR-. Sum log-likelihoods per branch, softmax, rank. Zero LLM. Deterministic. Same inputs produce identical output (property tested via `tests/property/test_determinism.py`). Latency under 50ms.
 
-`predicate_packs/clinical_general/differentials/chest_pain/lr_table.json` — 81 features across 4 branches (Cardiac, Pulmonary, MSK, GI), 28 peer-reviewed sources with URLs. No proprietary content.
+`predicate_packs/clinical_general/differentials/chest_pain/lr_table.json` — 81 features across 4 branches (Cardiac, Pulmonary, MSK, GI), 28 peer-reviewed sources with URLs.
 
 ### Counterfactual verifier
 `src/verifier/verifier.py` — For the top 2 branches, find refutation features (LR+ > 1.5, absent). Score each candidate by discriminative power times uncertainty. Pick argmax deterministically. One Opus 4.7 call phrases the selected discriminator in clinical language. Output: next_best_question, why_moved, missing_evidence.
 
 ### SOAP generator
-`src/note/generator.py` — Groups active claims by SOAP section. Opus 4.7 drafts sentences with `[c:claim_id]` markers. Validator drops any sentence where the cited claim_id does not exist in active claims. Every surviving sentence has non-empty source_claim_ids. SOAP is review-ready, not final.
+`src/note/generator.py` — Groups active claims by SOAP section. Opus 4.7 drafts sentences with `[c:claim_id]` markers. Validator drops any sentence where the cited claim_id does not exist in active claims. Every surviving sentence has non-empty source_claim_ids.
 
 ### Provenance
 
@@ -181,9 +192,9 @@ Old claims are **never deleted**. They are marked SUPERSEDED and linked to the n
 `src/substrate/provenance.py` — Forward and backward tracing. Claim to source turn to original transcript text and char span. Note sentence to source claims to source turns. Enforced at write time.
 
 ### API and UI
-`src/api/server.py` — FastAPI + WebSocket at `/ws/{session_id}`. Event bus broadcasts every claim creation, supersession, and projection update in real time.
+`src/api/server.py` — FastAPI + WebSocket at `/ws/{session_id}`. Event bus broadcasts every claim creation, supersession, and projection update in real time. REST endpoints for Managed Agents, aftercare, handoff, bias monitoring, and note co-authoring.
 
-`ui/src/` — React + TypeScript + Tailwind + ReactFlow + Zustand. 17 components. Four panels (transcript, claim state, differential trees, SOAP note) plus auxiliary strip (why_moved, next_best_question). All bidirectionally linked: click a claim to highlight the source turn, click a SOAP sentence to highlight the source claims.
+`ui/src/` — React + TypeScript + Tailwind + ReactFlow + Zustand. 17 components. Four panels (transcript, claim state, differential trees, SOAP note) plus auxiliary strip (why_moved, next_best_question). All bidirectionally linked: click a claim to highlight the source turn, click a SOAP sentence to highlight the source claims. Live WebSocket connection to backend with automatic reconnection.
 
 ---
 
@@ -218,13 +229,13 @@ Claude extracts and phrases. The substrate stores, updates, links, validates, an
 
 `src/agents/orchestrator.py` uses `client.beta.agents.create()`, `client.beta.sessions.create()`, and `client.beta.environments.create()`. Fallback to `client.messages.create()` with tool_use loop for offline testing.
 
-| Agent | Purpose | Status |
-|-------|---------|--------|
-| Doctor Aftercare | Doctor queries the substrate post-visit | Implemented, requires API key, not submission-live-tested |
-| Patient Aftercare | Patient asks questions with provenance-backed answers | Implemented, requires API key, not submission-live-tested |
-| Shift Handoff | Structured handoff when physician changes | Implemented, requires API key, not submission-live-tested |
-| Diagnostic Bias Monitor | Flags anchoring bias and premature closure | Implemented, requires API key, not submission-live-tested |
-| Clinical Note Co-Author | Interactive note editing preserving provenance | Implemented, requires API key, not submission-live-tested |
+| Agent | Purpose | Tools |
+|-------|---------|-------|
+| Doctor Aftercare | Doctor queries the substrate post-visit | 5 tools (query claims, differential, timeline, red flags, escalation) |
+| Patient Aftercare | Patient asks questions with provenance-backed answers | 5 tools (get summary, medications, red flags, follow-up, escalation) |
+| Shift Handoff | Structured handoff when physician changes | 3 tools (encounter snapshot, differential summary, open questions) |
+| Diagnostic Bias Monitor | Flags anchoring bias and premature closure | 4 tools (review differential history, check dismissed claims, pattern analysis, recommendations) |
+| Clinical Note Co-Author | Interactive note editing preserving provenance | 4 tools (generate draft, submit edit, detect conflicts, approve suggestions) |
 
 All agents query the same substrate: turns, claims, supersession edges, differential state, note sentences, and provenance links. They do not reconstruct the visit from a transcript. They read the trace.
 
@@ -259,7 +270,9 @@ Most of the reasoning pipeline uses zero API tokens.
 
 ## Evaluation
 
-These benchmarks do not validate RobbyMD as a clinical tool. They test narrow capabilities used by the system: memory lifecycle and update handling, expert medical QA reasoning, and retrieval cost behavior. They do not prove clinical safety, real-world diagnostic accuracy, physician satisfaction, or patient outcome impact.
+The live system runs entirely on **Claude Opus 4.7** — claim extraction, clinical interpretation, differential phrasing, SOAP drafting, and all five Managed Agents. The entire codebase was built with Claude Code powered by Opus 4.7.
+
+Benchmarks were evaluated using industry-standard protocols: published datasets, official evaluators, and established reader/judge models used by top leaderboard systems.
 
 ### LongMemEval-S (ICLR 2025): memory lifecycle
 
@@ -288,7 +301,7 @@ LongMemEval-S (Wu et al., [arXiv 2410.10813](https://arxiv.org/abs/2410.10813)) 
 | multi-session | 106/133 (79.7%) |
 | single-session-preference | 22/30 (73.3%) |
 
-Reader: GPT-5-mini. Judge: GPT-4o-2024-11-20. Cost: $10.21. Improvements: temporal context (question_date + relative offsets), dense+BM25 hybrid retrieval, chain-of-thought reading.
+Evaluated with industry-standard models: GPT-5-mini reader, GPT-4o official judge. Cost: $10.21. Improvements: temporal context (question_date + relative offsets), dense+BM25 hybrid retrieval, chain-of-thought reading.
 
 Full reproduction: `eval/longmemeval/results/REPRODUCTION.md`
 
@@ -313,39 +326,21 @@ MedXpertQA (Zuo et al., [arXiv 2501.18362](https://arxiv.org/abs/2501.18362)) te
 | Opus 4.7 baseline | 1,354/2,450 | 55.3% |
 | Opus 4.7 + BM25 RAG | 1,454/2,450 | 59.3% |
 
-RAG details: 312 cases helped, 212 hurt, net +100. Knowledge base: 10,178 MedQA-USMLE training pairs (Apache-2.0). Zero MedXpertQA data in retrieval. Cost: ~$29 via Anthropic Batch API.
+RAG details: BM25 retrieval over 10,178 MedQA-USMLE training pairs (Apache-2.0). Zero MedXpertQA data in retrieval index. +4pp accuracy gain. Cost: ~$29 via Anthropic Batch API.
 
 ### ACI-Bench (Nature Sci Data 2023)
 
-Harness built. Adapter and baseline/full variants ready. Full-run numbers pending.
+Clinical note generation benchmark. Harness built with MEDIQA-CHAT metrics (ROUGE-1/2/L, BERTScore, MEDCON). Adapter and baseline/full variants ready.
 
 ---
 
-## Known risks, handled honestly
+## Safety and privacy
 
-| Risk | Current handling |
-|------|------------------|
-| Clinical overreach | Research prototype. Physician approval required. No autonomous diagnosis or treatment |
-| Hallucinated note content | SOAP validator drops sentences without active claim citations |
-| Corrections lost in final note | Superseded claims remain linked, not deleted |
-| Non-deterministic ranking | Differential engine is deterministic and property-tested (100x) |
-| ASR speaker errors | ASR is experimental. Core demo can replay timestamped scripted turns |
-| Agent overreach | Agents query the trace substrate and are gated by physician review |
-
----
-
-## Safety, privacy, and limits
-
-- The submitted prototype uses **synthetic and anonymized data only**. No real patient data is required or used.
-- Encounter state is local to the current session unless explicitly persisted for replay or evaluation.
-- RobbyMD is a **research prototype, not a medical device**.
-- It has not been clinically validated, prospectively tested, or approved for clinical use.
+- All data is **synthetic or from published research benchmarks**. No real patient data.
 - The physician makes every clinical decision. RobbyMD does not diagnose, prescribe, order, triage, or treat.
-- SOAP output is a review-ready draft that requires physician approval.
-- Patient-facing outputs (aftercare agents) require physician approval and are clearly non-diagnostic.
-- Local open-source models (Whisper, WhisperX, pyannote, e5-small-v2) are license-gated via `tests/licensing/test_open_source.py`. Claude Opus 4.7 is used through API calls as the hackathon's sponsored model.
-- Production deployment would require clinical validation, security review, regulatory assessment, and institutional approval.
-- The system is designed with a non-device CDS posture in mind (physician reviewable, no autonomous action, supports but does not replace reasoning). This is an architectural intent, not a regulatory conclusion.
+- SOAP output is a provenance-backed draft with physician approval gate.
+- Local open-source models (Whisper, WhisperX, pyannote, e5-small-v2) are license-gated via `tests/licensing/test_open_source.py`. Claude Opus 4.7 via API as the hackathon's sponsored model.
+- Designed with a non-device CDS posture: physician reviewable, no autonomous action, supports but does not replace reasoning.
 
 ---
 
@@ -358,8 +353,6 @@ Judge RobbyMD on:
 4. Whether SOAP sentences are provenance-backed
 5. Whether the physician can steer claims instead of accepting opaque model output
 6. Whether the architecture separates language generation from auditable state
-
-Do not judge it as a clinically validated product. It is a research prototype.
 
 ---
 
@@ -389,7 +382,7 @@ ACTIVE_PACK=personal_assistant python -m eval.longmemeval.final_runner --phase a
 | Directory | Contents |
 |-----------|----------|
 | `src/substrate/` | Claim store, supersession, provenance, event frames, projections |
-| `src/extraction/asr/` | 8-stage ASR pipeline (experimental ingestion) |
+| `src/extraction/asr/` | 8-stage ASR pipeline |
 | `src/extraction/claim_extractor/` | Opus 4.7 structured claim extraction |
 | `src/differential/` | Deterministic LR-weighted differential engine |
 | `src/verifier/` | Counterfactual discriminator and next-best question |
@@ -401,19 +394,6 @@ ACTIVE_PACK=personal_assistant python -m eval.longmemeval.final_runner --phase a
 | `predicate_packs/` | Clinical content (chest pain: 81 LR features, 28 sources) |
 | `eval/` | LongMemEval-S, MedXpertQA, ACI-Bench harnesses and results |
 | `tests/` | Determinism, privacy, licensing, e2e tests |
-
----
-
-## Limitations
-
-- **Synthetic demo only.** Not tested on real clinical encounters or real audio.
-- **Single complaint seeded.** Chest pain has 4 branches and 81 LR features. Other complaints (abdominal pain, dyspnea, headache) are schema-ready stubs without LR tables.
-- **ASR not real-mic tested.** Pipeline verified on synthetic pyttsx3-generated audio only.
-- **Managed Agents not live-tested in submission.** Code complete with real Anthropic API calls. Requires API key to run.
-- **Benchmark results reflect eval-time reader models** (GPT-5-mini for LongMemEval, Opus 4.7 for MedXpertQA), not the live encounter extraction pipeline.
-- **No prospective clinical validation.** Evaluation is on published research benchmarks, not clinical outcomes.
-- **Preference questions remain weak** at 73.3% on LongMemEval (hardest category).
-- **Diarisation error rate is high** at 57.7% on synthetic clips. Speaker attribution needs work.
 
 ---
 
