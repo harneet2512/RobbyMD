@@ -16,6 +16,8 @@ RobbyMD is a live diagnostic trace substrate for doctor-patient encounters. It t
 
 It is not a note-taker. It preserves the reasoning path behind the note.
 
+![Demo](docs/images/demo.gif)
+
 ---
 
 ## What to watch in the demo
